@@ -737,8 +737,85 @@ form.ask { width: 100%; box-sizing: border-box; display: flex; gap: 8px; align-i
     if (ttsPlaying?.url) URL.revokeObjectURL(ttsPlaying.url);
     ttsPlaying = null;
   }
+  // ---- make text sound natural when spoken (the screen keeps the original) ----
+  const ONES = ['zero','one','two','three','four','five','six','seven','eight','nine','ten','eleven','twelve','thirteen','fourteen','fifteen','sixteen','seventeen','eighteen','nineteen'];
+  const TENS = ['','','twenty','thirty','forty','fifty','sixty','seventy','eighty','ninety'];
+  const ORD = { one: 'first', two: 'second', three: 'third', five: 'fifth', eight: 'eighth', nine: 'ninth', twelve: 'twelfth' };
+  function num(n) {
+    n = Math.floor(n);
+    if (n < 20) return ONES[n];
+    if (n < 100) return TENS[Math.floor(n / 10)] + (n % 10 ? '-' + ONES[n % 10] : '');
+    if (n < 1000) return ONES[Math.floor(n / 100)] + ' hundred' + (n % 100 ? ' ' + num(n % 100) : '');
+    if (n < 10000 && n % 100 && Math.floor(n / 100) % 10) return num(Math.floor(n / 100)) + ' hundred ' + num(n % 100);  // 1250 → twelve hundred fifty
+    for (const [v, w] of [[1e9, 'billion'], [1e6, 'million'], [1e3, 'thousand']])
+      if (n >= v) return num(n / v) + ' ' + w + (n % v ? ' ' + num(n % v) : '');
+    return String(n);
+  }
+  const ordinal = n => { const w = num(n), parts = w.split(/([- ])/), last = parts.pop(); return parts.join('') + (ORD[last] || (last.endsWith('y') ? last.slice(0, -1) + 'ieth' : last + 'th')); };
+  const year = y => y >= 2000 && y < 2010 ? num(y) : num(Math.floor(y / 100)) + ' ' + (y % 100 === 0 ? 'hundred' : y % 100 < 10 ? 'oh ' + num(y % 100) : num(y % 100));
+  const DAYS = { mon: 'Monday', tue: 'Tuesday', tues: 'Tuesday', wed: 'Wednesday', thu: 'Thursday', thur: 'Thursday', thurs: 'Thursday', fri: 'Friday', sat: 'Saturday', sun: 'Sunday' };
+  const MONTHS = { jan: 'January', feb: 'February', mar: 'March', apr: 'April', may: 'May', jun: 'June', jul: 'July', aug: 'August', sep: 'September', sept: 'September', oct: 'October', nov: 'November', dec: 'December' };
+  const MONTH_RE = 'Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|June?|July?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?';
+  const AP = '\\s?([AaPp])\\.?\\s?[Mm]\\.?(?![a-z])';
+  const ABBR = [[/\be\.g\.,?/gi, 'for example,'], [/\bi\.e\.,?/gi, 'that is,'], [/\betc\.?/gi, 'et cetera'], [/\bvs\.?(?=\s)/gi, 'versus'],
+    [/\bapprox\.?(?=\s)/gi, 'about'], [/\bw\/o\b/gi, 'without'], [/\bw\/(?=\s)/gi, 'with'], [/\bDr\.(?=\s+[A-Z])/g, 'Doctor'],
+    [/\bASAP\b/g, 'as soon as possible'], [/\bFYI\b/g, 'for your information'], [/\bETA\b/g, 'E T A'], [/\bTBD\b/g, 'to be decided'],
+    [/\bmins?\b(?=\.?)/gi, 'minutes'], [/\bhrs?\b/gi, 'hours'], [/\bsecs?\b/gi, 'seconds'], [/\bwk\b/gi, 'week'], [/\bmo\b(?=\s)/gi, 'month'], [/\bno\.\s?(?=\d)/gi, 'number ']];
+  function sayTime(h, m, ap) {
+    h = Number(h); m = Number(m || 0);
+    let s = num(h);
+    if (m) s += ' ' + (m < 10 ? 'oh ' + num(m) : num(m));
+    return ap ? `${s} ${ap.toUpperCase()}M` : s;
+  }
+  function sayNumber(str) {
+    const clean = str.replace(/,/g, '');
+    if (/^\d+\.\d+$/.test(clean)) { const [a, b] = clean.split('.'); return num(Number(a)) + ' point ' + [...b].map(d => ONES[d]).join(' '); }
+    const n = Number(clean);
+    return Number.isFinite(n) && n < 1e12 ? num(n) : str;
+  }
+  function speechify(text) {
+    let t = String(text).replace(/\bhttps?:\/\/\S+|\bwww\.\S+/gi, 'the link');
+    // formatting that shouldn't be read out: headings, bullets, list numbers, emphasis, code ticks, emoji
+    t = t.replace(/^\s{0,3}#{1,6}\s+/gm, '').replace(/^\s*(?:(?:[-*+•▪◦]|\d{1,2}[.)])\s+)+/gm, '')
+         .replace(/\*\*|__|`/g, '').replace(/(^|\s)[*_](\S[^*_]*\S)[*_](?=\s|$|[.,;:!?])/g, '$1$2')
+         .replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}\u{200D}]/gu, '');
+    // agents' acronyms are said as names: K.I.R.A. → Kira
+    for (const a of agents) { const ac = acronym(a.label).replace(/\./g, '\\.'); t = t.replace(new RegExp(ac + '(?=\\W|$)', 'g'), a.label); }
+    // list lines become sentences, so each one gets its own natural pause
+    t = t.replace(/[ \t]*\n+[ \t]*/g, (m, i) => { const before = t.slice(0, i).trimEnd(); return /[.!?,;:]$/.test(before) || !before ? ' ' : '. '; });
+    // time ranges, then single times: 2:00–9:00 PM, 7:00 AM–4:00 PM, 2:15, 10 AM
+    const T = `(\\d{1,2})(?::(\\d{2}))?(?:${AP})?`;
+    t = t.replace(new RegExp(`\\b${T}\\s*(?:–|—|-|to)\\s*${T}(?=\\W|$)`, 'g'),
+      (_, h1, m1, a1, h2, m2, a2) => (m1 || m2 || a1 || a2) ? `${sayTime(h1, m1, a1 && a1 !== a2 ? a1 : null)} to ${sayTime(h2, m2, a2)}` : `${num(+h1)} to ${num(+h2)}`);
+    t = t.replace(new RegExp(`\\b(\\d{1,2}):(\\d{2})(?:${AP})?`, 'g'), (_, h, m, a) => sayTime(h, m, a));
+    t = t.replace(new RegExp(`\\b(\\d{1,2})${AP}`, 'g'), (_, h, a) => sayTime(h, 0, a));
+    // dates: "Oct 23" → "October twenty-third"; "10/23" stays; weekday abbreviations → full names
+    t = t.replace(new RegExp(`\\b(${MONTH_RE})\\.?\\s+(\\d{1,2})(?:st|nd|rd|th)?\\b`, 'g'),
+      (_, mo, d) => `${MONTHS[mo.slice(0, 4).toLowerCase()] || MONTHS[mo.slice(0, 3).toLowerCase()] || mo} ${ordinal(Number(d))}`);
+    t = t.replace(/\b(Mon|Tues?|Wed|Thu(?:rs?)?|Fri|Sat|Sun)\.?(?=[\s,])/g, d => DAYS[d.replace('.', '').toLowerCase()] || d);
+    t = t.replace(/\b(\d{1,2})(st|nd|rd|th)\b/g, (_, d) => ordinal(Number(d)));
+    for (const [re, w] of ABBR) t = t.replace(re, w);
+    // rates, money, percentages, years, other numbers
+    t = t.replace(/\/(yr|year|mo|month|wk|week|day|hr|hour|min)\b/gi, (_, u) => ' per ' + ({ yr: 'year', mo: 'month', wk: 'week', hr: 'hour', min: 'minute' }[u.toLowerCase()] || u.toLowerCase()));
+    t = t.replace(/\$\s?(\d[\d,]*)(\.\d+)?(\s?(?:k|K|M|B|million|billion)\b)?/g, (_, d, dec, sc) => {
+      const big = sc && sc.trim(); const scale = !big ? '' : /^k$/i.test(big) ? ' thousand' : big === 'M' ? ' million' : big === 'B' ? ' billion' : ' ' + big;
+      const cents = !scale && dec && dec.length === 3 ? Number(dec.slice(1)) : 0;
+      const amount = scale && dec ? sayNumber(d + dec) : sayNumber(d);
+      const one = Number(d.replace(/,/g, '')) === 1 && !scale && !dec;
+      return `${amount}${scale} ${one ? 'dollar' : 'dollars'}${cents ? ` and ${num(cents)} cents` : ''}`; });
+    t = t.replace(/(\d[\d,]*(?:\.\d+)?)\s?%/g, (_, n) => sayNumber(n) + ' percent');
+    t = t.replace(/\b(1[1-9]\d\d|20\d\d)\b(?![,.]?\d)/g, (_, y) => year(Number(y)));
+    t = t.replace(/(^|[^\w.:/$-])(\d{1,3}(?:,\d{3})+|\d+\.\d+|\d{1,4})(?![\w:/])/g, (_, p, n) => p + sayNumber(n));
+    // emails and remaining symbols as a person would say them
+    t = t.replace(/\b([\w.+-]+)@([\w-]+)\.([a-z]{2,})\b/gi, (_, u, d, tld) => `${u.replace(/\./g, ' dot ')} at ${d} dot ${tld}`);
+    t = t.replace(/\s*[—–]\s*/g, ', ').replace(/(\b[AP]M):\s/g, '$1, ').replace(/\s*\(\s*([^)]{1,80})\)\s*/g, ', $1, ')
+         .replace(/\s+\/\s+|(?<=[a-z])\/(?=[a-z])/gi, ' or ').replace(/\s*&\s*/g, ' and ').replace(/\s*\+\s*(?=\w)/g, ' plus ')
+         .replace(/\s*(?:->|→|=>)\s*/g, ', ').replace(/[#~^|<>{}\[\]]/g, ' ');
+    t = t.replace(/\s+([,.;:!?])/g, '$1').replace(/,\s*,/g, ',').replace(/([.!?])\s*,/g, '$1').replace(/,([.!?;:])/g, '$1').replace(/\s{2,}/g, ' ').trim();
+    return t.replace(/(^|[.!?]\s+)([a-z])/g, (_, p, c) => p + c.toUpperCase());   // capitalised sentence starts sound more natural
+  }
   function speak(text) {
-    const t = speakable(text);
+    const t = speakable(speechify(text));
     if (!t || !speakOn) return;
     if (usesAgentVoice()) return queueAgentVoice(t);
     speakBrowser(t);
@@ -928,6 +1005,9 @@ form.ask { width: 100%; box-sizing: border-box; display: flex; gap: 8px; align-i
       // Start talking sooner: if the first sentence isn't finished yet, speak its first phrase on its own
       // (up to a comma/semicolon/dash once there are a few words), so the voice starts in about a second.
       if (cut <= spoken && spoken === 0) cut = firstPhraseEnd(buf);
+      // after the opening, send sentences in groups of about 80+ characters: each voice request starts its
+      // intonation fresh, so tiny fragments sound choppy (the rest is flushed when the reply ends)
+      if (spoken > 0 && cut - spoken < 80) cut = spoken;
       if (cut > spoken && !inCodeFence(buf.slice(0, cut))) { speak(buf.slice(spoken, cut)); spoken = cut; }
     };
     try {
@@ -949,7 +1029,7 @@ form.ask { width: 100%; box-sizing: border-box; display: flex; gap: 8px; align-i
       setTimeout(() => state === 'error' && setState('idle'), 4000);
     }
   }
-  function lastSentenceEnd(s, from) { const re = /[.!?…:](\s|$)|\n\n/g; re.lastIndex = from; let m, end = from; while ((m = re.exec(s))) end = m.index + m[0].length; return end; }
+  function lastSentenceEnd(s, from) { const re = /[.!?…](\s|$)|\n/g; re.lastIndex = from; let m, end = from; while ((m = re.exec(s))) end = m.index + m[0].length; return end; }
   const inCodeFence = s => ((s.match(/```/g) || []).length % 2) === 1;
   function firstPhraseEnd(s) {
     const m = /^[\s\S]{24,}?[,;:\u2013\u2014](\s)/.exec(s);
