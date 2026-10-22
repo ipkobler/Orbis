@@ -23,7 +23,7 @@ and `/v1` is blocked on the public `claw.bigsixtech.tech` address.
 | `deploy/Caddyfile` | replaces `/docker/agent-stack/Caddyfile` |
 | `deploy/backup.env.example` | copy to `/docker/agent-stack/backup.env` |
 | `voice/` | the Chatterbox Nano voice service (built by the `voice` compose service) |
-| `deploy/voice.env.example` | copy to `/docker/agent-stack/voice.env` |
+| `deploy/voice.env.example` | only needed if the model download asks for a Hugging Face token |
 
 Your main `docker-compose.yml` is not changed.
 
@@ -117,16 +117,17 @@ Each agent can speak in its own voice, cloned from a short clip, using Resemble 
 Chatterbox Nano model running in the `voice` container on your VPS. Agents without a clip, or any
 time the voice service is down, fall back to the browser voice automatically.
 
-**1. Get access to the model.** Sign in at huggingface.co, open
-[ResembleAI/chatterbox-nano](https://huggingface.co/ResembleAI/chatterbox-nano) and accept the terms.
-Then create a **Read** token under Settings → Access Tokens.
+**1. Make folders for the voices and the model.** The Chatterbox Nano model is public and downloads by
+itself on first start, so no Hugging Face account or key is needed.
 
 ```bash
 cd /docker/agent-stack
-cp kira-orb/deploy/voice.env.example voice.env && chmod 600 voice.env
-nano voice.env                       # paste the token after HF_TOKEN=
 mkdir -p data/voices data/voice-cache
 ```
+
+Only if `docker compose logs voice` later shows a 401/403 download error: create a free Read token at
+huggingface.co → Settings → Access Tokens, then `cp kira-orb/deploy/voice.env.example voice.env`, put the
+token in it and `chmod 600 voice.env`.
 
 **2. Add a voice clip for each agent**, named after the agent id: `main.wav` (K.I.R.A.), `forge.wav`,
 `ledger.wav`. Each clip must be **longer than 5 seconds**; 10–20 seconds of one person speaking clearly,

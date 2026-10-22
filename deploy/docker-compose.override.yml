@@ -65,7 +65,7 @@ services:
     restart: unless-stopped
     networks: [agentnet]      # no published ports; only the orb talks to it
     env_file:
-      - path: ./voice.env     # HF_TOKEN for the model download (see README)
+      - path: ./voice.env     # optional Hugging Face token; the model is public, so normally not needed
         required: false
     environment:
       TTS_VARIANT: nano
