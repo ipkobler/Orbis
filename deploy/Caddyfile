@@ -1,0 +1,38 @@
+claw.bigsixtech.tech {
+  # /v1 is OpenClaw's chat API (full operator access). Only the orb uses it, from inside agentnet.
+  @blocked path /hooks* /v1/*
+  respond @blocked 404
+  reverse_proxy openclaw-gateway:18789
+}
+
+
+n8n.bigsixtech.tech {
+  reverse_proxy n8n:5678
+}
+
+mailman.bigsixtech.tech {
+  handle /admin* {
+    reverse_proxy mailer:8080
+  }
+  handle / {
+    redir * /admin
+  }
+  handle {
+    respond "Not found" 404
+  }
+}
+
+viking.bigsixtech.tech {
+    reverse_proxy openviking:1933 {
+        flush_interval -1
+    }
+}
+
+orb.bigsixtech.tech {
+  basic_auth {
+    ian PASTE_HASH_HERE
+  }
+  reverse_proxy kira-orb:8080 {
+    flush_interval -1
+  }
+}

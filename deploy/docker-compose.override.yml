@@ -1,0 +1,70 @@
+# /docker/agent-stack/docker-compose.override.yml
+# Loaded automatically together with docker-compose.yml.
+# Unchanged from your current file: ollama, openviking (plus a backup label).
+# New: kira-orb, backup. Added to existing services: OpenClaw memory limit, backup labels.
+
+services:
+  ollama:
+    image: ollama/ollama:latest
+    restart: unless-stopped
+    volumes:
+      - ./ollama:/root/.ollama
+    networks:
+      - agentnet
+
+  openviking:
+    image: ghcr.io/volcengine/openviking:latest
+    restart: unless-stopped
+    volumes:
+      - ./openviking:/app/.openviking
+    environment:
+      OPENVIKING_PUBLIC_BASE_URL: https://viking.bigsixtech.tech
+      OPENVIKING_WITH_BOT: "0"
+    healthcheck:
+      test: ["CMD", "openviking-entrypoint", "--healthcheck"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    networks:
+      - agentnet
+    depends_on:
+      - ollama
+    labels:
+      - docker-volume-backup.stop-during-backup=true   # paused ~1 min nightly so the memory index copies cleanly
+
+  # ---- additions to services defined in docker-compose.yml ----
+  openclaw-gateway:
+    mem_limit: 5g            # a runaway agent can't starve Caddy, the mailer or OpenViking
+    labels:
+      - docker-volume-backup.stop-during-backup=true
+
+  n8n:
+    labels:
+      - docker-volume-backup.stop-during-backup=true
+
+  mailer:
+    labels:
+      - docker-volume-backup.stop-during-backup=true
+
+  # ---- new: voice front end ----
+  kira-orb:
+    build: ./kira-orb
+    restart: unless-stopped
+    env_file: ./kira-orb/.env
+    networks: [agentnet]      # no published ports; Caddy reaches it as kira-orb:8080
+    volumes:
+      # read-only, so the orb can read each agent's SOUL.md for its full name
+      - ./data/openclaw:/openclaw:ro
+    depends_on:
+      - openclaw-gateway
+
+  # ---- new: nightly encrypted backup of the whole stack folder ----
+  backup:
+    image: offen/docker-volume-backup:v2
+    restart: unless-stopped
+    env_file: ./backup.env
+    volumes:
+      - /docker/agent-stack:/backup/agent-stack:ro
+      - /root/backups:/archive
+      - /var/run/docker.sock:/var/run/docker.sock:ro   # only so it can pause the labelled containers

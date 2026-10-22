@@ -1,0 +1,5 @@
+# secrets and local data
+.env
+backup.env
+node_modules/
+*.log
