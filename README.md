@@ -144,7 +144,7 @@ mkdir -p data/voice-cache
 
 **2. Voice clips** live in the repo's `voices/` folder, named after the agent id: `main.mp3` (K.I.R.A.), `forge.mp3`,
 `ledger.wav` (`.wav`, `.mp3`, `.m4a`, `.flac`, `.ogg`). 5–20 seconds of one person speaking clearly, with no music or
-background noise; longer clips are trimmed to 20 seconds. Kyutai's terms require the speaker's consent, so use your own
+background noise. Only the first 10 seconds are used (`CLIP_SECONDS`), because longer clips make every sentence slower, so put the cleanest speech at the start. Kyutai's terms require the speaker's consent, so use your own
 recordings or voices you have the rights to. To add or change one: commit, push, then `git pull` on the VPS. No restart.
 Agents without a clip can use a built-in Pocket TTS voice (alba, jane, marius, george…) via `BUILTIN_VOICES` in the stack file.
 

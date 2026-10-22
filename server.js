@@ -409,7 +409,8 @@ async function handleLogin(req, res) {
     return res.end(loginPage("That email and password don't match.", email));
   }
   attempts.delete(ip);
-  res.writeHead(303, { Location: '/', 'Set-Cookie': cookie(makeSession(), SESSION_DAYS * 86400), 'Cache-Control': 'no-store' });
+  // land on /#startup so the startup sequence always plays after signing in
+  res.writeHead(303, { Location: '/#startup', 'Set-Cookie': cookie(makeSession(), SESSION_DAYS * 86400), 'Cache-Control': 'no-store' });
   res.end();
 }
 const PUBLIC_PATHS = new Set(['/healthz', '/login', '/manifest.webmanifest', '/icon.svg']);

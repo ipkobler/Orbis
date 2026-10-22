@@ -70,9 +70,10 @@ services:
         required: false
     environment:
       TORCH_THREADS: "2"
+      CLIP_SECONDS: "10"        # seconds of each voice clip used; longer = slower speech, 10 clones well
       # BUILTIN_VOICES: "scout=alba"   # optional: built-in Pocket TTS voices for agents without a clip
     volumes:
-      - ./kira-orb/voices:/voices:ro    # one clip per agent, kept in the Orbis repo: main.mp3, forge.mp3, ledger.wav
+      - ./kira-orb/voices:/voices:ro    # one clip per agent, kept in the Orbis repo: main.mp3, forge.mp3, ledger.mp3
       - ./data/voice-cache:/cache       # downloaded model weights (kept out of backups)
     mem_limit: 1536m
     cpus: "2.0"

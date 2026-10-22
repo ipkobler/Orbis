@@ -1688,7 +1688,10 @@ form.ask { width: 100%; box-sizing: border-box; display: flex; gap: 8px; align-i
       if (run !== bootRun || sleeping) return;
       skipped = true; sleeping = true;
       el.classList.add('drain', 'fading', 'off'); sfx.stopHum(0.3); sfx.crtOff();
-      if (signOut) { setTimeout(() => { location.href = window.__ORB_SERVER__ ? '/logout' : location.href; }, 950); return; }
+      if (signOut) {
+        try { sessionStorage.removeItem('orb.booted'); } catch {}   // the next sign-in gets the full startup
+        setTimeout(() => { location.href = window.__ORB_SERVER__ ? '/logout' : location.href; }, 950); return;
+      }
       setTimeout(() => {
         if (run !== bootRun) return;
         $('bootSleep').hidden = false;
@@ -1758,6 +1761,7 @@ form.ask { width: 100%; box-sizing: border-box; display: flex; gap: 8px; align-i
   let firstBoot = true;
   // On your server a reload skips the sequence. The preview, or a link ending in #startup, always plays it.
   try { firstBoot = !window.__ORB_SERVER__ || location.hash === '#startup' || sessionStorage.getItem('orb.booted') !== '1'; } catch {}
+  if (location.hash === '#startup') { try { window.history.replaceState(null, '', location.pathname + location.search); } catch {} }   // a later reload won't replay it
   const ready = poll(true);
   if (firstBoot) runBoot(ready); else $('boot').hidden = true;
   ready.then(() => {

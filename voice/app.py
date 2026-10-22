@@ -5,7 +5,7 @@ GET  /v1/voices         -> {"voices": ["forge", "ledger", "main"]}
 GET  /health            -> {"ready": bool, ...}
 
 A voice is a reference clip in /voices named after the agent id: main.mp3, forge.wav, ledger.wav …
-(.wav .mp3 .m4a .flac .ogg). Clips are converted to clean mono WAV and trimmed to 20 seconds, and each
+(.wav .mp3 .m4a .flac .ogg). Clips are converted to clean mono WAV and trimmed to 10 seconds, and each
 voice is analysed once and kept in memory. BUILTIN_VOICES can give agents without a clip one of Pocket
 TTS's built-in voices, e.g. "scout=alba,dana=jane".
 """
@@ -20,7 +20,9 @@ from pydantic import BaseModel, Field
 VOICES_DIR = Path(os.getenv("VOICES_DIR", "/voices"))
 THREADS = int(os.getenv("TORCH_THREADS", "2") or 2)
 MAX_CHARS = int(os.getenv("MAX_CHARS", "600"))
-CLIP_SECONDS = float(os.getenv("CLIP_SECONDS", "20"))
+# Pocket TTS attends to the whole reference clip while speaking, so longer clips make every sentence slower.
+# About 10 seconds clones well; anything longer is trimmed.
+CLIP_SECONDS = float(os.getenv("CLIP_SECONDS", "10"))
 BUILTIN = dict(p.split("=", 1) for p in os.getenv("BUILTIN_VOICES", "").replace(" ", "").split(",") if "=" in p)
 VOICE_RE = re.compile(r"^[A-Za-z0-9._-]{1,64}$")
 AUDIO_EXT = (".wav", ".mp3", ".flac", ".ogg", ".m4a")
