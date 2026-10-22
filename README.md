@@ -117,26 +117,29 @@ Each agent can speak in its own voice, cloned from a short clip, using Resemble 
 Chatterbox Nano model running in the `voice` container on your VPS. Agents without a clip, or any
 time the voice service is down, fall back to the browser voice automatically.
 
-**1. Make folders for the voices and the model.** The Chatterbox Nano model is public and downloads by
+**1. Make a folder for the model.** The Chatterbox Nano model is public and downloads by
 itself on first start, so no Hugging Face account or key is needed.
 
 ```bash
 cd /docker/agent-stack
-mkdir -p data/voices data/voice-cache
+mkdir -p data/voice-cache
 ```
 
 Only if `docker compose logs voice` later shows a 401/403 download error: create a free Read token at
 huggingface.co → Settings → Access Tokens, then `cp kira-orb/deploy/voice.env.example voice.env`, put the
 token in it and `chmod 600 voice.env`.
 
-**2. Add a voice clip for each agent**, named after the agent id: `main.wav` (K.I.R.A.), `forge.wav`,
-`ledger.wav`. Each clip must be **longer than 5 seconds**; 10–20 seconds of one person speaking clearly,
-with no music or background noise, works best. Use your own recordings or voices you have the rights to,
-and don't clone a real person without their permission. From PowerShell on your PC:
+**2. Add a voice clip for each agent** to the repo's `voices/` folder, named after the agent id:
+`main.mp3` (K.I.R.A.), `forge.mp3`, `ledger.wav` (`.wav`, `.mp3`, `.m4a`, `.flac` and `.ogg` all work). Each clip must
+be **longer than 5 seconds**; 10–20 seconds of one person speaking clearly, with no music or background noise,
+works best. Use your own recordings or voices you have the rights to, and don't clone a real person without
+their permission. Commit and push, then on the VPS:
 
-```powershell
-scp .\main.wav .\forge.wav .\ledger.wav root@179.236.241.98:/docker/agent-stack/data/voices/
+```bash
+cd /docker/agent-stack/kira-orb && git pull
 ```
+
+The voice service reads the clips straight from that folder, so no restart is needed.
 
 **3. Start it.** The first build takes several minutes, and the first start downloads the model (about 0.5 GB).
 
@@ -157,7 +160,8 @@ docker compose exec kira-orb wget -qO- --post-data='{"agent":"main","text":"Syst
 ```
 
 **Good to know**
-- Add or replace a clip any time; the change is picked up on the next sentence, with no restart needed.
+- Add or replace a clip any time (commit, push, `git pull` on the VPS); the change is picked up on the next
+  sentence, with no restart needed.
 - Speed: Resemble rates Nano at about 3× real time on 8 CPU cores. Your VPS has 2, and the container is
   capped at 1.5 so OpenClaw stays responsive, so expect roughly real time: a pause before the first
   sentence, then the next sentence is prepared while the current one plays. If it's too slow, raise

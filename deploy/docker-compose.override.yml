@@ -72,7 +72,7 @@ services:
       TTS_VARIANT: nano
       TORCH_THREADS: "2"
     volumes:
-      - ./data/voices:/voices:ro        # one reference clip per agent: main.wav, forge.wav, ledger.wav
+      - ./kira-orb/voices:/voices:ro    # one clip per agent, kept in the Orbis repo: main.mp3, forge.mp3, ledger.wav
       - ./data/voice-cache:/cache       # downloaded model weights (kept out of backups)
     mem_limit: 3g
     cpus: "1.5"               # leaves headroom so OpenClaw stays responsive while it speaks
