@@ -836,7 +836,10 @@ form.ask.chatask { margin-top: 2px; }
     if (newMedia && $('logSheet').hidden) toggleSheet('logSheet');
     if (!said && !newMedia) return;
     caption(esc(speakable(said)).slice(-420) || `<span class="you">New from ${esc(currentLabel())}: it's in the chat window.</span>`);
-    if (state === 'idle' && said) { stopAgentVoice(); synth?.cancel(); speakQueue = 0; speak(said); }
+    // Only the screen you're looking at reads it out (with the orb open on the PC and the phone, just one
+    // speaks), and never anything this orb already said.
+    const alreadySaid = lastLocal && flat(lastLocal.text).includes(flat(said));
+    if (state === 'idle' && said && !alreadySaid && document.visibilityState === 'visible' && document.hasFocus()) { stopAgentVoice(); synth?.cancel(); speakQueue = 0; speak(said); }
   }
 
   // full tools need the orb approved as a device in OpenClaw; until then it uses the basic chat endpoint

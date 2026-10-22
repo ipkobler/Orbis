@@ -112,6 +112,7 @@ const pendingAborts = new Map();    // sessionKey -> chat.abort in flight (a new
 const orbRuns = new Set();
 const rememberRun = id => { orbRuns.add(id); if (orbRuns.size > 500) orbRuns.delete(orbRuns.values().next().value); };
 const watchers = new Map();         // sessionKey -> Set of open /api/watch streams
+const orbFinished = new Map();      // sessionKey -> when the orb's last reply there ended (its transcript lands just after)
 const announce = (() => {   // tell the open orbs, at most about twice a second per conversation
   const timers = new Map();
   return (key, why) => {
@@ -130,7 +131,8 @@ link?.on('event', (event, payload) => {
   // A finished run the orb didn't start, or a message written straight into the conversation. Generated
   // images, video and music arrive this way: OpenClaw delivers them as a later message, not as a run.
   if (event === 'chat' && ['final', 'error', 'aborted'].includes(payload.state) && !orbRuns.has(payload.runId)) announce(payload.sessionKey, payload.state);
-  else if (event === 'session.message' && payload.message?.role !== 'user') announce(payload.sessionKey, 'message');
+  else if (event === 'session.message' && payload.message?.role !== 'user' && !orbRuns.has(payload.message?.__openclaw?.runId)
+    && Date.now() - (orbFinished.get(payload.sessionKey) || 0) > 4000) announce(payload.sessionKey, 'message');
 });
 // Message-level updates for a conversation need a subscription (OpenClaw's chat page does the same).
 const subId = key => 'kira-orb:' + crypto.createHash('sha1').update(key).digest('hex').slice(0, 16);
@@ -344,6 +346,7 @@ async function chatOverLink({ agent, session, text, images, names }, req, res) {
   const finish = async (kind, detail) => {
     if (finished) return; finished = true;
     if (sessionStreams.get(sessionKey)?.handler === onEvent) sessionStreams.delete(sessionKey);
+    orbFinished.set(sessionKey, Date.now());
     if (kind === 'final') {
       markOk(agent);
       // Images and files the agent produced live in the transcript, with gateway media URLs. The transcript
