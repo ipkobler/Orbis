@@ -112,14 +112,33 @@ const pendingAborts = new Map();    // sessionKey -> chat.abort in flight (a new
 const orbRuns = new Set();
 const rememberRun = id => { orbRuns.add(id); if (orbRuns.size > 500) orbRuns.delete(orbRuns.values().next().value); };
 const watchers = new Map();         // sessionKey -> Set of open /api/watch streams
+const announce = (() => {   // tell the open orbs, at most about twice a second per conversation
+  const timers = new Map();
+  return (key, why) => {
+    if (timers.has(key)) return;
+    timers.set(key, setTimeout(() => {
+      timers.delete(key);
+      console.log(`[kira-orb] later message in ${key} (${why}), telling ${watchers.get(key)?.size || 0} open orb(s)`);
+      for (const out of watchers.get(key) || []) out.emit({ type: 'update', state: why });
+    }, 500));
+  };
+})();
 link?.on('event', (event, payload) => {
-  if ((event !== 'chat' && event !== 'agent') || !payload?.sessionKey) return;
-  sessionStreams.get(payload.sessionKey)?.handler(event, payload);
-  // (not while the orb's own reply is still streaming in that conversation: that one it already shows)
-  if (event === 'chat' && ['final', 'error', 'aborted'].includes(payload.state) && !orbRuns.has(payload.runId) && !sessionStreams.has(payload.sessionKey)) {
-    for (const out of watchers.get(payload.sessionKey) || []) out.emit({ type: 'update', state: payload.state });
-  }
+  if (!payload?.sessionKey) return;
+  if (event === 'chat' || event === 'agent') sessionStreams.get(payload.sessionKey)?.handler(event, payload);
+  if (!watchers.has(payload.sessionKey) || sessionStreams.has(payload.sessionKey)) return;   // the orb's own reply is shown live
+  // A finished run the orb didn't start, or a message written straight into the conversation. Generated
+  // images, video and music arrive this way: OpenClaw delivers them as a later message, not as a run.
+  if (event === 'chat' && ['final', 'error', 'aborted'].includes(payload.state) && !orbRuns.has(payload.runId)) announce(payload.sessionKey, payload.state);
+  else if (event === 'session.message' && payload.message?.role !== 'user') announce(payload.sessionKey, 'message');
 });
+// Message-level updates for a conversation need a subscription (OpenClaw's chat page does the same).
+const subId = key => 'kira-orb:' + crypto.createHash('sha1').update(key).digest('hex').slice(0, 16);
+function subscribeMessages(key) {
+  if (!link?.ready) return;
+  link.request('sessions.messages.subscribe', { key, subscriptionId: subId(key) }, { timeoutMs: 10000 })
+    .catch(e => { if (!/not found/i.test(e.message)) console.warn('[kira-orb] could not follow', key, e.message); });
+}
 link?.on('closed', () => { for (const s of sessionStreams.values()) s.handler('link-closed', {}); });
 function abortRun(sessionKey, runId) {
   const p = link.request('chat.abort', { sessionKey, runId }, { timeoutMs: 8000 }).catch(() => {}).finally(() => { if (pendingAborts.get(sessionKey) === p) pendingAborts.delete(sessionKey); });
@@ -127,7 +146,9 @@ function abortRun(sessionKey, runId) {
   return p;
 }
 link?.on('status', () => { statusAt = 0; });
-link?.on('ready', () => { for (const set of watchers.values()) for (const out of set) out.emit({ type: 'update', state: 'reconnected' }); });   // catch up on anything missed
+link?.on('ready', () => {   // catch up on anything missed, and follow the open conversations again
+  for (const [key, set] of watchers) { subscribeMessages(key); for (const out of set) out.emit({ type: 'update', state: 'reconnected' }); }
+});
 const sessionKeyFor = (agent, session) => `agent:${agent}:${SESSION_PREFIX}:${session}`;
 
 // ---- one current conversation per agent, shared by every device you sign in on -----------------
@@ -344,6 +365,7 @@ async function chatOverLink({ agent, session, text, images, names }, req, res) {
       if (!mediaCount && !sawText && !streamed && (recovered || finalText)) out.emit({ type: 'delta', text: recovered || finalText });
       else if (textSource === 'chat' && finalText && !streamed.includes(finalText.trim())) out.emit({ type: 'delta', text: '\n\n' + finalText });
       const toolNames = toolsUsed.join(', ');
+      if (watchers.has(sessionKey)) subscribeMessages(sessionKey);
       console.log(`[kira-orb] ${agent} reply: ${streamed.length || (recovered || finalText).length} chars${streamed ? '' : recovered ? ' (from history)' : finalText ? ' (from final)' : ' (none)'}, tools: ${toolNames || 'none'}, media: ${mediaCount}`);
       out.emit({ type: 'done', transport: 'ws' });
     } else if (kind === 'error') {
@@ -518,9 +540,15 @@ function handleWatch(req, res, url) {
   const key = sessionKeyFor(agent, session);
   const out = openStream(res);
   out.emit({ type: 'hello', live: !!link?.ready });
-  if (!watchers.has(key)) watchers.set(key, new Set());
+  if (!watchers.has(key)) { watchers.set(key, new Set()); subscribeMessages(key); }
   watchers.get(key).add(out);
-  res.on('close', () => { out.end(); const set = watchers.get(key); set?.delete(out); if (set && !set.size) watchers.delete(key); });
+  res.on('close', () => {
+    out.end(); const set = watchers.get(key); set?.delete(out);
+    if (set && !set.size) {
+      watchers.delete(key);
+      if (link?.ready) link.request('sessions.messages.unsubscribe', { key, subscriptionId: subId(key) }, { timeoutMs: 10000 }).catch(() => {});
+    }
+  });
 }
 
 // Earlier messages of this orb conversation (so the chat window survives a reload).

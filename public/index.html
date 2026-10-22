@@ -830,7 +830,9 @@ form.ask.chatask { margin-top: 2px; }
     // announce it like a normal reply
     const newMedia = lastServer.media.length > (lastLocal && agentTurns(server).length === agentTurns(local).length ? lastLocal.media.length : 0);
     // speak only a genuinely new message; a reply that just reads a little differently is updated quietly
-    const said = agentTurns(server).length > agentTurns(local).length ? lastServer.text : '';
+    const flat = x => String(x || '').replace(/\s+/g, '');
+    const newParas = lastLocal ? lastServer.text.split(/\n{2,}/).filter(p => p.trim() && !flat(lastLocal.text).includes(flat(p))).join('\n\n') : '';
+    const said = agentTurns(server).length > agentTurns(local).length ? lastServer.text : newParas;
     if (newMedia && $('logSheet').hidden) toggleSheet('logSheet');
     if (!said && !newMedia) return;
     caption(esc(speakable(said)).slice(-420) || `<span class="you">New from ${esc(currentLabel())}: it's in the chat window.</span>`);
