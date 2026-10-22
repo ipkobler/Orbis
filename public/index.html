@@ -1381,7 +1381,14 @@ form.ask.chatask { margin-top: 2px; }
       if (s.times.length > 16) s.times.shift(); if (s.firsts.length > 16) s.firsts.shift();
       renderStats();
       if (buf.length > spoken) speak(buf.slice(spoken));
+      const madeMedia = turn.tools.some(t => /image|video|music|generat/i.test(`${t.name} ${t.title}`));
       if (!turn.text.trim() && turn.media.length) caption('<span class="you">Done. It\'s in the chat window.</span>');
+      else if (!turn.text.trim() && madeMedia) {
+        // image/video/music generation finishes in the background and arrives as a later message
+        turn.text = '_Working on it. It will show up here when it\'s ready._';
+        caption('<span class="you">Working on it in the background. It will appear in the chat when it\'s ready.</span>');
+        speak('Working on it. I\'ll show you when it\'s ready.');
+      } else if (!turn.text.trim() && turn.tools.length) { turn.text = '_(finished without a message)_'; caption('<span class="you">Done.</span>'); }
       else if (!turn.text.trim()) { turn.text = '(no reply)'; caption('<span class="err">The agent finished without saying anything.</span>'); }
       if (!$('logSheet').hidden) renderLog();
       if (speakQueue <= 0) finishTurn();

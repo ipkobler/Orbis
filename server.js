@@ -314,26 +314,32 @@ async function chatOverLink({ agent, session, text, images, names }, req, res) {
   let otherRun = null;   // another run already working in this session (e.g. started from the OpenClaw page)
   let finished = false, streamed = '', segment = null, segText = '', sawText = false, expectMedia = false;
   const itemTools = new Set();     // tool calls reported by item events (they carry friendly titles)
+  const toolsUsed = [];            // tool names, for the log
 
   const finish = async (kind, detail) => {
     if (finished) return; finished = true;
     if (sessionStreams.get(sessionKey)?.handler === onEvent) sessionStreams.delete(sessionKey);
     if (kind === 'final') {
       markOk(agent);
-      // nothing streamed (some providers only send the final message): use the final text
-      if (!sawText && !streamed && detail?.message) { const t = textOf(detail.message); if (t) out.emit({ type: 'delta', text: t }); }
-      // images and files the agent produced live in the transcript, with gateway media URLs
-      // (the transcript is written a moment after the final event, so look a few times)
+      // Images and files the agent produced live in the transcript, with gateway media URLs. The transcript
+      // also holds the reply text if none came through the live stream. It's written a moment after the
+      // final event, so look a few times.
+      let recovered = '', mediaCount = 0;
+      const finalText = textOf(detail?.message);
       try {
         for (let attempt = 0; attempt < 8; attempt++) {
           if (attempt) await new Promise(r => setTimeout(r, 400));
-          const h = await link.request('chat.history', { sessionKey, limit: 12 }, { timeoutMs: 8000 });
+          const h = await link.request('chat.history', { sessionKey, limit: 16 }, { timeoutMs: 8000 });
           const mine = (h?.messages || []).filter(m => (m.role === 'assistant' || m.role === 'toolResult') && m.__openclaw?.runId === runId);
+          recovered = mine.filter(m => m.role === 'assistant').map(textOf).filter(Boolean).join('\n\n');
           const items = uniqueMedia(mine.flatMap(mediaOf));
-          if (items.length) { out.emit({ type: 'media', items }); break; }
-          if (!expectMedia && mine.some(m => m.role === 'assistant' && textOf(m))) break;
+          if (items.length) { mediaCount = items.length; if (!sawText && !streamed && (recovered || finalText)) out.emit({ type: 'delta', text: recovered || finalText }); out.emit({ type: 'media', items }); break; }
+          if (!expectMedia && (sawText || streamed || recovered || finalText || attempt >= 3)) break;
         }
-      } catch (e) { console.warn('[kira-orb] could not read media for run:', e.message); }
+      } catch (e) { console.warn('[kira-orb] could not read the run from history:', e.message); }
+      if (!mediaCount && !sawText && !streamed && (recovered || finalText)) out.emit({ type: 'delta', text: recovered || finalText });
+      const toolNames = toolsUsed.join(', ');
+      console.log(`[kira-orb] ${agent} reply: ${streamed.length || (recovered || finalText).length} chars${streamed ? '' : recovered ? ' (from history)' : finalText ? ' (from final)' : ' (none)'}, tools: ${toolNames || 'none'}, media: ${mediaCount}`);
       out.emit({ type: 'done', transport: 'ws' });
     } else if (kind === 'error') {
       out.emit({ type: 'error', message: detail });
@@ -366,17 +372,22 @@ async function chatOverLink({ agent, session, text, images, names }, req, res) {
         if (Array.isArray(d.mediaUrls) && d.mediaUrls.length) expectMedia = true;
       } else if (p.stream === 'item' && d.kind === 'tool') {
         const id = d.toolCallId || d.itemId;
+        if (!itemTools.has(id)) toolsUsed.push(d.name);
         itemTools.add(id);
         out.emit({ type: 'tool', id, name: d.name, title: d.title || d.name, status: d.status || (d.phase === 'end' ? 'completed' : 'running') });
       } else if (p.stream === 'tool' && (d.phase === 'start' || d.phase === 'result') && d.toolCallId && !itemTools.has(d.toolCallId)) {
         // gateways without item events
+        if (d.phase === 'start') toolsUsed.push(d.name);
         out.emit({ type: 'tool', id: d.toolCallId, name: d.name, title: d.name, status: d.phase === 'start' ? 'running' : d.isError ? 'failed' : 'completed' });
       }
       return;
     }
     if (event === 'chat') {
       if (p.state === 'status') out.emit({ type: 'status', phase: p.phase });
-      else if (p.state === 'delta' && !sawText && !p.replace && p.deltaText) { streamed += p.deltaText; out.emit({ type: 'delta', text: p.deltaText }); }
+      else if (p.state === 'delta' && !sawText && p.deltaText) {
+        if (!p.replace) { streamed += p.deltaText; out.emit({ type: 'delta', text: p.deltaText }); }
+        else if (p.deltaText.startsWith(streamed) && p.deltaText.length > streamed.length) { const add = p.deltaText.slice(streamed.length); streamed += add; out.emit({ type: 'delta', text: add }); }
+      }
       else if (p.state === 'final') {
         // the message was folded into a run that was already working: its answer arrives on that run
         if (!sawText && !streamed && !itemTools.size && !textOf(p.message) && otherRun) { runId = otherRun; rememberRun(runId); otherRun = null; sessionStreams.get(sessionKey).runId = runId; return; }
