@@ -6,18 +6,25 @@ the orb brightens and swirls while the agent works, and it swells with the voice
 Tap the orb mid-reply to interrupt.
 
 ```
-browser ──HTTPS + password──▶ Caddy ──agentnet──▶ kira-orb ──agentnet──▶ openclaw-gateway /v1
-                                                (holds the token)
+browser ──HTTPS + password──▶ Caddy ──agentnet──▶ kira-orb ──WebSocket (agentnet)──▶ openclaw-gateway
+                                                (holds the token          same protocol as the
+                                                 and its device key)      OpenClaw chat page
 ```
 
 The gateway token stays inside the `kira-orb` container. The browser never sees it,
 and `/v1` is blocked on the public `claw.bigsixtech.tech` address.
 
+The orb talks to OpenClaw the same way OpenClaw's own chat page does, so every message is a normal
+agent turn with the agent's **full tool set**: the browser, image generation, files, memory, everything
+the agent can do in the OpenClaw chat. The **Chat** window shows the conversation with each tool step
+as it happens and any images or files the agent makes. Until the orb is approved as a device (one time,
+see **Full tools** below) it falls back to OpenClaw's basic HTTP chat endpoint: text only, no tools.
+
 ## What's in this folder
 
 | Path | Goes to |
 |---|---|
-| `server.js`, `package.json`, `Dockerfile`, `public/` | `/docker/agent-stack/kira-orb/` (the app) |
+| `server.js`, `gateway.js`, `package.json`, `Dockerfile`, `public/` | `/docker/agent-stack/kira-orb/` (the app) |
 | `.env.example` | copy to `/docker/agent-stack/kira-orb/.env` |
 | `deploy/docker-compose.override.yml` | replaces `/docker/agent-stack/docker-compose.override.yml` |
 | `deploy/Caddyfile` | replaces `/docker/agent-stack/Caddyfile` |
@@ -112,6 +119,48 @@ docker compose exec backup backup
 ls -lh /root/backups
 ```
 
+## Full tools and the chat window (one-time approval)
+
+The orb signs in to OpenClaw with the gateway token **and its own device key**, like the OpenClaw app on a
+phone. OpenClaw asks you to approve a new device once.
+
+**Updating an existing orb** (from the Orbis repo on your PC: commit and push first):
+
+```bash
+cd /docker/agent-stack/kira-orb && git pull && cd ..
+cp kira-orb/deploy/docker-compose.override.yml docker-compose.override.yml   # adds the /state folder
+mkdir -p data/kira-orb && chown 1000:1000 data/kira-orb                       # the orb's device key lives here
+docker compose up -d --build kira-orb
+docker compose logs kira-orb | tail -5
+```
+
+The log shows `waiting for device approval (request …)`. Approve it:
+
+```bash
+docker compose exec openclaw-gateway openclaw devices list
+docker compose exec openclaw-gateway openclaw devices approve <request id>
+```
+
+(If `openclaw` isn't found inside the container, use `node dist/index.js devices …` instead.) Within about
+10 seconds the log says `connected to OpenClaw …`, the gateway line in the orb says **full tools**, and the
+yellow "Basic chat only" note in the Chat window disappears. The chat window shows the exact approve
+command, with the request id, while it's waiting.
+
+**Good to know**
+- The orb asks for operator access with admin scope: the same access the gateway token already gives it on the
+  HTTP endpoint. That makes its messages owner turns, like OpenClaw's own chat page, so the agent gets its full
+  tool set. If you approved an earlier test version with fewer scopes, OpenClaw asks once more ("asking for more
+  scopes than currently approved"); approve that request the same way.
+- The key is in `data/kira-orb/device.json`. Keep it (it's in the nightly backup). If it's lost, the orb asks
+  for approval again. To remove the orb: `openclaw devices list`, then `openclaw devices remove <device id>`.
+- Each agent's orb conversation is an ordinary OpenClaw session, `agent:<id>:orb:<conversation>`, so you can
+  also open it in OpenClaw's own chat page. The first message after this update starts a fresh session.
+- One conversation per agent is shared by every device you sign in on (PC and phone see the same chat).
+  **New chat** starts a fresh one everywhere.
+- The orb needs `gateway.http.endpoints.chatCompletions` only as the fallback. Once approved you can turn it
+  off, and the orb still lists agents and chats over the WebSocket.
+- To go back to the old text-only behaviour, set `TRANSPORT=http` in `kira-orb/.env`.
+
 ## Sign-in
 
 The orb has its own sign-in page: one email and password, set in `kira-orb/.env`:
@@ -203,8 +252,11 @@ docker compose exec kira-orb wget -S -O /dev/null -T 120 --post-data='{"voice":"
   a decorative scope, gateway status and latency, reply timing with a trend line, and this session's exchanges and talk time.
 - **Tap the orb** (or the mic, or hold **Space** on a keyboard) to talk. Tap again to interrupt.
 - **Hands-free** keeps listening after every reply, like a real conversation.
-- **Transcript** shows the full text, including code the orb doesn't read aloud.
-  **Start new conversation** gives the agent a fresh session.
+- **Chat** opens the chat window: the full conversation (it survives a reload and is shared with your phone),
+  formatted text, code, links and tables, each tool the agent uses ("Read from SOUL.md", "Browsing…") with a
+  live status dot, and any images or files the agent makes (tap an image to open it full size). Type there,
+  attach files, or keep talking to the orb; it's one conversation. When the agent makes an image, the chat
+  window opens by itself. **New chat** gives the agent a fresh session.
 - **Voice** picks the speaking voice and speed. The best free voices are Microsoft's
   "Natural" voices in Edge and Google's voices in Chrome.
 - Each agent keeps its own orb conversation, separate from its Slack threads.
@@ -213,7 +265,8 @@ docker compose exec kira-orb wget -S -O /dev/null -T 120 --post-data='{"voice":"
 
 - Voice input uses the browser's speech recognition: Chrome, Edge, Safari and iPhone work;
   Firefox can only type. In Chrome and Edge the audio is processed by Google or Microsoft.
-- Messages arrive in OpenClaw as owner messages on a channel named `orb`.
+- Messages arrive in OpenClaw as owner messages from the "Kira Orb" device, in sessions named
+  `agent:<id>:orb:<conversation>`.
 - Backups are encrypted with your passphrase and kept 14 days in `/root/backups` on the
   same VPS. Fill in the Backblaze lines in `backup.env` to keep a copy off the server.
 - To remove the orb: delete the `kira-orb` service and the `orb` Caddy block, then run

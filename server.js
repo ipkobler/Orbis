@@ -1,11 +1,12 @@
 // Kira Orb — tiny relay between the browser and the OpenClaw gateway.
 // Zero dependencies (Node 22+). The gateway token never leaves this container.
 import http from 'node:http';
-import { readFile, readdir, mkdir, writeFile, stat } from 'node:fs/promises';
+import { readFile, readdir, mkdir, writeFile, stat, rename } from 'node:fs/promises';
 import { Readable } from 'node:stream';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import crypto from 'node:crypto';
+import { GatewayLink } from './gateway.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC = path.join(__dirname, 'public');
@@ -96,6 +97,53 @@ async function soulTitles(ids) {
 
 if (!TOKEN) console.warn('[kira-orb] OPENCLAW_TOKEN is not set — chat requests will fail.');
 
+// ---- full-tools link: the same WebSocket protocol the OpenClaw Control UI uses ------------------
+// TRANSPORT=auto (default): use the WebSocket link when it's connected, the HTTP chat endpoint otherwise.
+// TRANSPORT=http: never open the WebSocket (old behaviour).
+const TRANSPORT = (process.env.TRANSPORT || 'auto').toLowerCase();
+const STATE_DIR = process.env.STATE_DIR || '/state';
+const link = TRANSPORT === 'http' ? null : new GatewayLink({ url: process.env.OPENCLAW_WS_URL || OPENCLAW_URL, token: TOKEN, stateDir: STATE_DIR });
+const linkStatus = () => link ? { ...link.status, transport: link.ready ? 'ws' : 'http' } : { state: 'off', transport: 'http' };
+// gateway events → the browser stream waiting on that session
+const sessionStreams = new Map();   // sessionKey -> { handler(event, payload), runId }
+const pendingAborts = new Map();    // sessionKey -> chat.abort in flight (a new message waits for it)
+link?.on('event', (event, payload) => {
+  if ((event !== 'chat' && event !== 'agent') || !payload?.sessionKey) return;
+  sessionStreams.get(payload.sessionKey)?.handler(event, payload);
+});
+link?.on('closed', () => { for (const s of sessionStreams.values()) s.handler('link-closed', {}); });
+function abortRun(sessionKey, runId) {
+  const p = link.request('chat.abort', { sessionKey, runId }, { timeoutMs: 8000 }).catch(() => {}).finally(() => { if (pendingAborts.get(sessionKey) === p) pendingAborts.delete(sessionKey); });
+  pendingAborts.set(sessionKey, p);
+  return p;
+}
+link?.on('status', () => { statusAt = 0; });
+const sessionKeyFor = (agent, session) => `agent:${agent}:${SESSION_PREFIX}:${session}`;
+
+// ---- one current conversation per agent, shared by every device you sign in on -----------------
+const CONV_FILE = path.join(STATE_DIR, 'conversations.json');
+let conversations = {};
+try { conversations = JSON.parse(await readFile(CONV_FILE, 'utf8')) || {}; } catch { /* none yet */ }
+let convSave = Promise.resolve();
+function saveConversations() {
+  convSave = convSave.then(async () => {
+    try { await mkdir(STATE_DIR, { recursive: true }); await writeFile(CONV_FILE + '.tmp', JSON.stringify(conversations, null, 1)); await rename(CONV_FILE + '.tmp', CONV_FILE); }
+    catch (e) { console.warn('[kira-orb] could not save conversations:', e.message); }
+  });
+}
+async function handleConversation(req, res) {
+  let j; try { j = JSON.parse(await readBody(req, 4096)); } catch { return send(res, 400, { error: 'Bad request body.' }); }
+  const agent = String(j.agent || ''), id = String(j.id || '');
+  if (!AGENT_RE.test(agent) || !SESSION_RE.test(id)) return send(res, 400, { error: 'Bad request.' });
+  // "adopt" only fills in an agent that has no shared conversation yet (a device's existing one); "new" replaces it
+  if (j.mode === 'adopt' && conversations[agent]) return send(res, 200, { id: conversations[agent] });
+  conversations[agent] = id; saveConversations(); statusAt = 0;
+  send(res, 200, { id });
+}
+// Media the gateway serves (generated images, files): the browser fetches them through /api/media.
+const MEDIA_RE = /^\/(?:api\/chat\/media\/|__openclaw__\/assistant-media)/;
+const mediaUrl = u => (typeof u === 'string' && MEDIA_RE.test(u)) ? `/api/media?u=${encodeURIComponent(u)}` : (typeof u === 'string' && /^https:\/\//.test(u) ? u : null);
+
 const AGENT_RE = /^[a-zA-Z0-9._-]{1,64}$/;
 const SESSION_RE = /^[a-zA-Z0-9-]{8,64}$/;
 
@@ -146,7 +194,15 @@ async function agentStatus(force = false) {
   if (!force && statusCache && Date.now() - statusAt < 5000) return statusCache;
   let gatewayIds = null, latencyMs = null, gatewayError = null;
   const t0 = Date.now();
-  try {
+  if (link?.ready) {
+    // full-tools link is up: ask it directly (also works with the HTTP chat endpoint turned off)
+    try {
+      const j = await link.request('agents.list', {}, { timeoutMs: 6000 });
+      latencyMs = Date.now() - t0;
+      gatewayIds = (j.agents || []).map(a => String(a.id));
+    } catch { /* fall through to HTTP */ }
+  }
+  if (!gatewayIds) try {
     const r = await fetch(`${OPENCLAW_URL}/v1/models`, { headers: upstreamHeaders(), signal: AbortSignal.timeout(6000) });
     latencyMs = Date.now() - t0;
     if (r.ok) {
@@ -175,31 +231,200 @@ async function agentStatus(force = false) {
     return { id, label: prettyName(id), title: souls[id] || TITLES[id] || null, color: COLORS[id] || null, online, reason,
       voice: voice.ready && voice.voices.includes(id) };
   });
-  statusCache = { gateway: { online: !!gatewayIds, latencyMs, error: gatewayError }, voice, agents, default: DEFAULT_AGENT, checkedAt: new Date().toISOString() };
+  statusCache = { gateway: { online: !!gatewayIds, latencyMs, error: gatewayError }, link: linkStatus(), conversations, voice, agents, default: DEFAULT_AGENT, checkedAt: new Date().toISOString() };
   statusAt = Date.now();
   return statusCache;
 }
 const markFailed = (id, reason) => { failures.set(id, { at: Date.now(), reason }); statusAt = 0; };
 const markOk = id => { if (failures.delete(id)) statusAt = 0; };
 
-async function handleChat(req, res) {
+// ---- chat ----------------------------------------------------------------------------------------
+// The browser gets one event stream per message (Server-Sent Events, one JSON object per line):
+//   {type:'status', phase}            run is starting (preparing workspace, starting model…)
+//   {type:'delta', text}              more reply text
+//   {type:'tool', id, name, title, status}   a tool started/finished (status: running | completed | failed)
+//   {type:'media', items:[{kind, url, name, mime, width, height}]}   images/files the agent produced
+//   {type:'error', message}           the run failed
+//   {type:'done', transport}          the reply is complete
+function openStream(res) {
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream; charset=utf-8',
+    'Cache-Control': 'no-store, no-transform',
+    'X-Accel-Buffering': 'no',
+    Connection: 'keep-alive',
+    ...SECURITY_HEADERS,
+  });
+  let ended = false;
+  const ping = setInterval(() => !ended && res.write(': ping\n\n'), 15000);   // keeps Caddy and phones from dropping a long tool run
+  return {
+    emit(o) { if (!ended) res.write(`data: ${JSON.stringify(o)}\n\n`); },
+    end() { if (ended) return; ended = true; clearInterval(ping); res.end(); },
+    get ended() { return ended; },
+  };
+}
+
+async function readChatRequest(req, res) {
   let payload;
   try { payload = JSON.parse(await readBody(req, 28 * 1024 * 1024)); }
-  catch (e) { return send(res, e.message === 'too large' ? 413 : 400, { error: e.message === 'too large' ? 'Attachments are too large (20 MB of images per message).' : 'Bad request body.' }); }
+  catch (e) { send(res, e.message === 'too large' ? 413 : 400, { error: e.message === 'too large' ? 'Attachments are too large (20 MB of images per message).' : 'Bad request body.' }); return null; }
   const agent = String(payload.agent || DEFAULT_AGENT);
   const session = String(payload.session || '');
   const text = String(payload.text || '').trim();
-  // Images ride along as OpenAI-style image_url parts (OpenClaw accepts up to 8, 20 MB in total).
+  // Images ride along with the message (up to 8, 20 MB in total).
   const images = Array.isArray(payload.images) ? payload.images.map(String) : [];
   const IMG_RE = /^data:image\/(png|jpeg|gif|webp|heic|heif);base64,[A-Za-z0-9+/=]+$/;
-  if (images.length > 8) return send(res, 400, { error: 'Up to 8 images per message.' });
-  if (images.some(u => !IMG_RE.test(u))) return send(res, 400, { error: 'Images must be PNG, JPEG, GIF, WebP or HEIC.' });
-  if (images.reduce((n, u) => n + u.length * 0.75, 0) > 20 * 1024 * 1024) return send(res, 413, { error: 'Images add up to more than 20 MB. Send fewer or smaller ones.' });
-  if (!AGENT_RE.test(agent)) return send(res, 400, { error: 'Unknown agent.' });
-  if (ALLOW.length && !ALLOW.includes(agent)) return send(res, 403, { error: 'That agent is not enabled for the orb.' });
-  if (!SESSION_RE.test(session)) return send(res, 400, { error: 'Missing conversation id.' });
-  if (!text || text.length > 250000) return send(res, 400, { error: 'The message is empty or too long.' });
+  const fail = (s, m) => { send(res, s, { error: m }); return null; };
+  if (images.length > 8) return fail(400, 'Up to 8 images per message.');
+  if (images.some(u => !IMG_RE.test(u))) return fail(400, 'Images must be PNG, JPEG, GIF, WebP or HEIC.');
+  if (images.reduce((n, u) => n + u.length * 0.75, 0) > 20 * 1024 * 1024) return fail(413, 'Images add up to more than 20 MB. Send fewer or smaller ones.');
+  if (!AGENT_RE.test(agent)) return fail(400, 'Unknown agent.');
+  if (ALLOW.length && !ALLOW.includes(agent)) return fail(403, 'That agent is not enabled for the orb.');
+  if (!SESSION_RE.test(session)) return fail(400, 'Missing conversation id.');
+  if (!text || text.length > 250000) return fail(400, 'The message is empty or too long.');
+  const names = Array.isArray(payload.imageNames) ? payload.imageNames.map(n => String(n).slice(0, 120)) : [];
+  return { agent, session, text, images, names };
+}
 
+async function handleChat(req, res) {
+  const msg = await readChatRequest(req, res);
+  if (!msg) return;
+  if (link?.ready) return chatOverLink(msg, req, res);
+  return chatOverHttp(msg, req, res);
+}
+
+// Full tools: a normal chat turn over the gateway WebSocket, exactly like the OpenClaw Control UI.
+async function chatOverLink({ agent, session, text, images, names }, req, res) {
+  const sessionKey = sessionKeyFor(agent, session);
+  let runId = crypto.randomUUID();
+  // one live reply per conversation: a new message stops the reply still in progress, so it starts a fresh turn
+  const prev = sessionStreams.get(sessionKey);
+  if (prev) { prev.handler('superseded', {}); abortRun(sessionKey, prev.runId); }
+  await pendingAborts.get(sessionKey);
+  const out = openStream(res);
+  let otherRun = null;   // another run already working in this session (e.g. started from the OpenClaw page)
+  let finished = false, streamed = '', segment = null, segText = '', sawText = false, expectMedia = false;
+  const itemTools = new Set();     // tool calls reported by item events (they carry friendly titles)
+
+  const finish = async (kind, detail) => {
+    if (finished) return; finished = true;
+    if (sessionStreams.get(sessionKey)?.handler === onEvent) sessionStreams.delete(sessionKey);
+    if (kind === 'final') {
+      markOk(agent);
+      // nothing streamed (some providers only send the final message): use the final text
+      if (!sawText && !streamed && detail?.message) { const t = textOf(detail.message); if (t) out.emit({ type: 'delta', text: t }); }
+      // images and files the agent produced live in the transcript, with gateway media URLs
+      // (the transcript is written a moment after the final event, so look a few times)
+      try {
+        for (let attempt = 0; attempt < 8; attempt++) {
+          if (attempt) await new Promise(r => setTimeout(r, 400));
+          const h = await link.request('chat.history', { sessionKey, limit: 12 }, { timeoutMs: 8000 });
+          const mine = (h?.messages || []).filter(m => (m.role === 'assistant' || m.role === 'toolResult') && m.__openclaw?.runId === runId);
+          const items = uniqueMedia(mine.flatMap(mediaOf));
+          if (items.length) { out.emit({ type: 'media', items }); break; }
+          if (!expectMedia && mine.some(m => m.role === 'assistant' && textOf(m))) break;
+        }
+      } catch (e) { console.warn('[kira-orb] could not read media for run:', e.message); }
+      out.emit({ type: 'done', transport: 'ws' });
+    } else if (kind === 'error') {
+      out.emit({ type: 'error', message: detail });
+    } else {
+      out.emit({ type: 'done', transport: 'ws', aborted: true });
+    }
+    out.end();
+  };
+
+  function onEvent(event, p) {
+    if (event === 'superseded') return finish('aborted');
+    if (event === 'link-closed') return finish('error', 'Lost the connection to OpenClaw while the agent was working. It may still finish: reopen the chat in a moment.');
+    if (p.runId !== runId) {
+      if (event === 'agent' && p.stream === 'lifecycle' && p.data?.phase === 'end') { if (otherRun === p.runId) otherRun = null; }
+      else if (p.runId) otherRun = p.runId;
+      return;
+    }
+    if (event === 'agent') {
+      const d = p.data || {};
+      if (p.stream === 'assistant') {
+        // each assistant item is one stretch of text (text, tool calls, more text…): keep them as paragraphs
+        if (d.itemId !== segment) {
+          if (segText && !streamed.endsWith('\n')) { out.emit({ type: 'delta', text: '\n\n' }); streamed += '\n\n'; }
+          segment = d.itemId; segText = '';
+        }
+        let add = '';
+        if (typeof d.delta === 'string' && d.delta) add = d.delta;
+        else if (typeof d.text === 'string' && d.text.length > segText.length && d.text.startsWith(segText)) add = d.text.slice(segText.length);
+        if (add) { segText += add; streamed += add; sawText = true; out.emit({ type: 'delta', text: add }); }
+        if (Array.isArray(d.mediaUrls) && d.mediaUrls.length) expectMedia = true;
+      } else if (p.stream === 'item' && d.kind === 'tool') {
+        const id = d.toolCallId || d.itemId;
+        itemTools.add(id);
+        out.emit({ type: 'tool', id, name: d.name, title: d.title || d.name, status: d.status || (d.phase === 'end' ? 'completed' : 'running') });
+      } else if (p.stream === 'tool' && (d.phase === 'start' || d.phase === 'result') && d.toolCallId && !itemTools.has(d.toolCallId)) {
+        // gateways without item events
+        out.emit({ type: 'tool', id: d.toolCallId, name: d.name, title: d.name, status: d.phase === 'start' ? 'running' : d.isError ? 'failed' : 'completed' });
+      }
+      return;
+    }
+    if (event === 'chat') {
+      if (p.state === 'status') out.emit({ type: 'status', phase: p.phase });
+      else if (p.state === 'delta' && !sawText && !p.replace && p.deltaText) { streamed += p.deltaText; out.emit({ type: 'delta', text: p.deltaText }); }
+      else if (p.state === 'final') {
+        // the message was folded into a run that was already working: its answer arrives on that run
+        if (!sawText && !streamed && !itemTools.size && !textOf(p.message) && otherRun) { runId = otherRun; otherRun = null; sessionStreams.get(sessionKey).runId = runId; return; }
+        finish('final', p);
+      }
+      else if (p.state === 'aborted') finish('aborted');
+      else if (p.state === 'error') { markFailed(agent, 'Last request failed'); finish('error', p.errorMessage || 'The agent run failed.'); }
+    }
+  }
+  sessionStreams.set(sessionKey, { handler: onEvent, runId });
+
+  res.on('close', () => {   // the user tapped the orb to interrupt → stop the agent run
+    if (finished) return;
+    finished = true;
+    if (sessionStreams.get(sessionKey)?.handler === onEvent) sessionStreams.delete(sessionKey);
+    abortRun(sessionKey, runId);
+  });
+
+  const attachments = images.map((url, i) => {
+    const m = /^data:([^;]+);base64,(.*)$/s.exec(url);
+    const ext = (m[1].split('/')[1] || 'png').replace('jpeg', 'jpg');
+    return { type: 'image', mimeType: m[1], fileName: names[i] || `image-${i + 1}.${ext}`, content: m[2] };
+  });
+  const params = { sessionKey, message: text, deliver: false, idempotencyKey: runId, ...(attachments.length ? { attachments } : {}) };
+  if (attachments.length && JSON.stringify(params).length > (link.maxPayload || 25 * 1048576) * 0.95) return finish('error', 'Those images are too big to send in one message. Send fewer or smaller ones.');
+  try {
+    const ack = await link.request('chat.send', params, { timeoutMs: 120000 });
+    if (ack?.status === 'error' || ack?.status === 'timeout') await finish('error', 'The agent could not start this message. Try again.');
+  } catch (e) {
+    console.warn('[kira-orb] chat.send failed:', e.message);
+    if (!finished) await finish('error', `OpenClaw refused the message: ${e.message}`);
+  }
+  function textOf(message) {
+    const c = message?.content;
+    if (typeof c === 'string') return c;
+    return Array.isArray(c) ? c.filter(b => b?.type === 'text').map(b => b.text).join('\n\n') : '';
+  }
+}
+
+const uniqueMedia = items => { const seen = new Set(); return items.filter(i => !seen.has(i.url) && seen.add(i.url)); };
+function mediaOf(message) {
+  const items = [];
+  for (const b of Array.isArray(message.content) ? message.content : []) {
+    if (b?.type === 'image') {
+      const url = mediaUrl(b.url || b.openUrl || b.source?.url);
+      const data = b.source?.type === 'base64' && b.source.data ? `data:${b.source.media_type || 'image/png'};base64,${b.source.data}` : null;
+      if (url || data) items.push({ kind: 'image', url: url || data, open: mediaUrl(b.openUrl) || url || data, name: b.alt || b.fileName || 'image', mime: b.mimeType || null, width: b.width || null, height: b.height || null });
+    } else if (b?.type === 'attachment' && b.attachment?.url) {
+      const a = b.attachment, url = mediaUrl(a.url);
+      if (url) items.push({ kind: a.kind || 'document', url, open: url, name: a.label || 'file', mime: a.mimeType || null, size: a.sizeBytes || null });
+    }
+  }
+  return items;
+}
+
+// Fallback while the WebSocket link isn't available (e.g. waiting for device approval): OpenClaw's
+// OpenAI-compatible endpoint. Text only, no tool activity or generated images in the stream.
+async function chatOverHttp({ agent, session, text, images }, req, res) {
   const abort = new AbortController();
   res.on('close', () => abort.abort()); // user tapped the orb to interrupt → cancel the agent run
 
@@ -232,21 +457,88 @@ async function handleChat(req, res) {
     return send(res, upstream.status === 401 ? 502 : upstream.status, { error: `OpenClaw returned ${upstream.status}.${hint}`, detail: detail.slice(0, 500) });
   }
 
-  res.writeHead(200, {
-    'Content-Type': 'text/event-stream; charset=utf-8',
-    'Cache-Control': 'no-store, no-transform',
-    'X-Accel-Buffering': 'no',
-    Connection: 'keep-alive',
-    ...SECURITY_HEADERS,
-  });
-  const stream = Readable.fromWeb(upstream.body);
-  let sawContent = false;
-  stream.on('data', chunk => {
-    const s = chunk.toString('utf8');
-    if (!sawContent && s.includes('"content"')) { sawContent = true; markOk(agent); }
-    if (s.includes('"error"') && !sawContent) markFailed(agent, 'Last request failed');
-  });
-  stream.on('error', () => res.end()).pipe(res);
+  const out = openStream(res);
+  let pending = '', sawContent = false;
+  const dec = new TextDecoder();
+  try {
+    for await (const chunk of upstream.body) {
+      pending += dec.decode(chunk, { stream: true });
+      let nl;
+      while ((nl = pending.indexOf('\n')) >= 0) {
+        const line = pending.slice(0, nl).trim(); pending = pending.slice(nl + 1);
+        if (!line.startsWith('data:')) continue;
+        const data = line.slice(5).trim();
+        if (data === '[DONE]') continue;
+        let j; try { j = JSON.parse(data); } catch { continue; }
+        if (j.error) { if (!sawContent) markFailed(agent, 'Last request failed'); out.emit({ type: 'error', message: j.error.message || 'The agent run failed.' }); continue; }
+        const d = j.choices?.[0]?.delta?.content;
+        if (d) { if (!sawContent) { sawContent = true; markOk(agent); } out.emit({ type: 'delta', text: d }); }
+      }
+    }
+    out.emit({ type: 'done', transport: 'http' });
+  } catch (e) {
+    if (!abort.signal.aborted) out.emit({ type: 'error', message: 'The connection to OpenClaw dropped.' });
+  }
+  out.end();
+}
+
+// Earlier messages of this orb conversation (so the chat window survives a reload).
+async function handleHistory(req, res, url) {
+  const agent = url.searchParams.get('agent') || '', session = url.searchParams.get('session') || '';
+  if (!AGENT_RE.test(agent) || !SESSION_RE.test(session)) return send(res, 400, { error: 'Bad request.' });
+  if (!link?.ready) return send(res, 200, { messages: [], available: false });
+  try {
+    const h = await link.request('chat.history', { sessionKey: sessionKeyFor(agent, session), limit: 60 }, { timeoutMs: 10000 });
+    const messages = [];
+    const toolTitles = new Map();
+    for (const a of h?.activity || []) for (const it of a.items || []) if (it.toolCallId) toolTitles.set(it.toolCallId, { title: it.title || it.name, status: it.status });
+    for (const m of h?.messages || []) {
+      const c = m.content;
+      if (m.role === 'user') {
+        const text = typeof c === 'string' ? c : Array.isArray(c) ? c.filter(b => b?.type === 'text').map(b => b.text).join('\n') : '';
+        const media = Array.isArray(c) ? mediaOf(m) : [];
+        const files = (m.__openclaw?.media || []).map(x => x.fileName).filter(Boolean);
+        if (text || media.length || files.length) messages.push({ role: 'user', text, media, files });
+      } else if (m.role === 'toolResult') {
+        const media = mediaOf(m), prev = messages.at(-1);
+        if (media.length && prev?.role === 'agent') prev.media = uniqueMedia([...prev.media, ...media]);
+      } else if (m.role === 'assistant') {
+        const blocks = Array.isArray(c) ? c : [{ type: 'text', text: String(c || '') }];
+        const text = blocks.filter(b => b?.type === 'text').map(b => b.text).join('\n\n');
+        const tools = blocks.filter(b => b?.type === 'toolCall').map(b => ({ id: b.id, name: b.name, title: toolTitles.get(b.id)?.title || b.name, status: toolTitles.get(b.id)?.status || 'completed' }));
+        const media = mediaOf(m);
+        const prev = messages.at(-1);
+        // one agent turn = consecutive assistant messages (tool calls, then the answer)
+        if (prev?.role === 'agent') { if (text) prev.text = prev.text ? prev.text + '\n\n' + text : text; prev.tools.push(...tools); prev.media = uniqueMedia([...prev.media, ...media]); }
+        else messages.push({ role: 'agent', text, tools, media });
+      }
+    }
+    send(res, 200, { messages: messages.filter(m => m.text || m.media?.length || m.tools?.length), available: true });
+  } catch (e) {
+    send(res, 200, { messages: [], available: false, error: e.message });
+  }
+}
+
+// Generated images and files, fetched from the gateway with the token (the browser never sees it).
+async function handleMedia(req, res, url) {
+  const u = url.searchParams.get('u') || '';
+  if (!MEDIA_RE.test(u) || u.includes('..') || /[\r\n]/.test(u)) return send(res, 400, { error: 'Bad media address.' });
+  const abort = new AbortController();
+  res.on('close', () => abort.abort());
+  try {
+    const r = await fetch(OPENCLAW_URL + u, { headers: { Authorization: `Bearer ${TOKEN}` }, signal: abort.signal });
+    if (!r.ok || !r.body) return send(res, r.status === 404 ? 404 : 502, { error: r.status === 404 ? 'That file is no longer available.' : `OpenClaw returned ${r.status}.` });
+    const type = r.headers.get('content-type') || 'application/octet-stream';
+    const headers = { 'Content-Type': type, 'Cache-Control': 'private, max-age=86400', ...SECURITY_HEADERS };
+    const len = r.headers.get('content-length'); if (len) headers['Content-Length'] = len;
+    const disp = r.headers.get('content-disposition'); if (disp) headers['Content-Disposition'] = disp;
+    // never let an HTML/SVG file run as a page on the orb's own address
+    if (/html|svg|xml|javascript/i.test(type)) { headers['Content-Type'] = 'application/octet-stream'; headers['Content-Disposition'] = 'attachment'; }
+    res.writeHead(200, headers);
+    Readable.fromWeb(r.body).on('error', () => res.end()).pipe(res);
+  } catch (e) {
+    if (!abort.signal.aborted && !res.headersSent) send(res, 502, { error: "Can't reach OpenClaw for that file." });
+  }
 }
 
 // ---- files for the agent: saved into its own workspace, in inbox/ ------------------------------
@@ -432,10 +724,16 @@ http.createServer(async (req, res) => {
     if (pathname === '/api/chat' && req.method === 'POST') return await handleChat(req, res);
     if (pathname === '/api/tts' && req.method === 'POST') return await handleTts(req, res);
     if (pathname === '/api/upload' && req.method === 'POST') return await handleUpload(req, res, new URL(req.url, 'http://x'));
+    if (pathname === '/api/conversation' && req.method === 'POST') return await handleConversation(req, res);
+    if (pathname === '/api/history' && req.method === 'GET') return await handleHistory(req, res, new URL(req.url, 'http://x'));
+    if (pathname === '/api/media' && req.method === 'GET') return await handleMedia(req, res, new URL(req.url, 'http://x'));
     if (req.method === 'GET') return await serveStatic(req, res, pathname);
     send(res, 405, { error: 'Method not allowed.' });
   } catch (e) {
     console.error('[kira-orb]', e);
     if (!res.headersSent) send(res, 500, { error: 'Something went wrong in the orb relay.' }); else res.end();
   }
-}).listen(PORT, () => console.log(`[kira-orb] listening on :${PORT} → ${OPENCLAW_URL}`));
+}).listen(PORT, () => {
+  console.log(`[kira-orb] listening on :${PORT} → ${OPENCLAW_URL}${link ? '' : ' (HTTP chat only)'}`);
+  link?.start();
+});

@@ -259,12 +259,57 @@ form.ask { width: 100%; box-sizing: border-box; display: flex; gap: 8px; align-i
 }
 .sheet h2 { margin: 0; font: 600 13px/1 var(--f-display); letter-spacing: .22em; text-transform: uppercase; display: flex; justify-content: space-between; align-items: center; }
 .sheet .close { background: none; border: 0; color: var(--dim); font: 22px/1 var(--f-body); cursor: pointer; padding: 4px 8px; }
-.log { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 14px; padding-right: 4px; }
-.turn { display: grid; gap: 4px; min-width: 0; }
+.log { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 16px; padding-right: 4px; overscroll-behavior: contain; }
+.turn { display: grid; gap: 6px; min-width: 0; }
 .turn .who { font: 500 11px/1 var(--f-display); letter-spacing: .16em; text-transform: uppercase; color: var(--dim); }
 .turn.kira .who { color: var(--arc); }
 .turn .txt { white-space: pre-wrap; overflow-wrap: anywhere; }
-.turn pre { white-space: pre; overflow-x: auto; background: var(--void); border: 1px solid var(--line); border-radius: 8px; padding: 10px; font: 13px var(--f-mono); }
+.turn pre { white-space: pre; overflow-x: auto; background: var(--void); border: 1px solid var(--line); border-radius: 8px; padding: 10px; font: 13px var(--f-mono); margin: 0; }
+/* ---------- chat window ---------- */
+.sheet.chat { width: min(620px, 100%); padding-bottom: max(14px, env(safe-area-inset-bottom, 0px)); gap: 12px; }
+.sheet.chat h2 { gap: 10px; }
+.sheet.chat h2 .ttl { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.sheet.chat h2 .ttl i { width: 8px; height: 8px; border-radius: 50%; background: var(--arc); box-shadow: 0 0 10px var(--arc); flex: none; }
+.sheet.chat h2 .acts { display: flex; align-items: center; gap: 4px; }
+.sheet.chat h2 .mini { font: 500 10px/1 var(--f-display); letter-spacing: .14em; text-transform: uppercase; color: var(--dim); background: none; border: 1px solid var(--line); border-radius: 999px; padding: 7px 10px; cursor: pointer; }
+.sheet.chat h2 .mini:hover { color: var(--ink); border-color: var(--arc); }
+.linknote { font-size: 13px; line-height: 1.45; color: var(--ink); border: 1px dashed var(--amber); border-radius: 10px; padding: 10px 12px; background: color-mix(in srgb, var(--amber) 8%, transparent); }
+.linknote b { color: var(--amber); font-weight: 500; }
+.linknote code { font: 12px var(--f-mono); background: var(--void); border: 1px solid var(--line); border-radius: 6px; padding: 1px 6px; overflow-wrap: anywhere; }
+.turn.you { justify-items: end; }
+.turn.you .bubble { background: color-mix(in srgb, var(--arc) 13%, var(--panel)); border: 1px solid color-mix(in srgb, var(--arc) 30%, var(--line)); border-radius: 14px 14px 4px 14px; padding: 9px 13px; max-width: 88%; white-space: pre-wrap; overflow-wrap: anywhere; }
+.turn.kira .body { display: grid; gap: 8px; min-width: 0; line-height: 1.55; }
+.turn .md { display: grid; gap: 8px; min-width: 0; }
+.md p { margin: 0; overflow-wrap: anywhere; }
+.md p + p, .md ul + p, .md p + ul, .md pre + p, .md p + pre { margin-top: 2px; }
+.md ul, .md ol { margin: 0; padding-left: 1.3em; display: grid; gap: 3px; }
+.md code { font: 13px var(--f-mono); background: var(--void); border: 1px solid var(--line); border-radius: 5px; padding: 0 5px; }
+.md pre code { border: 0; padding: 0; background: none; }
+.md a { color: var(--arc); text-decoration: underline; text-underline-offset: 2px; overflow-wrap: anywhere; }
+.md h4 { margin: 4px 0 0; font: 600 13px/1.3 var(--f-display); letter-spacing: .1em; text-transform: uppercase; color: color-mix(in srgb, var(--arc) 55%, var(--ink)); }
+.md blockquote { margin: 0; padding-left: 10px; border-left: 2px solid var(--line); color: var(--dim); }
+.md table { border-collapse: collapse; font-size: 13px; display: block; overflow-x: auto; }
+.md th, .md td { border: 1px solid var(--line); padding: 4px 8px; text-align: left; }
+.steps { display: flex; flex-wrap: wrap; gap: 6px; }
+.step { display: inline-flex; align-items: center; gap: 7px; max-width: 100%; font: 12px/1.3 var(--f-mono); color: var(--dim); border: 1px solid var(--line); border-radius: 8px; padding: 4px 9px; background: color-mix(in srgb, var(--void) 60%, transparent); }
+.step span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.step i { width: 7px; height: 7px; border-radius: 50%; flex: none; background: var(--arc); }
+.step.running { color: var(--ink); border-color: color-mix(in srgb, var(--arc) 45%, var(--line)); }
+.step.running i { animation: beat 1s ease-in-out infinite; }
+.step.failed i { background: var(--alert); }
+.gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+.gallery a { display: block; border-radius: 10px; overflow: hidden; border: 1px solid var(--line); background: var(--void); }
+.gallery img { display: block; width: auto; max-width: 100%; height: auto; max-height: 360px; margin: 0 auto; object-fit: contain; }
+.gallery.one { grid-template-columns: minmax(0, 1fr); }
+.gallery.one img { max-height: 460px; }
+.filelink { display: inline-flex; align-items: center; gap: 8px; font: 13px var(--f-mono); color: var(--ink); text-decoration: none; border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px; background: var(--panel); max-width: 100%; }
+.filelink span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.typing { display: inline-flex; gap: 4px; padding: 4px 0; }
+.typing i { width: 6px; height: 6px; border-radius: 50%; background: var(--arc); opacity: .3; animation: blink 1s ease-in-out infinite; }
+.typing i:nth-child(2) { animation-delay: .15s; } .typing i:nth-child(3) { animation-delay: .3s; }
+form.ask.chatask { margin-top: 2px; }
+.chatchips { justify-content: flex-start; }
+@media (prefers-reduced-motion: reduce) { .step.running i, .typing i { animation: none; opacity: .7; } }
 .field { display: grid; gap: 6px; }
 .field label { font: 500 11px/1 var(--f-display); letter-spacing: .16em; text-transform: uppercase; color: var(--dim); }
 .field select { font: 14px var(--f-body); color: var(--ink); background: var(--void); border: 1px solid var(--line); border-radius: 10px; padding: 9px 10px; }
@@ -298,7 +343,7 @@ form.ask { width: 100%; box-sizing: border-box; display: flex; gap: 8px; align-i
     <div class="mark" id="mark"><i></i><span>Finnesey &amp; Kobler</span><em>The Model Shop</em></div>
     <span class="demo-tag" id="demoTag" hidden>Preview mode</span>
     <button class="chip" id="handsFree" aria-pressed="false" type="button">Hands-free</button>
-    <button class="chip" id="logBtn" type="button">Transcript</button>
+    <button class="chip" id="logBtn" type="button">Chat</button>
     <button class="chip" id="setBtn" type="button">Settings</button>
   </header>
 
@@ -376,10 +421,21 @@ form.ask { width: 100%; box-sizing: border-box; display: flex; gap: 8px; align-i
     </section>
   </aside>
 
-  <aside class="sheet" id="logSheet" hidden>
-    <h2>Transcript <button class="close" data-close="logSheet" aria-label="Close">×</button></h2>
-    <div class="log" id="log"></div>
-    <button class="btn" id="newConv" type="button">Start new conversation</button>
+  <aside class="sheet chat" id="logSheet" aria-label="Chat" hidden>
+    <h2><span class="ttl"><i></i><span id="chatTitle">Chat</span></span>
+      <span class="acts"><button class="mini" id="newConv" type="button" title="Start a fresh conversation with this agent">New chat</button><button class="close" data-close="logSheet" aria-label="Close">×</button></span></h2>
+    <div class="linknote" id="linkNote" hidden></div>
+    <div class="log md" id="log" aria-live="polite"></div>
+    <div class="chips chatchips" id="chatChips" hidden></div>
+    <form class="ask chatask" id="chatAsk">
+      <button class="attach" id="chatAttach" type="button" aria-label="Attach files" title="Attach files (or drop them anywhere)">
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5 12.5 20a5.5 5.5 0 0 1-7.8-7.8l8.5-8.5a3.7 3.7 0 0 1 5.2 5.2l-8.5 8.5a1.8 1.8 0 0 1-2.6-2.6l7.8-7.8"/></svg>
+      </button>
+      <textarea id="chatText" rows="1" autocomplete="off" placeholder="Message" title="Enter to send · Shift+Enter for a new line"></textarea>
+      <button class="send" id="chatSend" type="submit" aria-label="Send">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+      </button>
+    </form>
   </aside>
 
   <aside class="sheet" id="setSheet" hidden>
@@ -450,7 +506,7 @@ form.ask { width: 100%; box-sizing: border-box; display: flex; gap: 8px; align-i
   let agents = [], gateway = { online: false };
   let agent = store.get('agent', null);
   let state = 'idle';               // idle | listening | thinking | speaking | error | offline
-  let handsFree = false, abortCtl = null, streaming = false;
+  let handsFree = false, abortCtl = null, streaming = false, sendSeq = 0;
   let micLevel = 0, speakPulse = 0;
   const stats = {};                 // per agent: { times: [], firsts: [], turns, talkMs }
 
@@ -519,7 +575,7 @@ form.ask { width: 100%; box-sizing: border-box; display: flex; gap: 8px; align-i
     if (id === agent) return;
     stopAll(); agent = id; store.set('agent', agent);
     nameplate(); applyColor(); caption(''); renderLog(); renderStats();
-    syncOnline(true);
+    syncOnline(true); loadHistory();
   }
   // Move the orb in and out of the offline look when the current agent's status changes.
   function syncOnline(announce) {
@@ -532,7 +588,7 @@ form.ask { width: 100%; box-sizing: border-box; display: flex; gap: 8px; align-i
   }
   function renderGateway() {
     $('mark').classList.toggle('down', !gateway.online);
-    $('gwLine').textContent = gateway.online ? `Online · ${gateway.latencyMs ?? '–'} ms` : (gateway.error || 'Offline');
+    $('gwLine').textContent = gateway.online ? `Online · ${gateway.latencyMs ?? '–'} ms${linkInfo && !DEMO ? (linkInfo.state === 'online' ? ' · full tools' : ' · basic chat') : ''}` : (gateway.error || 'Offline');
     $('hGw').innerHTML = gateway.online ? '<span class="ok">ONLINE</span>' : '<span class="bad">OFFLINE</span>';
     $('hLat').textContent = gateway.online && gateway.latencyMs != null ? gateway.latencyMs + ' ms' : '–';
   }
@@ -549,12 +605,16 @@ form.ask { width: 100%; box-sizing: border-box; display: flex; gap: 8px; align-i
       if (!r.ok) throw new Error(r.status);
       const j = await r.json();
       agents = j.agents || []; gateway = j.gateway || { online: false }; voiceInfo = j.voice || voiceInfo;
+      const wasLinked = linkInfo?.state === 'online'; linkInfo = j.link || null;
+      if (j.conversations) syncConversations(j.conversations);
+      if (!wasLinked && linkInfo?.state === 'online') historyLoaded[agent] = null;   // full link just came up: fetch the conversation
       if (!agent || !agents.some(a => a.id === agent)) agent = j.default || agents[0]?.id;
     } catch {
       if (!agents.length) { DEMO = true; $('demoTag').hidden = false; agents = DEMO_AGENTS; gateway = { online: true, latencyMs: 38 }; if (!agents.some(a => a.id === agent)) agent = 'main'; }
       else { gateway = { online: false, error: 'Orb server unreachable' }; agents = agents.map(a => ({ ...a, online: false, reason: 'Orb server unreachable' })); }
     }
-    nameplate(); applyColor(); renderGateway(); syncOnline(false); renderVoiceNote();
+    nameplate(); applyColor(); renderGateway(); syncOnline(false); renderVoiceNote(); renderLinkNote();
+    if (linkInfo?.state === 'online') loadHistory();
     if (agents.map(a => a.id).join() !== lastVoiceAgents) { lastVoiceAgents = agents.map(a => a.id).join(); renderAgentVoices(); }
   }
   setInterval(() => { if (document.visibilityState === 'visible' && !poweredDown) poll(); }, 15000);
@@ -562,26 +622,185 @@ form.ask { width: 100%; box-sizing: border-box; display: flex; gap: 8px; align-i
 
   // ---------- conversation ids ----------
   const newId = () => (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2, 12));
-  function convId() { const all = store.get('conv', {}); if (!all[agent]) { all[agent] = newId(); store.set('conv', all); } return all[agent]; }
+  // One current conversation per agent, kept on the orb server so the phone and the PC share it.
+  // (Each device also remembers it locally, for the preview and in case the server copy is missing.)
+  let serverConvs = null;
+  function convId() {
+    const all = store.get('conv', {});
+    const shared = serverConvs?.[agent];
+    if (shared) { if (all[agent] !== shared) { all[agent] = shared; store.set('conv', all); } return shared; }
+    if (!all[agent]) { all[agent] = newId(); store.set('conv', all); }
+    if (serverConvs && !DEMO) { serverConvs[agent] = all[agent]; shareConv(agent, all[agent], 'adopt'); }
+    return all[agent];
+  }
+  function shareConv(a, id, mode) {
+    if (DEMO || !window.__ORB_SERVER__) return;
+    fetch('/api/conversation', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ agent: a, id, mode }) })
+      .then(r => r.json()).then(j => { if (j.id && serverConvs) serverConvs[a] = j.id; }).catch(() => {});
+  }
+  // another device started a new chat with this agent: follow it
+  function syncConversations(next) {
+    const before = serverConvs?.[agent];
+    serverConvs = { ...(next || {}) };
+    for (const [a, id] of Object.entries(serverConvs)) if (a !== agent && history[a] && historyLoaded[a] && historyLoaded[a] !== id) { history[a] = []; historyLoaded[a] = null; }
+    if (before && serverConvs[agent] && before !== serverConvs[agent] && !streaming) { history[agent] = []; historyLoaded[agent] = null; stats[agent] = null; renderLog(); renderStats(); }
+  }
 
   // ---------- transcript & stats ----------
+  // A turn: { who: 'you' | 'agent', text, files: [names], tools: [{id, title, status}], media: [{kind, url, open, name}], live }
   const history = {};
-  function addTurn(who, text) { (history[agent] ||= []).push({ who, text }); if (!$('logSheet').hidden) renderLog(); return history[agent][history[agent].length - 1]; }
-  function renderLog() {
-    const log = $('log'); log.textContent = '';
-    const turns = history[agent] || [];
-    if (!turns.length) { const p = document.createElement('p'); p.className = 'note'; p.textContent = 'Nothing said yet in this window. Earlier conversation is still in the agent’s memory.'; log.append(p); return; }
-    for (const t of turns) {
-      const d = document.createElement('div'); d.className = 'turn ' + (t.who === 'you' ? 'you' : 'kira');
-      const w = document.createElement('div'); w.className = 'who'; w.textContent = t.who === 'you' ? 'You' : currentLabel(); d.append(w);
+  const historyLoaded = {};        // agent → conversation id whose earlier messages are already shown
+  function addTurn(who, text) {
+    const t = { who, text, files: [], tools: [], media: [], live: who !== 'you' };
+    (history[agent] ||= []).push(t);
+    if (!$('logSheet').hidden) renderLog();
+    return t;
+  }
+
+  // Small, safe Markdown: everything is escaped first, then code, links, bold/italic, lists, headings and tables.
+  function md(src) {
+    const parts = String(src).split(/```[\w+-]*[^\S\n]*\n?/);
+    let html = '';
+    parts.forEach((part, i) => {
+      if (i % 2) { html += `<pre><code>${esc(part.replace(/\n$/, ''))}</code></pre>`; return; }
+      const lines = part.split('\n'); let para = [], list = null, table = null;
+      const flushPara = () => { if (para.length) { html += `<p>${para.map(inline).join('<br>')}</p>`; para = []; } };
+      const flushList = () => { if (list) { html += `<${list.tag}>${list.items.map(x => `<li>${inline(x)}</li>`).join('')}</${list.tag}>`; list = null; } };
+      const flushTable = () => {
+        if (!table) return;
+        const rows = table.filter(r => !/^\s*\|?\s*:?-{2,}/.test(r)).map(r => r.replace(/^\s*\||\|\s*$/g, '').split('|').map(c => inline(c.trim())));
+        html += `<table>${rows.map((r, k) => `<tr>${r.map(c => k ? `<td>${c}</td>` : `<th>${c}</th>`).join('')}</tr>`).join('')}</table>`;
+        table = null;
+      };
+      for (const line of lines) {
+        let m;
+        if (/^\s*\|.*\|\s*$/.test(line)) { flushPara(); flushList(); (table ||= []).push(line); continue; }
+        flushTable();
+        if (!line.trim()) { flushPara(); flushList(); continue; }
+        if ((m = /^\s{0,3}#{1,6}\s+(.*)$/.exec(line))) { flushPara(); flushList(); html += `<h4>${inline(m[1])}</h4>`; continue; }
+        if ((m = /^\s*>\s?(.*)$/.exec(line))) { flushPara(); flushList(); html += `<blockquote>${inline(m[1])}</blockquote>`; continue; }
+        if ((m = /^\s*(?:[-*+•]|(\d+)[.)])\s+(.*)$/.exec(line))) {
+          flushPara(); const tag = m[1] ? 'ol' : 'ul';
+          if (!list || list.tag !== tag) { flushList(); list = { tag, items: [] }; }
+          list.items.push(m[2]); continue;
+        }
+        if (list && /^\s{2,}\S/.test(line)) { list.items[list.items.length - 1] += ' ' + line.trim(); continue; }
+        flushList(); para.push(line);
+      }
+      flushPara(); flushList(); flushTable();
+    });
+    return html;
+  }
+  function inline(s) {
+    const codes = [];
+    let h = esc(s).replace(/`([^`]+)`/g, (_, c) => `\u0000${codes.push(c) - 1}\u0000`);
+    h = h.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, (_, t, u) => `<a href="${u}" target="_blank" rel="noopener noreferrer">${t}</a>`)
+      .replace(/(^|[\s(])(https?:\/\/[^\s<)]+[^\s<).,;:!?'"])/g, (_, p, u) => `${p}<a href="${u}" target="_blank" rel="noopener noreferrer">${u}</a>`)
+      .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>').replace(/(^|[^*])\*([^*\s][^*]*)\*/g, '$1<em>$2</em>');
+    return h.replace(/\u0000(\d+)\u0000/g, (_, i) => `<code>${codes[i]}</code>`);
+  }
+
+  function turnEl(t) {
+    const d = document.createElement('div'); d.className = 'turn ' + (t.who === 'you' ? 'you' : 'kira');
+    const w = document.createElement('div'); w.className = 'who'; w.textContent = t.who === 'you' ? 'You' : currentLabel(); d.append(w);
+    if (t.who === 'you') {
+      const b = document.createElement('div'); b.className = 'bubble'; b.textContent = t.text; d.append(b);
       if (t.files?.length) { const f = document.createElement('div'); f.className = 'files'; for (const n of t.files) { const s = document.createElement('span'); s.textContent = '📎 ' + n; f.append(s); } d.append(f); }
-      String(t.text).split(/```[\w-]*\n?/).forEach((part, i) => {
-        if (!part.trim()) return;
-        const el = document.createElement(i % 2 ? 'pre' : 'div'); if (!(i % 2)) el.className = 'txt'; el.textContent = part.replace(/\n$/, ''); d.append(el);
-      });
-      log.append(d);
+      if (t.media?.length) d.append(gallery(t.media));
+      return d;
     }
-    log.scrollTop = log.scrollHeight;
+    const body = document.createElement('div'); body.className = 'body';
+    if (t.tools?.length) {
+      const steps = document.createElement('div'); steps.className = 'steps';
+      for (const s of t.tools) {
+        const el = document.createElement('span'); el.className = 'step ' + (s.status || 'completed');
+        el.title = `${s.name || 'tool'} · ${s.status || 'completed'}`;
+        el.innerHTML = '<i></i><span></span>'; el.lastChild.textContent = s.title || s.name || 'Tool';
+        steps.append(el);
+      }
+      body.append(steps);
+    }
+    if (t.text) { const x = document.createElement('div'); x.className = 'md'; x.innerHTML = md(t.text); body.append(x); }
+    if (t.media?.length) body.append(gallery(t.media));
+    if (t.live && !t.text && !t.media?.length) { const ty = document.createElement('div'); ty.className = 'typing'; ty.innerHTML = '<i></i><i></i><i></i>'; ty.setAttribute('aria-label', 'Working'); body.append(ty); }
+    d.append(body);
+    return d;
+  }
+  function gallery(items) {
+    const box = document.createElement('div');
+    const imgs = items.filter(m => m.kind === 'image'), files = items.filter(m => m.kind !== 'image');
+    if (imgs.length) {
+      const g = document.createElement('div'); g.className = 'gallery' + (imgs.length === 1 ? ' one' : '');
+      for (const m of imgs) {
+        const a = document.createElement('a'); a.href = m.open || m.url; a.target = '_blank'; a.rel = 'noopener';
+        const im = document.createElement('img'); im.src = m.url; im.alt = m.name || 'Image from the agent'; im.loading = 'lazy';
+        if (m.width && m.height) { im.width = m.width; im.height = m.height; }
+        a.append(im); g.append(a);
+      }
+      box.append(g);
+    }
+    for (const m of files) {
+      const a = document.createElement('a'); a.className = 'filelink'; a.href = m.open || m.url; a.target = '_blank'; a.rel = 'noopener'; a.download = m.name || '';
+      a.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/></svg><span></span>';
+      a.lastChild.textContent = m.name || 'File'; box.append(a);
+    }
+    box.style.display = 'grid'; box.style.gap = '8px';
+    return box;
+  }
+  let logRaf = 0;
+  function renderLog() {
+    const log = $('log');
+    $('chatTitle').textContent = 'Chat · ' + currentLabel();
+    const nearBottom = log.scrollHeight - log.scrollTop - log.clientHeight < 80;
+    log.textContent = '';
+    const turns = history[agent] || [];
+    if (!turns.length) {
+      const p = document.createElement('p'); p.className = 'note';
+      p.textContent = historyLoaded[agent] === 'loading' ? 'Loading the conversation…' : `Nothing here yet. Type below or talk to the orb, and ${currentLabel()} can browse, read files, make images and more.`;
+      log.append(p); return;
+    }
+    for (const t of turns) log.append(turnEl(t));
+    if (nearBottom || turns.at(-1)?.live) log.scrollTop = log.scrollHeight;
+  }
+  // live updates while the agent works: redraw just the last turn, at most once a frame
+  function refreshLive() {
+    if ($('logSheet').hidden || logRaf) return;
+    logRaf = requestAnimationFrame(() => {
+      logRaf = 0;
+      const log = $('log'), turns = history[agent] || [], last = log.lastElementChild;
+      if (!turns.length || !last || !last.classList.contains('turn')) return renderLog();
+      const stick = log.scrollHeight - log.scrollTop - log.clientHeight < 120;
+      last.replaceWith(turnEl(turns.at(-1)));
+      if (stick) log.scrollTop = log.scrollHeight;
+    });
+  }
+  // Earlier messages of this conversation, from OpenClaw (so the chat survives a reload).
+  async function loadHistory(force) {
+    const a = agent, conv = convId();
+    if (DEMO || (!force && historyLoaded[a] === conv) || historyLoaded[a] === 'loading') return;
+    if ((history[a] || []).length && !force) { historyLoaded[a] = conv; return; }
+    historyLoaded[a] = 'loading'; if (!$('logSheet').hidden && a === agent) renderLog();
+    try {
+      const r = await fetch(`/api/history?agent=${encodeURIComponent(a)}&session=${encodeURIComponent(conv)}`, { cache: 'no-store' });
+      if (r.status === 401) { location.href = '/login'; return; }
+      const j = await r.json();
+      if (!(history[a] || []).length) history[a] = (j.messages || []).map(m => ({ who: m.role === 'user' ? 'you' : 'agent', text: m.text || '', files: m.files || [], tools: m.tools || [], media: m.media || [] }));
+      historyLoaded[a] = j.available ? conv : null;
+    } catch { historyLoaded[a] = null; }
+    if (!$('logSheet').hidden && a === agent) renderLog();
+  }
+  // full tools need the orb approved as a device in OpenClaw; until then it uses the basic chat endpoint
+  let linkInfo = null;
+  function renderLinkNote() {
+    const n = $('linkNote'); const l = linkInfo;
+    if (DEMO || !l || !['pairing', 'error', 'rejected'].includes(l.state)) { n.hidden = true; return; }   // brief reconnects stay quiet
+    n.hidden = false;
+    if (l.state === 'pairing') {
+      const id = l.pairing?.requestId;
+      n.innerHTML = `<b>Basic chat only.</b> Approve the orb in OpenClaw to give it the browser, image tools and files. On the VPS run:<br><code>docker compose exec openclaw-gateway openclaw devices approve ${esc(id || '<request id>')}</code>${id ? '' : '<br>(<code>openclaw devices list</code> shows the request id.)'}`;
+    } else {
+      n.innerHTML = `<b>Basic chat only.</b> The full-tools link to OpenClaw isn't connected${l.detail ? ': ' + esc(l.detail) : '.'}`;
+    }
   }
   const st = () => (stats[agent] ||= { times: [], firsts: [], voices: [], turns: 0, talkMs: 0 });
   let turnStart = 0, voiceStartLogged = true;
@@ -654,7 +873,8 @@ form.ask { width: 100%; box-sizing: border-box; display: flex; gap: 8px; align-i
   $('speakOn').addEventListener('change', e => { speakOn = e.target.value === '1'; store.set('speakOn', speakOn); if (!speakOn) { synth?.cancel(); stopAgentVoice(); } });
 
   function speakable(t) {
-    return t.replace(/```[\s\S]*?```/g, ' I put the code in the transcript. ')
+    return t.replace(/```[\s\S]*?```/g, ' I put the code in the chat. ')
+      .replace(/^\s*\|?\s*:?-{2,}[-|: ]*$/gm, '')
       .replace(/`([^`]+)`/g, '$1').replace(/!\[[^\]]*\]\([^)]*\)/g, '')
       .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1').replace(/https?:\/\/\S+/g, 'the link')
       .replace(/^\s{0,3}#{1,6}\s+/gm, '').replace(/^\s*[-*+]\s+/gm, '').replace(/[*_~>|]/g, '')
@@ -982,7 +1202,8 @@ form.ask { width: 100%; box-sizing: border-box; display: flex; gap: 8px; align-i
   }
   function clearAttachments() { attachments.splice(0).forEach(a => a.thumb && URL.revokeObjectURL(a.thumb)); renderChips(); }
   function renderChips() {
-    const box = $('chips'); box.textContent = ''; box.hidden = !attachments.length;
+    for (const id of ['chips', 'chatChips']) {
+    const box = $(id); box.textContent = ''; box.hidden = !attachments.length;
     for (const a of attachments) {
       const c = document.createElement('span'); c.className = 'fchip';
       if (a.thumb) { const im = document.createElement('img'); im.src = a.thumb; im.alt = ''; c.append(im); }
@@ -991,6 +1212,7 @@ form.ask { width: 100%; box-sizing: border-box; display: flex; gap: 8px; align-i
       const x = document.createElement('button'); x.type = 'button'; x.textContent = '×'; x.setAttribute('aria-label', 'Remove ' + a.file.name);
       x.addEventListener('click', () => removeAttachment(a.id));
       c.append(n, k, x); box.append(c);
+    }
     }
   }
   const readAs = (file, how) => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(r.error); r[how](file); });
@@ -1006,10 +1228,10 @@ form.ask { width: 100%; box-sizing: border-box; display: flex; gap: 8px; align-i
   }
   // Turn the pending attachments into what the agent receives.
   async function packAttachments(forAgent) {
-    const images = [], blocks = [], saved = [], names = [];
+    const images = [], imageNames = [], blocks = [], saved = [], names = [];
     for (const a of attachments) {
       names.push(a.file.name);
-      if (a.kind === 'image') { images.push(await imageData(a.file)); continue; }
+      if (a.kind === 'image') { images.push(await imageData(a.file)); imageNames.push(a.file.name); continue; }
       if (a.kind === 'text') { blocks.push(`--- ${a.file.name} ---\n\`\`\`\n${await readAs(a.file, 'readAsText')}\n\`\`\``); continue; }
       if (DEMO) { saved.push({ path: 'inbox/' + a.file.name, bytes: a.file.size }); continue; }
       const r = await fetch(`/api/upload?agent=${encodeURIComponent(forAgent)}&name=${encodeURIComponent(a.file.name)}`, { method: 'POST', body: a.file, headers: { 'Content-Type': 'application/octet-stream' } });
@@ -1021,9 +1243,10 @@ form.ask { width: 100%; box-sizing: border-box; display: flex; gap: 8px; align-i
     let extra = '';
     if (blocks.length) extra += '\n\n' + blocks.join('\n\n');
     if (saved.length) extra += '\n\n[Files saved to your workspace for you to open: ' + saved.map(s => `${s.path} (${fmtSize(s.bytes)})`).join(', ') + ']';
-    return { images, extra, names };
+    return { images, imageNames, extra, names };
   }
   $('attachBtn').addEventListener('click', () => $('fileIn').click());
+  $('chatAttach').addEventListener('click', () => $('fileIn').click());
   $('fileIn').addEventListener('change', e => { addFiles(e.target.files); e.target.value = ''; });
   addEventListener('paste', e => { const fs = [...(e.clipboardData?.files || [])]; if (fs.length) { e.preventDefault(); addFiles(fs); } });
   let dragDepth = 0;
@@ -1048,19 +1271,25 @@ form.ask { width: 100%; box-sizing: border-box; display: flex; gap: 8px; align-i
     if (text && SHUTSYS_RE.test(text.trim())) { stopListening(); powerDown(); return; }   // preview: no sign-out, just shut down
     if (text && isPowerDown(text)) { stopListening(); powerDown(); return; }
     if ((!text && !attachments.length) || state === 'offline') return;
+    if (streaming) { abortCtl?.abort(); streaming = false; }     // a new message replaces a reply still in progress
     synth?.cancel(); stopAgentVoice(); speakQueue = 0;
     const hasFiles = attachments.length > 0;
     if (!text) text = attachments.length === 1 ? `Here's ${attachments[0].file.name}.` : `Here are ${attachments.length} files.`;
     const youTurn = addTurn('you', text);
     caption('<span class="you">' + esc(text) + (hasFiles ? ` · ${attachments.length} attachment${attachments.length > 1 ? 's' : ''}` : '') + '</span>');
     setState('thinking');
-    let packed = { images: [], extra: '', names: [] };
+    let packed = { images: [], imageNames: [], extra: '', names: [] };
     if (hasFiles) {
       try { packed = await packAttachments(agent); }
       catch (e) { setState('error'); caption('<span class="err">' + esc(e.message) + '</span>'); setTimeout(() => state === 'error' && setState('idle'), 4000); return; }
-      youTurn.files = packed.names; clearAttachments();
+      youTurn.files = packed.names.filter(n => !packed.imageNames.includes(n));
+      youTurn.media = packed.images.map((url, i) => ({ kind: 'image', url, open: url, name: packed.imageNames[i] }));
+      clearAttachments();
+      if (!$('logSheet').hidden) renderLog();
     }
     const turn = addTurn('agent', '');
+    const mySeq = ++sendSeq;            // a newer message may replace this one while it's still running
+    const forAgent = agent;
     let buf = '', spoken = 0, first = 0;
     const t0 = performance.now();
     turnStart = t0; voiceStartLogged = false;
@@ -1068,7 +1297,9 @@ form.ask { width: 100%; box-sizing: border-box; display: flex; gap: 8px; align-i
     const onDelta = d => {
       if (!first) first = performance.now() - t0;
       turn.text += d; buf += d;
+      if (state === 'thinking' && $('state').textContent !== STATES.thinking) setState('thinking');      // back from a tool label
       caption(esc(speakable(turn.text)).slice(-420) || '…');
+      refreshLive();
       let cut = lastSentenceEnd(buf, spoken);
       // Start talking sooner: if the first sentence isn't finished yet, speak its first phrase on its own
       // (up to a comma/semicolon/dash once there are a few words), so the voice starts in about a second.
@@ -1078,20 +1309,41 @@ form.ask { width: 100%; box-sizing: border-box; display: flex; gap: 8px; align-i
       if (spoken > 0 && cut - spoken < 80) cut = spoken;
       if (cut > spoken && !inCodeFence(buf.slice(0, cut))) { speak(buf.slice(spoken, cut)); spoken = cut; }
     };
+    // tool activity and anything the agent makes (images, files) show up in the chat window
+    const PHASES = { preparing_workspace: 'Preparing', preparing_context: 'Reading context', starting_model: 'Thinking', waiting_for_model: 'Waiting for model', memory_flushing: 'Saving memory' };
+    const on = {
+      delta: onDelta,
+      status: ph => { if (state === 'thinking' && !turn.text) setState('thinking', PHASES[ph] || 'Thinking'); },
+      tool: ev => {
+        const i = turn.tools.findIndex(x => x.id === ev.id);
+        if (i >= 0) turn.tools[i] = { ...turn.tools[i], ...ev }; else turn.tools.push(ev);
+        const running = turn.tools.filter(x => x.status === 'running').at(-1);
+        if (state === 'thinking') setState('thinking', running ? toolLabel(running) : 'Thinking');
+        if (!turn.text) caption('<span class="you">' + esc(running ? toolLabel(running) + '…' : 'Working…') + '</span>');
+        refreshLive();
+      },
+      media: items => {
+        turn.media.push(...items); refreshLive();
+        if (forAgent === agent && $('logSheet').hidden) toggleSheet('logSheet');    // show what it made
+      },
+    };
     try {
-      if (DEMO) await demoReply(onDelta, packed.names); else await streamChat(text + packed.extra, onDelta, packed.images);
-      streaming = false;
+      if (DEMO) await demoReply(onDelta, packed.names); else await streamChat(text + packed.extra, on, packed.images, packed.imageNames);
+      streaming = false; turn.live = false; refreshLive();
       const s = st(); s.turns++; s.times.push(performance.now() - t0); if (first) s.firsts.push(first);
       if (s.times.length > 16) s.times.shift(); if (s.firsts.length > 16) s.firsts.shift();
       renderStats();
       if (buf.length > spoken) speak(buf.slice(spoken));
-      if (!turn.text.trim()) { turn.text = '(no reply)'; caption('<span class="err">The agent finished without saying anything.</span>'); }
+      if (!turn.text.trim() && turn.media.length) caption('<span class="you">Done. It\'s in the chat window.</span>');
+      else if (!turn.text.trim()) { turn.text = '(no reply)'; caption('<span class="err">The agent finished without saying anything.</span>'); }
       if (!$('logSheet').hidden) renderLog();
       if (speakQueue <= 0) finishTurn();
     } catch (e) {
+      turn.live = false;
+      if (mySeq !== sendSeq) { if (!turn.text && !turn.media.length) turn.text = '_(interrupted)_'; if (!$('logSheet').hidden) renderLog(); return; }
       streaming = false;
-      if (e.name === 'AbortError') return;
-      turn.text = '⚠ ' + e.message;
+      if (e.name === 'AbortError') { if (!turn.text && !turn.media.length) turn.text = '_(interrupted)_'; if (!$('logSheet').hidden) renderLog(); return; }
+      turn.text = (turn.text ? turn.text + '\n\n' : '') + '⚠ ' + e.message; refreshLive();
       setState('error'); caption('<span class="err">' + esc(e.message) + '</span>');
       poll(true);
       setTimeout(() => state === 'error' && setState('idle'), 4000);
@@ -1104,9 +1356,19 @@ form.ask { width: 100%; box-sizing: border-box; display: flex; gap: 8px; align-i
     return m && m[0].length <= 140 ? m[0].length : 0;
   }
 
-  async function streamChat(text, onDelta, images = []) {
+  const toolLabel = t => {
+    const n = String(t.name || '').toLowerCase(), title = t.title && t.title !== t.name ? t.title : '';
+    if (title) return title.length > 42 ? title.slice(0, 40) + '…' : title;
+    if (/browser|navigate|web_fetch|fetch/.test(n)) return 'Browsing';
+    if (/search/.test(n)) return 'Searching';
+    if (/image|video|music|tts/.test(n)) return 'Creating media';
+    if (/exec|bash|shell|process/.test(n)) return 'Running a command';
+    if (/read|write|edit|file/.test(n)) return 'Working with files';
+    return 'Using ' + (t.name || 'a tool');
+  };
+  async function streamChat(text, on, images = [], imageNames = []) {
     abortCtl = new AbortController();
-    const r = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ agent, session: convId(), text, images }), signal: abortCtl.signal });
+    const r = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ agent, session: convId(), text, images, imageNames }), signal: abortCtl.signal });
     if (!r.ok) {
       let msg = `The relay returned ${r.status}.`;
       try { const j = await r.json(); if (j.error) msg = j.error; } catch {}
@@ -1123,8 +1385,12 @@ form.ask { width: 100%; box-sizing: border-box; display: flex; gap: 8px; align-i
         if (!line.startsWith('data:')) continue;
         const data = line.slice(5).trim(); if (data === '[DONE]') return;
         let j; try { j = JSON.parse(data); } catch { continue; }
-        if (j.error) throw new Error(j.error.message || 'The agent run failed.');
-        const d = j.choices?.[0]?.delta?.content; if (d) onDelta(d);
+        if (j.type === 'delta') on.delta(j.text);
+        else if (j.type === 'tool') on.tool(j);
+        else if (j.type === 'media') on.media(j.items || []);
+        else if (j.type === 'status') on.status(j.phase);
+        else if (j.type === 'error') throw new Error(j.message || 'The agent run failed.');
+        else if (j.type === 'done') { if (j.aborted) throw new DOMException('Interrupted', 'AbortError'); return; }
       }
     }
   }
@@ -1162,10 +1428,21 @@ form.ask { width: 100%; box-sizing: border-box; display: flex; gap: 8px; align-i
     $('text').value = ''; fitText(); stopListening(); send(v);
   });
   // Enter sends; Shift+Enter starts a new line. The box grows with the text, up to about six lines.
-  function fitText() { const el = $('text'); el.style.height = 'auto'; el.style.height = el.scrollHeight + 2 + 'px'; el.style.overflowY = el.scrollHeight > el.clientHeight + 2 ? 'auto' : 'hidden'; }
-  $('text').addEventListener('input', fitText);
+  function fitText(el = $('text')) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 2 + 'px'; el.style.overflowY = el.scrollHeight > el.clientHeight + 2 ? 'auto' : 'hidden'; }
+  $('text').addEventListener('input', () => fitText());
   $('text').addEventListener('keydown', e => {
     if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); $('ask').requestSubmit(); }
+  });
+  // the chat window has its own box; it sends exactly like the one under the orb
+  $('chatText').addEventListener('input', () => fitText($('chatText')));
+  $('chatText').addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); $('chatAsk').requestSubmit(); }
+  });
+  $('chatAsk').addEventListener('submit', e => {
+    e.preventDefault(); const v = $('chatText').value.trim(); if (!v && !attachments.length) return;
+    if (state === 'offline' && !isPowerDown(v) && !isSignOut(v)) { caption(`<span class="you">${esc(currentLabel())} is offline. Messages can't be sent until it's back.</span>`); return; }
+    if (state === 'thinking' || state === 'speaking') stopAll();
+    $('chatText').value = ''; fitText($('chatText')); stopListening(); send(v);
   });
   $('handsFree').addEventListener('click', () => {
     handsFree = !handsFree; $('handsFree').setAttribute('aria-pressed', String(handsFree));
@@ -1177,13 +1454,18 @@ form.ask { width: 100%; box-sizing: border-box; display: flex; gap: 8px; align-i
     e.preventDefault(); spaceHeld = true; if (state === 'thinking' || state === 'speaking') stopAll(); listen();
   });
   addEventListener('keyup', e => { if (e.code === 'Space' && spaceHeld) { spaceHeld = false; try { rec?.stop(); } catch {} } });
-  const toggleSheet = id => { const s = $(id); const open = s.hidden; document.querySelectorAll('.sheet').forEach(x => x.hidden = true); s.hidden = !open; if (id === 'logSheet' && open) renderLog(); };
+  const toggleSheet = id => {
+    const s = $(id); const open = s.hidden; document.querySelectorAll('.sheet').forEach(x => x.hidden = true); s.hidden = !open;
+    if (id === 'logSheet' && open) { renderLinkNote(); renderLog(); loadHistory(); if (!MOBILE) setTimeout(() => $('chatText').focus(), 50); }
+  };
   $('logBtn').addEventListener('click', () => toggleSheet('logSheet'));
   $('setBtn').addEventListener('click', () => toggleSheet('setSheet'));
   document.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click', () => $(b.dataset.close).hidden = true));
   $('newConv').addEventListener('click', () => {
     stopAll(); const all = store.get('conv', {}); all[agent] = newId(); store.set('conv', all);
-    history[agent] = []; stats[agent] = null; renderLog(); renderStats();
+    if (serverConvs) serverConvs[agent] = all[agent];
+    shareConv(agent, all[agent], 'new');
+    history[agent] = []; historyLoaded[agent] = convId(); stats[agent] = null; renderLog(); renderStats();
     caption('<span class="you">New conversation started with ' + esc(currentLabel()) + '.</span>');
   });
   try { navigator.wakeLock?.request('screen').catch(() => {}); } catch {}
@@ -1675,7 +1957,14 @@ form.ask { width: 100%; box-sizing: border-box; display: flex; gap: 8px; align-i
       let set = line('Power systems'); await step(380); set('OK'); progress(10);
       set = line('Secure link to gateway');
       await Promise.race([ready, wait(4500)]); await step(250);
-      set(gateway.online ? `OK · ${gateway.latencyMs ?? '–'} ms` : 'NO SIGNAL', gateway.online ? 'ok' : 'bad'); progress(28);
+      set(gateway.online ? `OK · ${gateway.latencyMs ?? '–'} ms` : 'NO SIGNAL', gateway.online ? 'ok' : 'bad'); progress(24);
+      if (!DEMO && linkInfo && linkInfo.state !== 'off') {
+        set = line('Agent tools'); await step(260);
+        if (linkInfo.state === 'online') set('FULL ACCESS');
+        else if (linkInfo.state === 'pairing') set('AWAITING APPROVAL', 'warn');
+        else set('BASIC CHAT', 'warn');
+      }
+      progress(28);
 
       // the flagship agent's full name, ready to collapse into its acronym
       const lead = agents.find(a => a.id === agent) || agents[0];

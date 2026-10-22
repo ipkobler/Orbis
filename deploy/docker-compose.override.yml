@@ -57,6 +57,9 @@ services:
       # The orb reads each agent's SOUL.md (full names) and saves attached files into that
       # agent's workspace inbox/. Its code only ever writes inside workspace*/inbox/.
       - ./data/openclaw:/openclaw
+      # The orb's own device key (its approval in OpenClaw) and the conversation each agent is on.
+      # Create it once, owned by the container's user: mkdir -p data/kira-orb && chown 1000:1000 data/kira-orb
+      - ./data/kira-orb:/state
     depends_on:
       - openclaw-gateway
 
