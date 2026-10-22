@@ -133,6 +133,7 @@ header { grid-area: head; display: flex; align-items: center; gap: 10px; flex-wr
 .boot.drain .boot-pct { transition: text-shadow 2s, color 2s; text-shadow: none; color: var(--dim); }
 .boot.fading .bb, .boot.fading .boot-log, .boot.fading .boot-foot, .boot.fading .boot-bar, .boot.fading .boot-ring { transition: opacity 1s ease; opacity: .12; }
 .boot.off { background: #01040a; transition: background .6s ease .3s; }
+.boot.off-content .boot-inner { visibility: hidden; }
 .boot.off .boot-inner { animation: crt .75s cubic-bezier(.7,0,.3,1) forwards; }
 @keyframes crt {
   0%   { transform: scale(1, 1); filter: brightness(1); opacity: 1; }
@@ -387,6 +388,7 @@ form.ask { width: 100%; box-sizing: border-box; display: flex; gap: 8px; align-i
     <p class="note" id="voiceNote"></p>
     <div class="field"><span class="label">Browser voice for each agent</span><div id="agentVoices" class="avlist"></div></div>
     <div class="field"><label for="rate">Browser speaking speed <span id="rateVal">1×</span></label><input id="rate" type="range" min="0.7" max="1.4" step="0.05" value="1"></div>
+    <div class="field"><label for="sfxOn">Startup &amp; shutdown sounds</label><select id="sfxOn"><option value="1">On</option><option value="0">Off</option></select></div>
     <div class="field"><label for="speakOn">Speak replies</label><select id="speakOn"><option value="1">On</option><option value="0">Off (text only)</option></select></div>
     <p class="note" id="sttNote"></p>
     <button class="btn" id="replayBoot" type="button">Replay startup sequence</button>
@@ -663,7 +665,7 @@ form.ask { width: 100%; box-sizing: border-box; display: flex; gap: 8px; align-i
   let engine = store.get('engine3', 'clone'), voiceInfo = { enabled: false, ready: false, voices: [] };
   $('engine').value = engine;
   $('engine').addEventListener('change', e => { engine = e.target.value; store.set('engine3', engine); renderVoiceNote(); });
-  const usesAgentVoice = () => engine === 'clone' && !DEMO && !!cur()?.voice;
+  const usesAgentVoice = (who = agent) => engine === 'clone' && !DEMO && !!agents.find(a => a.id === who)?.voice;
   function renderVoiceNote() {
     const withVoice = agents.filter(a => a.voice).map(a => acronym(a.label));
     $('voiceNote').textContent = !voiceInfo.enabled ? 'No voice service is connected, so the browser voice is used.'
@@ -692,13 +694,13 @@ form.ask { width: 100%; box-sizing: border-box; display: flex; gap: 8px; align-i
     let sum = 0; for (const b of ttsBuf) { const v = (b - 128) / 128; sum += v * v; }
     return Math.min(1, Math.sqrt(sum / ttsBuf.length) * 3.2);
   }
-  function queueAgentVoice(t) {
+  function queueAgentVoice(t, who = agent) {
     ensureAudio();
     const ctl = new AbortController();
     // Give the voice service time proportional to the sentence (it runs on the VPS CPU); if it's late, the browser voice says it.
     const limit = Math.min(60000, 15000 + t.length * 120);
     const timer = setTimeout(() => ctl.abort(), limit);
-    const item = { text: t, ctl, audio: fetch('/api/tts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ agent, text: t }), signal: ctl.signal })
+    const item = { text: t, ctl, audio: fetch('/api/tts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ agent: who, text: t }), signal: ctl.signal })
       .then(r => (r.ok ? r.blob() : null)).catch(() => null).finally(() => clearTimeout(timer)) };
     ttsQueue.push(item); speakQueue++;
     if (!ttsPlaying) playNextVoice();
@@ -761,6 +763,10 @@ form.ask { width: 100%; box-sizing: border-box; display: flex; gap: 8px; align-i
     [/\bapprox\.?(?=\s)/gi, 'about'], [/\bw\/o\b/gi, 'without'], [/\bw\/(?=\s)/gi, 'with'], [/\bDr\.(?=\s+[A-Z])/g, 'Doctor'],
     [/\bASAP\b/g, 'as soon as possible'], [/\bFYI\b/g, 'for your information'], [/\bETA\b/g, 'E T A'], [/\bTBD\b/g, 'to be decided'],
     [/\bmins?\b(?=\.?)/gi, 'minutes'], [/\bhrs?\b/gi, 'hours'], [/\bsecs?\b/gi, 'seconds'], [/\bwk\b/gi, 'week'], [/\bmo\b(?=\s)/gi, 'month'], [/\bno\.\s?(?=\d)/gi, 'number ']];
+  const capped = w => /^[A-Z]/.test(w);   // "Nov"/"NOV" are dates; lowercase "sat", "wed", "sun" are ordinary words
+  const monthName = w => MONTHS[w.replace('.', '').slice(0, 4).toLowerCase()] || MONTHS[w.replace('.', '').slice(0, 3).toLowerCase()] || w;
+  const DAY_RE = 'Mon(?:day)?|Tue(?:s(?:day)?)?|Wed(?:nesday)?|Thu(?:r(?:s(?:day)?)?)?|Fri(?:day)?|Sat(?:urday)?|Sun(?:day)?';
+  const ISO_MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
   function sayTime(h, m, ap) {
     h = Number(h); m = Number(m || 0);
     let s = num(h);
@@ -783,18 +789,27 @@ form.ask { width: 100%; box-sizing: border-box; display: flex; gap: 8px; align-i
     for (const a of agents) { const ac = acronym(a.label).replace(/\./g, '\\.'); t = t.replace(new RegExp(ac + '(?=\\W|$)', 'g'), a.label); }
     // list lines become sentences, so each one gets its own natural pause
     t = t.replace(/[ \t]*\n+[ \t]*/g, (m, i) => { const before = t.slice(0, i).trimEnd(); return /[.!?,;:]$/.test(before) || !before ? ' ' : '. '; });
+    // ISO dates: 2026-11-03 → November third, twenty twenty-six
+    t = t.replace(/\b(19\d\d|20\d\d)-(0?[1-9]|1[0-2])-(0?[1-9]|[12]\d|3[01])\b/g, (_, y, m, d) => `${ISO_MONTHS[m - 1]} ${ordinal(+d)}, ${year(+y)}`);
+    // in schedules a dash between two times, dates or days means "to": 9-5, Nov 3 - Nov 5, Mon–Fri, 2 PM — 4 PM
+    const DT = `(?:\\$\\s?\\d[\\d,]*(?:\\.\\d+)?\\s?[kKMB]?|\\d{1,2}(?::\\d{2})?(?:\\s?[AaPp]\\.?\\s?[Mm]\\.?)?|(?:${MONTH_RE})\\.?(?:\\s+\\d{1,2}(?:st|nd|rd|th)?)?|(?:${DAY_RE})\\.?|noon|midnight)`;
+    t = t.replace(new RegExp(`(?<![\\w.:/$-])(${DT})\\s*[-–—]\\s*(?=${DT}(?!\\w|:\\d))`, 'gi'), '$1 to ');
+    // dates: "Nov 3", "NOV 3rd", "Nov 3 to 5" → "November third (to fifth)"
+    t = t.replace(new RegExp(`\\b(${MONTH_RE})\\.?\\s+(\\d{1,2})(?:st|nd|rd|th)?(?:\\s+to\\s+(\\d{1,2})(?:st|nd|rd|th)?)?\\b(?!:\\d)`, 'gi'),
+      (m, mo, d, d2) => capped(mo) ? `${monthName(mo)} ${ordinal(+d)}${d2 ? ' to ' + ordinal(+d2) : ''}` : m);
+    // months and weekdays on their own, in any capitalisation except all-lowercase: NOV → November, FRI → Friday
+    t = t.replace(new RegExp(`\\b(${MONTH_RE})\\.?(?![\\w'’])`, 'gi'), m => capped(m) ? monthName(m) : m);
+    t = t.replace(new RegExp(`\\b(${DAY_RE})\\.?(?![\\w'’])`, 'gi'), m => capped(m) ? (DAYS[m.replace('.', '').toLowerCase()] || m.charAt(0) + m.slice(1).toLowerCase().replace('.', '')) : m);
     // time ranges, then single times: 2:00–9:00 PM, 7:00 AM–4:00 PM, 2:15, 10 AM
     const T = `(\\d{1,2})(?::(\\d{2}))?(?:${AP})?`;
     t = t.replace(new RegExp(`\\b${T}\\s*(?:–|—|-|to)\\s*${T}(?=\\W|$)`, 'g'),
       (_, h1, m1, a1, h2, m2, a2) => (m1 || m2 || a1 || a2) ? `${sayTime(h1, m1, a1 && a1 !== a2 ? a1 : null)} to ${sayTime(h2, m2, a2)}` : `${num(+h1)} to ${num(+h2)}`);
     t = t.replace(new RegExp(`\\b(\\d{1,2}):(\\d{2})(?:${AP})?`, 'g'), (_, h, m, a) => sayTime(h, m, a));
     t = t.replace(new RegExp(`\\b(\\d{1,2})${AP}`, 'g'), (_, h, a) => sayTime(h, 0, a));
-    // dates: "Oct 23" → "October twenty-third"; "10/23" stays; weekday abbreviations → full names
-    t = t.replace(new RegExp(`\\b(${MONTH_RE})\\.?\\s+(\\d{1,2})(?:st|nd|rd|th)?\\b`, 'g'),
-      (_, mo, d) => `${MONTHS[mo.slice(0, 4).toLowerCase()] || MONTHS[mo.slice(0, 3).toLowerCase()] || mo} ${ordinal(Number(d))}`);
-    t = t.replace(/\b(Mon|Tues?|Wed|Thu(?:rs?)?|Fri|Sat|Sun)\.?(?=[\s,])/g, d => DAYS[d.replace('.', '').toLowerCase()] || d);
     t = t.replace(/\b(\d{1,2})(st|nd|rd|th)\b/g, (_, d) => ordinal(Number(d)));
     for (const [re, w] of ABBR) t = t.replace(re, w);
+    // phone numbers are read digit by digit: 555-1234, (813) 555-1234, 813-555-1234
+    t = t.replace(/(?:\+?1[\s.-]?)?(?:\(\d{3}\)\s?|\b\d{3}[\s.-])?\b\d{3}[.-]\d{4}\b/g, m => m.replace(/\D+/g, ' , ').replace(/\d/g, d => ONES[d] + ' ').replace(/\s+/g, ' ').replace(/ ,/g, ',').replace(/^[,\s]+|[,\s]+$/g, ''));
     // rates, money, percentages, years, other numbers
     t = t.replace(/\/(yr|year|mo|month|wk|week|day|hr|hour|min)\b/gi, (_, u) => ' per ' + ({ yr: 'year', mo: 'month', wk: 'week', hr: 'hour', min: 'minute' }[u.toLowerCase()] || u.toLowerCase()));
     t = t.replace(/\$\s?(\d[\d,]*)(\.\d+)?(\s?(?:k|K|M|B|million|billion)\b)?/g, (_, d, dec, sc) => {
@@ -814,16 +829,16 @@ form.ask { width: 100%; box-sizing: border-box; display: flex; gap: 8px; align-i
     t = t.replace(/\s+([,.;:!?])/g, '$1').replace(/,\s*,/g, ',').replace(/([.!?])\s*,/g, '$1').replace(/,([.!?;:])/g, '$1').replace(/\s{2,}/g, ' ').trim();
     return t.replace(/(^|[.!?]\s+)([a-z])/g, (_, p, c) => p + c.toUpperCase());   // capitalised sentence starts sound more natural
   }
-  function speak(text) {
+  function speak(text, who = agent) {
     const t = speakable(speechify(text));
     if (!t || !speakOn) return;
-    if (usesAgentVoice()) return queueAgentVoice(t);
-    speakBrowser(t);
+    if (usesAgentVoice(who)) return queueAgentVoice(t, who);
+    speakBrowser(t, who);
   }
-  function speakBrowser(t) {
+  function speakBrowser(t, who = agent) {
     if (!t || !synth || !speakOn) return;
     const u = new SpeechSynthesisUtterance(t);
-    const vn = resolvedVoices[agent] || autoVoices()[agent]; const v = voices.find(x => x.name === vn); if (v) u.voice = v;
+    const vn = resolvedVoices[who] || autoVoices()[who]; const v = voices.find(x => x.name === vn); if (v) u.voice = v;
     u.rate = rate;
     u.onstart = () => { if (state !== 'speaking') { setState('speaking'); speakStart = performance.now(); } speakPulse = 1; noteVoiceStart(); };
     u.onboundary = () => { speakPulse = 1; };
@@ -972,12 +987,15 @@ form.ask { width: 100%; box-sizing: border-box; display: flex; gap: 8px; align-i
   // "Power down the interface", "shut down the orb", "power off" … handled here and never sent to the agent.
   // The whole message must be the command (an optional "Kira," / "please" is fine), so ordinary
   // requests like "can you power down the display on my server" still go to the agent.
-  const POWER_RE = /^\W*(?:(?:hey|ok|okay)\s+)?(?:[a-z.]+[,:]?\s+)?(?:please\s+)?(?:power|shut)\s*(?:down|off)(?:\s+(?:the|your))?(?:\s+(?:interface|orb|console|system|display|screen))?(?:\s+(?:now|please))?\W*$/i;
+  const POWER_RE = /^\W*(?:(?:hey|ok|okay)\s+)?(?:[a-z.]+[,:]?\s+)?(?:please\s+)?(?:power|shut)\s*(?:down|off)(?:\s+(?:the|your))?(?:\s+(?:interface|orb|console|display|screen))?(?:\s+(?:now|please))?\W*$/i;
   const isPowerDown = t => POWER_RE.test(t.trim());
   const SIGNOUT_RE = /^\W*(?:(?:hey|ok|okay)\s+)?(?:[a-z.]+[,:]?\s+)?(?:please\s+)?(?:sign|log)\s*(?:me\s+)?(?:out|off)(?:\s+(?:now|please))?\W*$/i;
-  const isSignOut = t => !!window.__ORB_SERVER__ && SIGNOUT_RE.test(t.trim());
+  // "Shutdown system" / "Shut down the system" / "System shutdown": full shutdown sequence, then sign out
+  const SHUTSYS_RE = /^\W*(?:(?:hey|ok|okay)\s+)?(?:[a-z.]+[,:]?\s+)?(?:please\s+)?(?:(?:shut\s*down|power\s*(?:down|off))(?:\s+(?:the|your))?\s+(?:whole\s+|entire\s+)?system|system\s+shut\s*down)(?:\s+(?:now|please))?\W*$/i;
+  const isSignOut = t => !!window.__ORB_SERVER__ && (SIGNOUT_RE.test(t.trim()) || SHUTSYS_RE.test(t.trim()));
   async function send(text) {
     if (text && isSignOut(text)) { stopListening(); powerDown({ signOut: true }); return; }
+    if (text && SHUTSYS_RE.test(text.trim())) { stopListening(); powerDown(); return; }   // preview: no sign-out, just shut down
     if (text && isPowerDown(text)) { stopListening(); powerDown(); return; }
     if ((!text && !attachments.length) || state === 'offline') return;
     synth?.cancel(); stopAgentVoice(); speakQueue = 0;
@@ -1418,6 +1436,122 @@ form.ask { width: 100%; box-sizing: border-box; display: flex; gap: 8px; align-i
   }
   requestAnimationFrame(frame);
 
+  // ---------- startup & shutdown sounds ----------
+  // Original digital effects, synthesised live with Web Audio (no audio files): a powering-up hum and
+  // sweep, a data blip as each system reports in, a confirmation chord; and the reverse for shutdown.
+  let sfxOn = store.get('sfxOn', true);
+  $('sfxOn').value = sfxOn ? '1' : '0';
+  $('sfxOn').addEventListener('change', e => { sfxOn = e.target.value === '1'; store.set('sfxOn', sfxOn); if (!sfxOn) sfx.stopHum(); });
+  const sfx = (() => {
+    let bus = null, hum = null;
+    const ctx = () => { ensureAudio(); return audioCtx && audioCtx.state === 'running' ? audioCtx : null; };
+    function out(c) {
+      if (bus && bus.context === c) return bus;
+      const comp = c.createDynamicsCompressor(); comp.threshold.value = -18; comp.ratio.value = 4;
+      bus = c.createGain(); bus.gain.value = 0.32; bus.connect(comp); comp.connect(c.destination);
+      return bus;
+    }
+    function tone({ f0, f1 = f0, dur = 0.12, type = 'sine', vol = 0.3, at = 0, attack = 0.005, q = 0, cutoff0 = 0, cutoff1 = 0, detune = 0 }) {
+      const c = ctx(); if (!c || !sfxOn) return;
+      const t = c.currentTime + at, o = c.createOscillator(), g = c.createGain();
+      o.type = type; o.detune.value = detune;
+      o.frequency.setValueAtTime(f0, t); if (f1 !== f0) o.frequency.exponentialRampToValueAtTime(Math.max(20, f1), t + dur);
+      g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + attack); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      let node = o;
+      if (cutoff0) { const f = c.createBiquadFilter(); f.type = 'lowpass'; f.Q.value = q || 6; f.frequency.setValueAtTime(cutoff0, t); f.frequency.exponentialRampToValueAtTime(cutoff1 || cutoff0, t + dur); o.connect(f); node = f; }
+      node.connect(g); g.connect(out(c)); o.start(t); o.stop(t + dur + 0.05);
+    }
+    function noise({ dur = 0.08, vol = 0.2, at = 0, freq = 2000, q = 1 }) {
+      const c = ctx(); if (!c || !sfxOn) return;
+      const t = c.currentTime + at, b = c.createBuffer(1, Math.ceil(c.sampleRate * dur), c.sampleRate), d = b.getChannelData(0);
+      for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / d.length);
+      const s = c.createBufferSource(), f = c.createBiquadFilter(), g = c.createGain();
+      s.buffer = b; f.type = 'bandpass'; f.frequency.value = freq; f.Q.value = q; g.gain.value = vol;
+      s.connect(f); f.connect(g); g.connect(out(c)); s.start(t);
+    }
+    const PENT = [0, 3, 5, 7, 10, 12, 15, 17, 19, 22];
+    return {
+      startHum(rise = true) {
+        const c = ctx(); if (!c || !sfxOn || hum) return;
+        const t = c.currentTime, g = c.createGain(), f = c.createBiquadFilter(), a = c.createOscillator(), b = c.createOscillator(), lfo = c.createOscillator(), lg = c.createGain();
+        a.type = 'sawtooth'; b.type = 'sawtooth'; a.frequency.value = 55; b.frequency.value = 55.6;
+        f.type = 'lowpass'; f.Q.value = 8; f.frequency.setValueAtTime(rise ? 90 : 900, t); f.frequency.exponentialRampToValueAtTime(rise ? 700 : 900, t + 4);
+        lfo.frequency.value = 0.35; lg.gain.value = 120; lfo.connect(lg); lg.connect(f.frequency);
+        g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.09, t + 1.2);
+        a.connect(f); b.connect(f); f.connect(g); g.connect(out(c)); a.start(t); b.start(t); lfo.start(t);
+        hum = { a, b, lfo, g, f };
+      },
+      stopHum(fall = 0.8, drop = false) {
+        if (!hum || !audioCtx) { hum = null; return; }
+        const t = audioCtx.currentTime, h = hum; hum = null;
+        if (drop) { h.a.frequency.exponentialRampToValueAtTime(22, t + fall); h.b.frequency.exponentialRampToValueAtTime(21, t + fall); h.f.frequency.exponentialRampToValueAtTime(60, t + fall); }
+        h.g.gain.cancelScheduledValues(t); h.g.gain.setValueAtTime(Math.max(0.0001, h.g.gain.value), t); h.g.gain.exponentialRampToValueAtTime(0.0001, t + fall);
+        [h.a, h.b, h.lfo].forEach(o => o.stop(t + fall + 0.05));
+      },
+      // power-on: bass thump and a rising filtered sweep
+      powerOn() {
+        tone({ f0: 70, f1: 38, dur: 0.5, type: 'sine', vol: 0.5 });
+        tone({ f0: 110, f1: 880, dur: 1.1, type: 'sawtooth', vol: 0.12, at: 0.08, cutoff0: 200, cutoff1: 4200, q: 10 });
+        tone({ f0: 112, f1: 892, dur: 1.1, type: 'sawtooth', vol: 0.1, at: 0.08, cutoff0: 200, cutoff1: 4200, q: 10, detune: 12 });
+      },
+      // one blip per system reporting in, climbing (startup) or falling (shutdown) a pentatonic scale
+      blip(i, up = true, bad = false) {
+        const step = PENT[Math.min(PENT.length - 1, Math.max(0, i))], f = 660 * Math.pow(2, (up ? step : -step) / 12);
+        if (bad) { tone({ f0: 220, f1: 180, dur: 0.16, type: 'square', vol: 0.09, cutoff0: 1200 }); return; }
+        tone({ f0: f, dur: 0.07, type: 'square', vol: 0.08, cutoff0: 3500, q: 2 });
+        tone({ f0: f * 2, dur: 0.05, type: 'sine', vol: 0.06, at: 0.045 });
+      },
+      // the name collapsing into the acronym: a quick digital shimmer up
+      lockOn() {
+        for (let k = 0; k < 6; k++) tone({ f0: 900 + k * 260, dur: 0.06, type: 'triangle', vol: 0.07, at: k * 0.045 });
+        noise({ dur: 0.35, vol: 0.06, freq: 5000, q: 0.8, at: 0.05 });
+      },
+      // startup complete: a bright confirmation chord
+      complete() {
+        [523.25, 659.25, 783.99, 1046.5].forEach((f, k) => tone({ f0: f, dur: 1.6, type: k === 3 ? 'sine' : 'triangle', vol: 0.09, at: k * 0.06, attack: 0.02 }));
+        tone({ f0: 2093, dur: 0.5, type: 'sine', vol: 0.04, at: 0.3 });
+        this.stopHum(1.6);
+      },
+      // shutdown begins: falling sweep
+      powerDown() {
+        tone({ f0: 1400, f1: 160, dur: 0.9, type: 'sawtooth', vol: 0.1, cutoff0: 5000, cutoff1: 300, q: 9 });
+        tone({ f0: 1408, f1: 158, dur: 0.9, type: 'sawtooth', vol: 0.08, cutoff0: 5000, cutoff1: 300, q: 9, detune: -12 });
+      },
+      // core draining: the hum's pitch sinks away
+      drain(seconds = 1.4) { this.stopHum(seconds, true); tone({ f0: 330, f1: 60, dur: seconds, type: 'triangle', vol: 0.08, attack: 0.05 }); },
+      // CRT collapse: a high whine falling, then the click of the tube switching off
+      crtOff() {
+        tone({ f0: 9000, f1: 300, dur: 0.6, type: 'sine', vol: 0.05 });
+        noise({ dur: 0.06, vol: 0.35, freq: 1800, q: 0.7, at: 0.55 });
+        tone({ f0: 90, f1: 40, dur: 0.25, type: 'sine', vol: 0.35, at: 0.55 });
+      },
+      running: () => !!ctx(),
+    };
+  })();
+  // Browsers only allow sound after a tap or key press on the page. If the startup sequence would begin
+  // silently, show a "tap to power up" standby screen first so it plays with sound.
+  function waitForPowerTap(el, run) {
+    return new Promise(resolve => {
+      const sl = $('bootSleep');
+      sl.querySelector('.label').textContent = 'Interface standby';
+      sl.querySelector('.hint2').textContent = 'Tap or press any key to power up';
+      sl.hidden = false; el.classList.add('off-content');
+      const go = e => {
+        if (e) { e.preventDefault?.(); e.stopImmediatePropagation?.(); }
+        removeEventListener('keydown', go, { capture: true }); el.removeEventListener('click', go);
+        ensureAudio(); sl.hidden = true; el.classList.remove('off-content');
+        resolve(run === bootRun);
+      };
+      el.addEventListener('click', go); addEventListener('keydown', go, { capture: true });
+    });
+  }
+  // "Startup complete", said by whichever agent is live
+  function announce(text) {
+    const live = cur()?.online ? cur() : agents.find(a => a.online);
+    if (!live) return;
+    setTimeout(() => { if (!poweredDown && state !== 'listening') speak(text, live.id); }, 450);
+  }
+
   // ---------- startup sequence ----------
   // Plays the first time the app opens in a tab (reloads skip it). Every status in the log is a real check.
   function startCore() {
@@ -1449,18 +1583,26 @@ form.ask { width: 100%; box-sizing: border-box; display: flex; gap: 8px; align-i
     el.hidden = false; el.classList.remove('out');
     $('bootLog').textContent = ''; $('bootName').className = 'boot-name'; $('bootName').textContent = '';
     $('bootState').textContent = 'Booting'; $('bootSkip').textContent = 'Tap or press any key to skip';
+    ensureAudio(); await wait(120);
+    if (sfxOn && !sfx.running()) { if (!(await waitForPowerTap(el, run))) return; await wait(80); }
     // restart the CSS ring animations
     el.querySelectorAll('svg circle, .bb-co, .bb-sub').forEach(n => { n.style.animation = 'none'; void n.offsetWidth; n.style.animation = ''; });
+    let blips = 0;
     const finish = () => {
       if (run !== bootRun || el.classList.contains('out')) return;
+      const wasSkipped = !completed;
       skipped = true; el.classList.add('out');
+      if (wasSkipped) sfx.complete();
+      announce('Startup complete.');
       setTimeout(() => { if (run === bootRun) el.hidden = true; }, 800);
       try { sessionStorage.setItem('orb.booted', '1'); } catch {}
       startCore();
     };
+    let completed = false;
     const onKey = e => { if (el.hidden || el.classList.contains('out')) return; e.preventDefault(); e.stopImmediatePropagation(); finish(); };
     el.onclick = finish;
     addEventListener('keydown', onKey, { capture: true });
+    sfx.powerOn(); sfx.startHum(true);
     const fast = reduceMotion ? 0.4 : 1;
     const step = async ms => { if (!skipped) await wait(ms * fast); if (skipped || run !== bootRun) throw SKIP; };
     const progress = p => { $('bootBar').style.width = p + '%'; $('bootPct').textContent = Math.round(p) + '%'; };
@@ -1468,7 +1610,7 @@ form.ask { width: 100%; box-sizing: border-box; display: flex; gap: 8px; align-i
       const row = document.createElement('div'); row.className = 'bl' + (head ? ' head' : '');
       row.innerHTML = '<span></span>' + (head ? '' : '<i></i><b class="pending">…</b>');
       row.firstChild.textContent = label; $('bootLog').append(row);
-      return (status, cls = 'ok', color) => { const b = row.querySelector('b'); b.textContent = status; b.className = cls; if (color) b.style.color = color; };
+      return (status, cls = 'ok', color) => { const b = row.querySelector('b'); b.textContent = status; b.className = cls; if (color) b.style.color = color; sfx.blip(blips++, true, cls === 'bad'); };
     };
     try {
       progress(0);
@@ -1501,8 +1643,9 @@ form.ask { width: 100%; box-sizing: border-box; display: flex; gap: 8px; align-i
       else set('BROWSER');
       progress(84);
       set = line('Orb calibration'); await step(350);
-      nameEl.classList.add('collapse');
+      nameEl.classList.add('collapse'); sfx.lockOn();
       await step(950); set('OK'); progress(100);
+      completed = true; sfx.complete();
       $('bootState').textContent = lead?.online ? `${acronym(lead.label)} online` : 'System ready';
       await step(900);
       finish();
@@ -1525,6 +1668,8 @@ form.ask { width: 100%; box-sizing: border-box; display: flex; gap: 8px; align-i
     stopAll();
     document.querySelectorAll('.sheet').forEach(s => s.hidden = true);
     caption(`<span class="you">${signOut ? 'Signing out.' : 'Powering down the interface.'}</span>`);
+    ensureAudio(); sfx.powerDown(); sfx.startHum(false);
+    let blips = 0;
 
     // set the overlay up at "fully booted": 100%, ring drawn, acronym showing
     el.classList.remove('drain', 'fading', 'off'); $('bootSleep').hidden = true;
@@ -1542,7 +1687,7 @@ form.ask { width: 100%; box-sizing: border-box; display: flex; gap: 8px; align-i
     const goDark = () => {
       if (run !== bootRun || sleeping) return;
       skipped = true; sleeping = true;
-      el.classList.add('drain', 'fading', 'off');
+      el.classList.add('drain', 'fading', 'off'); sfx.stopHum(0.3); sfx.crtOff();
       if (signOut) { setTimeout(() => { location.href = window.__ORB_SERVER__ ? '/logout' : location.href; }, 950); return; }
       setTimeout(() => {
         if (run !== bootRun) return;
@@ -1570,7 +1715,7 @@ form.ask { width: 100%; box-sizing: border-box; display: flex; gap: 8px; align-i
       const row = document.createElement('div'); row.className = 'bl' + (head ? ' head' : '');
       row.innerHTML = '<span></span>' + (head ? '' : '<i></i><b class="pending">…</b>');
       row.firstChild.textContent = label; $('bootLog').append(row);
-      return (status, cls = 'ok', color) => { const b = row.querySelector('b'); b.textContent = status; b.className = cls; if (color) b.style.color = color; };
+      return (status, cls = 'ok', color) => { const b = row.querySelector('b'); b.textContent = status; b.className = cls; if (color) b.style.color = color; sfx.blip(9 - Math.min(9, blips++), false, cls === 'bad'); };
     };
     try {
       await step(900);
@@ -1590,6 +1735,7 @@ form.ask { width: 100%; box-sizing: border-box; display: flex; gap: 8px; align-i
       set = line('Orb core');
       nameEl.classList.remove('collapse');                 // K.I.R.A. expands back to its full name
       el.classList.add('drain');                           // and the core ring drains away
+      sfx.drain(1.4);
       for (let p = 30; p >= 0; p -= 2) { progress(p); await step(75); }
       set('POWERED DOWN', 'ok', 'var(--dim)');
       $('bootState').textContent = signOut ? 'Signed out' : 'Interface offline';

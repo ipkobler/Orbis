@@ -172,6 +172,13 @@ docker compose exec kira-orb wget -S -O /dev/null -T 120 --post-data='{"voice":"
     for example `data/openclaw/workspace-ledger/inbox/statement.pdf`, and the agent is told the path so it can
     open it with its file tools. Existing files are never overwritten; a timestamp is added instead.
   - For this the orb mounts OpenClaw's data folder read-write. Its code only writes inside `workspace*/inbox/`.
+- **Sounds:** the startup and shutdown sequences have their own original synthesised digital effects (power-on
+  sweep, a blip as each system reports in, a confirmation chord; the reverse on shutdown, ending with a CRT
+  switch-off). When startup finishes, the live agent says "Startup complete." Turn the effects off in Settings.
+  Browsers only allow sound after you've tapped the page, so if the app opens without that, it shows a
+  "tap to power up" standby screen first.
+- **Shutdown system:** say or type "Shutdown system" (or "Shut down the system", "System shutdown") to run the full
+  shutdown sequence and sign out. "Power down the interface" just powers down and keeps you signed in.
 - **Power down:** type or say "Power down the interface" (also "Kira, power down", "shut down the orb", "power off"),
   or use Settings → Power down interface. The startup sequence plays in reverse and the screen collapses to a
   standby dot; tap or press any key to power back up. The command is handled by the orb and never sent to the
