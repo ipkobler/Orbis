@@ -32,6 +32,23 @@ const TITLES = Object.fromEntries(
 const SESSION_PREFIX = process.env.SESSION_PREFIX || 'orb';
 // OpenClaw's data folder, mounted read-only. The orb only ever opens workspace*/SOUL.md inside it.
 const OPENCLAW_DATA = process.env.OPENCLAW_DATA || '/openclaw';
+// Chatterbox Nano voice service (optional). Blank = the orb uses browser voices only.
+const VOICE_URL = (process.env.VOICE_URL || '').replace(/\/+$/, '');
+
+// ---- voice service status --------------------------------------------------------------------
+let voiceCache = { at: 0, info: { enabled: !!VOICE_URL, ready: false, voices: [], error: VOICE_URL ? null : 'Not configured' } };
+async function voiceStatus(force = false) {
+  if (!VOICE_URL) return voiceCache.info;
+  if (!force && Date.now() - voiceCache.at < 20000) return voiceCache.info;
+  let info;
+  try {
+    const r = await fetch(`${VOICE_URL}/health`, { signal: AbortSignal.timeout(4000) });
+    const j = await r.json();
+    info = { enabled: true, ready: !!j.ready, voices: j.voices || [], error: j.error || (j.ready ? null : 'Loading voice model') };
+  } catch { info = { enabled: true, ready: false, voices: [], error: 'Voice service unreachable' }; }
+  voiceCache = { at: Date.now(), info };
+  return info;
+}
 
 // ---- full names from each agent's SOUL.md ----------------------------------------------------
 // workspace/ belongs to the default agent, workspace-<id>/ to every other agent.
@@ -148,15 +165,16 @@ async function agentStatus(force = false) {
   if (ALLOW.length) ids = ids.filter(id => ALLOW.includes(id));
   ids.sort((a, b) => (a === DEFAULT_AGENT ? -1 : b === DEFAULT_AGENT ? 1 : a.localeCompare(b)));
 
-  const souls = await soulTitles(ids);
+  const [souls, voice] = await Promise.all([soulTitles(ids), voiceStatus(force)]);
   const agents = ids.map(id => {
     let online = true, reason = null;
     if (!gatewayIds) { online = false; reason = gatewayError; }
     else if (!gatewayIds.includes(id)) { online = false; reason = 'Not found in OpenClaw'; }
     else if (failures.has(id)) { online = false; reason = failures.get(id).reason; }
-    return { id, label: prettyName(id), title: souls[id] || TITLES[id] || null, color: COLORS[id] || null, online, reason };
+    return { id, label: prettyName(id), title: souls[id] || TITLES[id] || null, color: COLORS[id] || null, online, reason,
+      voice: voice.ready && voice.voices.includes(id) };
   });
-  statusCache = { gateway: { online: !!gatewayIds, latencyMs, error: gatewayError }, agents, default: DEFAULT_AGENT, checkedAt: new Date().toISOString() };
+  statusCache = { gateway: { online: !!gatewayIds, latencyMs, error: gatewayError }, voice, agents, default: DEFAULT_AGENT, checkedAt: new Date().toISOString() };
   statusAt = Date.now();
   return statusCache;
 }
@@ -221,6 +239,30 @@ async function handleChat(req, res) {
   stream.on('error', () => res.end()).pipe(res);
 }
 
+async function handleTts(req, res) {
+  if (!VOICE_URL) return send(res, 404, { error: 'No voice service configured.' });
+  let payload;
+  try { payload = JSON.parse(await readBody(req, 16 * 1024)); } catch { return send(res, 400, { error: 'Bad request body.' }); }
+  const agent = String(payload.agent || ''), text = String(payload.text || '').trim();
+  if (!AGENT_RE.test(agent)) return send(res, 400, { error: 'Unknown agent.' });
+  if (!text || text.length > 600) return send(res, 400, { error: 'Text must be 1 to 600 characters.' });
+  const abort = new AbortController();
+  res.on('close', () => abort.abort());
+  try {
+    const r = await fetch(`${VOICE_URL}/v1/audio/speech`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: 'chatterbox-nano', voice: agent, input: text, response_format: 'wav' }),
+      signal: abort.signal,
+    });
+    if (!r.ok) { const j = await r.json().catch(() => ({})); return send(res, r.status, { error: j.detail || `Voice service returned ${r.status}.` }); }
+    const audio = Buffer.from(await r.arrayBuffer());
+    res.writeHead(200, { 'Content-Type': 'audio/wav', 'Content-Length': audio.length, 'Cache-Control': 'no-store', ...SECURITY_HEADERS });
+    res.end(audio);
+  } catch (e) {
+    if (!abort.signal.aborted) send(res, 502, { error: 'Voice service unreachable.' });
+  }
+}
+
 const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.webmanifest': 'application/manifest+json', '.png': 'image/png' };
 
 async function serveStatic(req, res, urlPath) {
@@ -242,6 +284,7 @@ http.createServer(async (req, res) => {
     if (pathname === '/healthz') return send(res, 200, { ok: true });
     if (pathname === '/api/agents' && req.method === 'GET') return send(res, 200, await agentStatus(new URL(req.url, 'http://x').searchParams.has('refresh')));
     if (pathname === '/api/chat' && req.method === 'POST') return await handleChat(req, res);
+    if (pathname === '/api/tts' && req.method === 'POST') return await handleTts(req, res);
     if (req.method === 'GET') return await serveStatic(req, res, pathname);
     send(res, 405, { error: 'Method not allowed.' });
   } catch (e) {

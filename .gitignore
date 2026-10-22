@@ -1,5 +1,6 @@
 # secrets and local data
 .env
 backup.env
+voice.env
 node_modules/
 *.log

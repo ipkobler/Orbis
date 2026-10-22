@@ -22,6 +22,8 @@ and `/v1` is blocked on the public `claw.bigsixtech.tech` address.
 | `deploy/docker-compose.override.yml` | replaces `/docker/agent-stack/docker-compose.override.yml` |
 | `deploy/Caddyfile` | replaces `/docker/agent-stack/Caddyfile` |
 | `deploy/backup.env.example` | copy to `/docker/agent-stack/backup.env` |
+| `voice/` | the Chatterbox Nano voice service (built by the `voice` compose service) |
+| `deploy/voice.env.example` | copy to `/docker/agent-stack/voice.env` |
 
 Your main `docker-compose.yml` is not changed.
 
@@ -108,6 +110,59 @@ OpenClaw, n8n and the mailer restart once because of the new labels and memory l
 docker compose exec backup backup
 ls -lh /root/backups
 ```
+
+## Agent voices (Chatterbox Nano)
+
+Each agent can speak in its own voice, cloned from a short clip, using Resemble AI's open-source
+Chatterbox Nano model running in the `voice` container on your VPS. Agents without a clip, or any
+time the voice service is down, fall back to the browser voice automatically.
+
+**1. Get access to the model.** Sign in at huggingface.co, open
+[ResembleAI/chatterbox-nano](https://huggingface.co/ResembleAI/chatterbox-nano) and accept the terms.
+Then create a **Read** token under Settings → Access Tokens.
+
+```bash
+cd /docker/agent-stack
+cp kira-orb/deploy/voice.env.example voice.env && chmod 600 voice.env
+nano voice.env                       # paste the token after HF_TOKEN=
+mkdir -p data/voices data/voice-cache
+```
+
+**2. Add a voice clip for each agent**, named after the agent id: `main.wav` (K.I.R.A.), `forge.wav`,
+`ledger.wav`. Each clip must be **longer than 5 seconds**; 10–20 seconds of one person speaking clearly,
+with no music or background noise, works best. Use your own recordings or voices you have the rights to,
+and don't clone a real person without their permission. From PowerShell on your PC:
+
+```powershell
+scp .\main.wav .\forge.wav .\ledger.wav root@179.236.241.98:/docker/agent-stack/data/voices/
+```
+
+**3. Start it.** The first build takes several minutes, and the first start downloads the model (about 0.5 GB).
+
+```bash
+docker compose up -d --build voice
+docker compose logs -f voice         # wait for "[voice] ready in …", then Ctrl+C
+```
+
+**4. Connect the orb.** `VOICE_URL=http://voice:8000` is already in `kira-orb/.env.example`; add it to your
+`kira-orb/.env` if your copy predates it, then run `docker compose up -d kira-orb`.
+
+**5. Check it.** The startup sequence shows `Voice synthesis … CHATTERBOX · 3 voices`, and Settings lists
+which agents have their own voice. To test from the server:
+
+```bash
+docker compose exec kira-orb wget -qO- --post-data='{"agent":"main","text":"Systems online."}' \
+  --header='Content-Type: application/json' http://localhost:8080/api/tts > /tmp/test.wav && ls -lh /tmp/test.wav
+```
+
+**Good to know**
+- Add or replace a clip any time; the change is picked up on the next sentence, with no restart needed.
+- Speed: Resemble rates Nano at about 3× real time on 8 CPU cores. Your VPS has 2, and the container is
+  capped at 1.5 so OpenClaw stays responsive, so expect roughly real time: a pause before the first
+  sentence, then the next sentence is prepared while the current one plays. If it's too slow, raise
+  `cpus` or switch Settings → Agent voices to the browser voice.
+- Every Chatterbox clip carries Resemble's inaudible watermark identifying it as AI-generated.
+- To turn it off, set Settings → Agent voices to "Browser voice", or remove `VOICE_URL` and restart the orb.
 
 ## Using it
 
