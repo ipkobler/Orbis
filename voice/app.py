@@ -108,9 +108,9 @@ def synthesize(text: str, voice: str) -> bytes:
     model = state["model"]
     with gen_lock:
         vs = voice_state(voice)
-        import torch
-        with torch.inference_mode():
-            audio = model.generate_audio(vs, text)
+        # No torch.inference_mode() here: Pocket TTS runs part of generation on a worker thread, which wouldn't
+        # inherit that mode, and mixing modes makes it crash. It manages gradients itself.
+        audio = model.generate_audio(vs, text)
         sr = int(model.sample_rate)
     pcm = np.clip(audio.detach().cpu().numpy().reshape(-1), -1.0, 1.0)
     pcm = (pcm * 32767).astype(np.int16)
