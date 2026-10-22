@@ -506,7 +506,7 @@ form.ask.chatask { margin-top: 2px; }
   let agents = [], gateway = { online: false };
   let agent = store.get('agent', null);
   let state = 'idle';               // idle | listening | thinking | speaking | error | offline
-  let handsFree = false, abortCtl = null, streaming = false, sendSeq = 0;
+  let handsFree = false, abortCtl = null, streaming = false, sendSeq = 0, lastSent = { sig: '', at: 0 };
   let micLevel = 0, speakPulse = 0;
   const stats = {};                 // per agent: { times: [], firsts: [], turns, talkMs }
 
@@ -1218,6 +1218,7 @@ form.ask.chatask { margin-top: 2px; }
     rec = new SR(); rec.lang = navigator.language || 'en-US'; rec.interimResults = true; rec.continuous = false;
     gotFinal = false;
     rec.onresult = e => {
+      if (gotFinal) return;      // Android Chrome can deliver the same final result twice: send it once
       let interim = '', final = '';
       for (const r of e.results) (r.isFinal ? (final += r[0].transcript) : (interim += r[0].transcript));
       caption('<span class="you">' + esc(final || interim) + '</span>');
@@ -1337,6 +1338,10 @@ form.ask.chatask { margin-top: 2px; }
     if (text && SHUTSYS_RE.test(text.trim())) { stopListening(); powerDown(); return; }   // preview: no sign-out, just shut down
     if (text && isPowerDown(text)) { stopListening(); powerDown(); return; }
     if ((!text && !attachments.length) || state === 'offline') return;
+    // the same words twice within a few seconds (a double tap, a recogniser repeat) count once
+    const sig = text.trim().toLowerCase();
+    if (!attachments.length && sig && sig === lastSent.sig && Date.now() - lastSent.at < 4000) return;
+    lastSent = { sig, at: Date.now() };
     if (streaming) { abortCtl?.abort(); streaming = false; }     // a new message replaces a reply still in progress
     synth?.cancel(); stopAgentVoice(); speakQueue = 0;
     const hasFiles = attachments.length > 0;
