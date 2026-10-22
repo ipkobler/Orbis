@@ -575,7 +575,7 @@ form.ask.chatask { margin-top: 2px; }
     if (id === agent) return;
     stopAll(); agent = id; store.set('agent', agent);
     nameplate(); applyColor(); caption(''); renderLog(); renderStats();
-    syncOnline(true); loadHistory();
+    syncOnline(true); loadHistory(); watchSession();
   }
   // Move the orb in and out of the offline look when the current agent's status changes.
   function syncOnline(announce) {
@@ -615,6 +615,7 @@ form.ask.chatask { margin-top: 2px; }
     }
     nameplate(); applyColor(); renderGateway(); syncOnline(false); renderVoiceNote(); renderLinkNote();
     if (linkInfo?.state === 'online') loadHistory();
+    watchSession();
     if (agents.map(a => a.id).join() !== lastVoiceAgents) { lastVoiceAgents = agents.map(a => a.id).join(); renderAgentVoices(); }
   }
   setInterval(() => { if (document.visibilityState === 'visible' && !poweredDown) poll(); }, 15000);
@@ -720,7 +721,8 @@ form.ask.chatask { margin-top: 2px; }
       }
       body.append(steps);
     }
-    if (t.text) { const x = document.createElement('div'); x.className = 'md'; x.innerHTML = md(t.text); body.append(x); }
+    const shown = String(t.text || '').replace(/^\s*MEDIA:\S.*$/gm, '').trim();
+    if (shown) { const x = document.createElement('div'); x.className = 'md'; x.innerHTML = md(shown); body.append(x); }
     if (t.media?.length) body.append(gallery(t.media));
     if (t.live && !t.text && !t.media?.length) { const ty = document.createElement('div'); ty.className = 'typing'; ty.innerHTML = '<i></i><i></i><i></i>'; ty.setAttribute('aria-label', 'Working'); body.append(ty); }
     d.append(body);
@@ -789,6 +791,51 @@ form.ask.chatask { margin-top: 2px; }
     } catch { historyLoaded[a] = null; }
     if (!$('logSheet').hidden && a === agent) renderLog();
   }
+  // Turns the orb didn't start itself, e.g. an image the agent finishes a minute later in the background
+  // (image, video and music generation work that way), or a message sent from OpenClaw's own chat page.
+  let watchSrc = null, watchKey = '', refreshWanted = false;
+  function watchSession() {
+    if (DEMO || !window.__ORB_SERVER__ || linkInfo?.state !== 'online' || poweredDown) { if (watchSrc) { watchSrc.close(); watchSrc = null; watchKey = ''; } return; }
+    const key = agent + '|' + convId();
+    if (watchSrc && watchKey === key) return;
+    watchSrc?.close(); watchKey = key;
+    const a = agent;
+    watchSrc = new EventSource(`/api/watch?agent=${encodeURIComponent(a)}&session=${encodeURIComponent(convId())}`);
+    watchSrc.onmessage = e => { let j; try { j = JSON.parse(e.data); } catch { return; } if (j.type === 'update' && a === agent) refreshFromServer(); };
+  }
+  const MEDIA_LINE = /^\s*MEDIA:\S.*$/gm;    // file references the gateway turns into attachments
+  async function refreshFromServer(attempt = 0) {
+    if (streaming) { refreshWanted = true; return; }      // after the current reply
+    refreshWanted = false;
+    // the transcript (with the finished image attached) is written a moment after the gateway's notice
+    const again = () => { if (attempt < 8) setTimeout(() => refreshFromServer(attempt + 1), 800); };
+    const a = agent, conv = convId();
+    let j;
+    try {
+      const r = await fetch(`/api/history?agent=${encodeURIComponent(a)}&session=${encodeURIComponent(conv)}`, { cache: 'no-store' });
+      if (!r.ok) return; j = await r.json();
+    } catch { return; }
+    if (!j.available || a !== agent || streaming) return;
+    const server = (j.messages || []).map(m => ({ who: m.role === 'user' ? 'you' : 'agent', text: (m.text || '').replace(MEDIA_LINE, '').trim(), files: m.files || [], tools: m.tools || [], media: m.media || [] }));
+    if ((j.messages || []).some(m => m.role !== 'user' && MEDIA_LINE.test(m.text || '') && !(m.media || []).length)) { MEDIA_LINE.lastIndex = 0; return again(); }
+    MEDIA_LINE.lastIndex = 0;
+    const local = history[a] || [];
+    const agentTurns = list => list.filter(t => t.who !== 'you');
+    const lastLocal = agentTurns(local).at(-1), lastServer = agentTurns(server).at(-1);
+    const changed = agentTurns(server).length > agentTurns(local).length ||
+      (lastServer && lastLocal && (lastServer.media.length > lastLocal.media.length || lastServer.text.length > lastLocal.text.length + 2));
+    if (!changed || !lastServer) return again();
+    history[a] = server; historyLoaded[a] = conv;
+    if (!$('logSheet').hidden) renderLog();
+    // announce it like a normal reply
+    const newMedia = lastServer.media.length > (lastLocal && agentTurns(server).length === agentTurns(local).length ? lastLocal.media.length : 0);
+    const grewTurn = agentTurns(server).length === agentTurns(local).length && lastLocal && lastServer.text.startsWith(lastLocal.text.trim().slice(0, 40));
+    const said = !grewTurn ? lastServer.text : lastServer.text.slice(lastLocal.text.length).trim();
+    if (newMedia && $('logSheet').hidden) toggleSheet('logSheet');
+    caption(esc(speakable(said)).slice(-420) || `<span class="you">${newMedia ? 'New from ' + esc(currentLabel()) + ': it\'s in the chat window.' : 'New message in the chat.'}</span>`);
+    if (state === 'idle' && said) { stopAgentVoice(); synth?.cancel(); speakQueue = 0; speak(said); }
+  }
+
   // full tools need the orb approved as a device in OpenClaw; until then it uses the basic chat endpoint
   let linkInfo = null;
   function renderLinkNote() {
@@ -873,7 +920,7 @@ form.ask.chatask { margin-top: 2px; }
   $('speakOn').addEventListener('change', e => { speakOn = e.target.value === '1'; store.set('speakOn', speakOn); if (!speakOn) { synth?.cancel(); stopAgentVoice(); } });
 
   function speakable(t) {
-    return t.replace(/```[\s\S]*?```/g, ' I put the code in the chat. ')
+    return t.replace(/^\s*MEDIA:\S.*$/gm, '').replace(/```[\s\S]*?```/g, ' I put the code in the chat. ')
       .replace(/^\s*\|?\s*:?-{2,}[-|: ]*$/gm, '')
       .replace(/`([^`]+)`/g, '$1').replace(/!\[[^\]]*\]\([^)]*\)/g, '')
       .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1').replace(/https?:\/\/\S+/g, 'the link')
@@ -1338,6 +1385,7 @@ form.ask.chatask { margin-top: 2px; }
       else if (!turn.text.trim()) { turn.text = '(no reply)'; caption('<span class="err">The agent finished without saying anything.</span>'); }
       if (!$('logSheet').hidden) renderLog();
       if (speakQueue <= 0) finishTurn();
+      if (refreshWanted) setTimeout(refreshFromServer, 300);
     } catch (e) {
       turn.live = false;
       if (mySeq !== sendSeq) { if (!turn.text && !turn.media.length) turn.text = '_(interrupted)_'; if (!$('logSheet').hidden) renderLog(); return; }
@@ -1465,7 +1513,7 @@ form.ask.chatask { margin-top: 2px; }
     stopAll(); const all = store.get('conv', {}); all[agent] = newId(); store.set('conv', all);
     if (serverConvs) serverConvs[agent] = all[agent];
     shareConv(agent, all[agent], 'new');
-    history[agent] = []; historyLoaded[agent] = convId(); stats[agent] = null; renderLog(); renderStats();
+    history[agent] = []; historyLoaded[agent] = convId(); stats[agent] = null; renderLog(); renderStats(); watchSession();
     caption('<span class="you">New conversation started with ' + esc(currentLabel()) + '.</span>');
   });
   try { navigator.wakeLock?.request('screen').catch(() => {}); } catch {}

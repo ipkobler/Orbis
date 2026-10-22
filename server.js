@@ -107,9 +107,17 @@ const linkStatus = () => link ? { ...link.status, transport: link.ready ? 'ws' :
 // gateway events → the browser stream waiting on that session
 const sessionStreams = new Map();   // sessionKey -> { handler(event, payload), runId }
 const pendingAborts = new Map();    // sessionKey -> chat.abort in flight (a new message waits for it)
+// Runs the orb started itself; anything else that finishes in an orb conversation (a background image or
+// video arriving later, a message sent from OpenClaw's own chat page) is announced to the open orbs.
+const orbRuns = new Set();
+const rememberRun = id => { orbRuns.add(id); if (orbRuns.size > 500) orbRuns.delete(orbRuns.values().next().value); };
+const watchers = new Map();         // sessionKey -> Set of open /api/watch streams
 link?.on('event', (event, payload) => {
   if ((event !== 'chat' && event !== 'agent') || !payload?.sessionKey) return;
   sessionStreams.get(payload.sessionKey)?.handler(event, payload);
+  if (event === 'chat' && ['final', 'error', 'aborted'].includes(payload.state) && !orbRuns.has(payload.runId)) {
+    for (const out of watchers.get(payload.sessionKey) || []) out.emit({ type: 'update', state: payload.state });
+  }
 });
 link?.on('closed', () => { for (const s of sessionStreams.values()) s.handler('link-closed', {}); });
 function abortRun(sessionKey, runId) {
@@ -118,6 +126,7 @@ function abortRun(sessionKey, runId) {
   return p;
 }
 link?.on('status', () => { statusAt = 0; });
+link?.on('ready', () => { for (const set of watchers.values()) for (const out of set) out.emit({ type: 'update', state: 'reconnected' }); });   // catch up on anything missed
 const sessionKeyFor = (agent, session) => `agent:${agent}:${SESSION_PREFIX}:${session}`;
 
 // ---- one current conversation per agent, shared by every device you sign in on -----------------
@@ -296,6 +305,7 @@ async function handleChat(req, res) {
 async function chatOverLink({ agent, session, text, images, names }, req, res) {
   const sessionKey = sessionKeyFor(agent, session);
   let runId = crypto.randomUUID();
+  rememberRun(runId);
   // one live reply per conversation: a new message stops the reply still in progress, so it starts a fresh turn
   const prev = sessionStreams.get(sessionKey);
   if (prev) { prev.handler('superseded', {}); abortRun(sessionKey, prev.runId); }
@@ -369,7 +379,7 @@ async function chatOverLink({ agent, session, text, images, names }, req, res) {
       else if (p.state === 'delta' && !sawText && !p.replace && p.deltaText) { streamed += p.deltaText; out.emit({ type: 'delta', text: p.deltaText }); }
       else if (p.state === 'final') {
         // the message was folded into a run that was already working: its answer arrives on that run
-        if (!sawText && !streamed && !itemTools.size && !textOf(p.message) && otherRun) { runId = otherRun; otherRun = null; sessionStreams.get(sessionKey).runId = runId; return; }
+        if (!sawText && !streamed && !itemTools.size && !textOf(p.message) && otherRun) { runId = otherRun; rememberRun(runId); otherRun = null; sessionStreams.get(sessionKey).runId = runId; return; }
         finish('final', p);
       }
       else if (p.state === 'aborted') finish('aborted');
@@ -482,6 +492,18 @@ async function chatOverHttp({ agent, session, text, images }, req, res) {
   out.end();
 }
 
+// Live notice of turns the orb didn't start itself (e.g. a generated image arriving a minute later).
+function handleWatch(req, res, url) {
+  const agent = url.searchParams.get('agent') || '', session = url.searchParams.get('session') || '';
+  if (!AGENT_RE.test(agent) || !SESSION_RE.test(session)) return send(res, 400, { error: 'Bad request.' });
+  const key = sessionKeyFor(agent, session);
+  const out = openStream(res);
+  out.emit({ type: 'hello', live: !!link?.ready });
+  if (!watchers.has(key)) watchers.set(key, new Set());
+  watchers.get(key).add(out);
+  res.on('close', () => { out.end(); const set = watchers.get(key); set?.delete(out); if (set && !set.size) watchers.delete(key); });
+}
+
 // Earlier messages of this orb conversation (so the chat window survives a reload).
 async function handleHistory(req, res, url) {
   const agent = url.searchParams.get('agent') || '', session = url.searchParams.get('session') || '';
@@ -505,6 +527,7 @@ async function handleHistory(req, res, url) {
       } else if (m.role === 'assistant') {
         const blocks = Array.isArray(c) ? c : [{ type: 'text', text: String(c || '') }];
         const text = blocks.filter(b => b?.type === 'text').map(b => b.text).join('\n\n');
+        // (a "MEDIA:/path" line is left in only while the gateway is still attaching that file)
         const tools = blocks.filter(b => b?.type === 'toolCall').map(b => ({ id: b.id, name: b.name, title: toolTitles.get(b.id)?.title || b.name, status: toolTitles.get(b.id)?.status || 'completed' }));
         const media = mediaOf(m);
         const prev = messages.at(-1);
@@ -725,6 +748,7 @@ http.createServer(async (req, res) => {
     if (pathname === '/api/tts' && req.method === 'POST') return await handleTts(req, res);
     if (pathname === '/api/upload' && req.method === 'POST') return await handleUpload(req, res, new URL(req.url, 'http://x'));
     if (pathname === '/api/conversation' && req.method === 'POST') return await handleConversation(req, res);
+    if (pathname === '/api/watch' && req.method === 'GET') return handleWatch(req, res, new URL(req.url, 'http://x'));
     if (pathname === '/api/history' && req.method === 'GET') return await handleHistory(req, res, new URL(req.url, 'http://x'));
     if (pathname === '/api/media' && req.method === 'GET') return await handleMedia(req, res, new URL(req.url, 'http://x'));
     if (req.method === 'GET') return await serveStatic(req, res, pathname);
