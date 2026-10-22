@@ -619,7 +619,8 @@ form.ask.chatask { margin-top: 2px; }
     if (agents.map(a => a.id).join() !== lastVoiceAgents) { lastVoiceAgents = agents.map(a => a.id).join(); renderAgentVoices(); }
   }
   setInterval(() => { if (document.visibilityState === 'visible' && !poweredDown) poll(); }, 15000);
-  document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && !poweredDown && poll(true));
+  // back on screen (phones pause pages in the background): catch up on anything that arrived meanwhile
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && !poweredDown) { poll(true); if (window.__ORB_SERVER__ && !DEMO) refreshFromServer(); } });
 
   // ---------- conversation ids ----------
   const newId = () => (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2, 12));
@@ -804,6 +805,18 @@ form.ask.chatask { margin-top: 2px; }
     watchSrc.onmessage = e => { let j; try { j = JSON.parse(e.data); } catch { return; } if (j.type === 'update' && a === agent) refreshFromServer(); };
   }
   const MEDIA_LINE = /^\s*MEDIA:\S.*$/gm;    // file references the gateway turns into attachments
+  // After the agent starts an image/video/music job, also check the conversation every few seconds for up
+  // to 10 minutes, in case the live notice is missed (a phone asleep, a dropped connection).
+  let mediaWatch = null;
+  function awaitMedia(forAgent) {
+    clearInterval(mediaWatch);
+    const until = Date.now() + 10 * 60000, before = (history[forAgent] || []).reduce((n, t) => n + (t.media?.length || 0), 0);
+    mediaWatch = setInterval(() => {
+      const now = (history[forAgent] || []).reduce((n, t) => n + (t.media?.length || 0), 0);
+      if (Date.now() > until || now > before || forAgent !== agent) { clearInterval(mediaWatch); mediaWatch = null; return; }
+      if (document.visibilityState === 'visible' && !streaming) refreshFromServer(8);
+    }, 6000);
+  }
   async function refreshFromServer(attempt = 0) {
     if (streaming) { refreshWanted = true; return; }      // after the current reply
     refreshWanted = false;
@@ -1388,6 +1401,7 @@ form.ask.chatask { margin-top: 2px; }
       renderStats();
       if (buf.length > spoken) speak(buf.slice(spoken));
       const madeMedia = turn.tools.some(t => /image|video|music|generat/i.test(`${t.name} ${t.title}`));
+      if (madeMedia && !turn.media.length) awaitMedia(forAgent);
       if (!turn.text.trim() && turn.media.length) caption('<span class="you">Done. It\'s in the chat window.</span>');
       else if (!turn.text.trim() && madeMedia) {
         // image/video/music generation finishes in the background and arrives as a later message
