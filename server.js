@@ -115,7 +115,8 @@ const watchers = new Map();         // sessionKey -> Set of open /api/watch stre
 link?.on('event', (event, payload) => {
   if ((event !== 'chat' && event !== 'agent') || !payload?.sessionKey) return;
   sessionStreams.get(payload.sessionKey)?.handler(event, payload);
-  if (event === 'chat' && ['final', 'error', 'aborted'].includes(payload.state) && !orbRuns.has(payload.runId)) {
+  // (not while the orb's own reply is still streaming in that conversation: that one it already shows)
+  if (event === 'chat' && ['final', 'error', 'aborted'].includes(payload.state) && !orbRuns.has(payload.runId) && !sessionStreams.has(payload.sessionKey)) {
     for (const out of watchers.get(payload.sessionKey) || []) out.emit({ type: 'update', state: payload.state });
   }
 });
@@ -313,6 +314,9 @@ async function chatOverLink({ agent, session, text, images, names }, req, res) {
   const out = openStream(res);
   let otherRun = null;   // another run already working in this session (e.g. started from the OpenClaw page)
   let finished = false, streamed = '', segment = null, segText = '', sawText = false, expectMedia = false;
+  // The gateway reports reply text twice: as agent "assistant" events and as chat deltas. Use whichever
+  // arrives first for this run and ignore the other, or every word would show (and be spoken) twice.
+  let textSource = null;
   const itemTools = new Set();     // tool calls reported by item events (they carry friendly titles)
   const toolsUsed = [];            // tool names, for the log
 
@@ -338,6 +342,7 @@ async function chatOverLink({ agent, session, text, images, names }, req, res) {
         }
       } catch (e) { console.warn('[kira-orb] could not read the run from history:', e.message); }
       if (!mediaCount && !sawText && !streamed && (recovered || finalText)) out.emit({ type: 'delta', text: recovered || finalText });
+      else if (textSource === 'chat' && finalText && !streamed.includes(finalText.trim())) out.emit({ type: 'delta', text: '\n\n' + finalText });
       const toolNames = toolsUsed.join(', ');
       console.log(`[kira-orb] ${agent} reply: ${streamed.length || (recovered || finalText).length} chars${streamed ? '' : recovered ? ' (from history)' : finalText ? ' (from final)' : ' (none)'}, tools: ${toolNames || 'none'}, media: ${mediaCount}`);
       out.emit({ type: 'done', transport: 'ws' });
@@ -360,6 +365,8 @@ async function chatOverLink({ agent, session, text, images, names }, req, res) {
     if (event === 'agent') {
       const d = p.data || {};
       if (p.stream === 'assistant') {
+        if (Array.isArray(d.mediaUrls) && d.mediaUrls.length) expectMedia = true;
+        if (textSource === 'chat') return;
         // each assistant item is one stretch of text (text, tool calls, more text…): keep them as paragraphs
         if (d.itemId !== segment) {
           if (segText && !streamed.endsWith('\n')) { out.emit({ type: 'delta', text: '\n\n' }); streamed += '\n\n'; }
@@ -368,7 +375,7 @@ async function chatOverLink({ agent, session, text, images, names }, req, res) {
         let add = '';
         if (typeof d.delta === 'string' && d.delta) add = d.delta;
         else if (typeof d.text === 'string' && d.text.length > segText.length && d.text.startsWith(segText)) add = d.text.slice(segText.length);
-        if (add) { segText += add; streamed += add; sawText = true; out.emit({ type: 'delta', text: add }); }
+        if (add) { textSource = 'agent'; segText += add; streamed += add; sawText = true; out.emit({ type: 'delta', text: add }); }
         if (Array.isArray(d.mediaUrls) && d.mediaUrls.length) expectMedia = true;
       } else if (p.stream === 'item' && d.kind === 'tool') {
         const id = d.toolCallId || d.itemId;
@@ -384,7 +391,8 @@ async function chatOverLink({ agent, session, text, images, names }, req, res) {
     }
     if (event === 'chat') {
       if (p.state === 'status') out.emit({ type: 'status', phase: p.phase });
-      else if (p.state === 'delta' && !sawText && p.deltaText) {
+      else if (p.state === 'delta' && textSource !== 'agent' && p.deltaText) {
+        textSource = 'chat';
         if (!p.replace) { streamed += p.deltaText; out.emit({ type: 'delta', text: p.deltaText }); }
         else if (p.deltaText.startsWith(streamed) && p.deltaText.length > streamed.length) { const add = p.deltaText.slice(streamed.length); streamed += add; out.emit({ type: 'delta', text: add }); }
       }

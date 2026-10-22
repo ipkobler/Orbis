@@ -829,10 +829,11 @@ form.ask.chatask { margin-top: 2px; }
     if (!$('logSheet').hidden) renderLog();
     // announce it like a normal reply
     const newMedia = lastServer.media.length > (lastLocal && agentTurns(server).length === agentTurns(local).length ? lastLocal.media.length : 0);
-    const grewTurn = agentTurns(server).length === agentTurns(local).length && lastLocal && lastServer.text.startsWith(lastLocal.text.trim().slice(0, 40));
-    const said = !grewTurn ? lastServer.text : lastServer.text.slice(lastLocal.text.length).trim();
+    // speak only a genuinely new message; a reply that just reads a little differently is updated quietly
+    const said = agentTurns(server).length > agentTurns(local).length ? lastServer.text : '';
     if (newMedia && $('logSheet').hidden) toggleSheet('logSheet');
-    caption(esc(speakable(said)).slice(-420) || `<span class="you">${newMedia ? 'New from ' + esc(currentLabel()) + ': it\'s in the chat window.' : 'New message in the chat.'}</span>`);
+    if (!said && !newMedia) return;
+    caption(esc(speakable(said)).slice(-420) || `<span class="you">New from ${esc(currentLabel())}: it's in the chat window.</span>`);
     if (state === 'idle' && said) { stopAgentVoice(); synth?.cancel(); speakQueue = 0; speak(said); }
   }
 
