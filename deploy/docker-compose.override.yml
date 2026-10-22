@@ -54,8 +54,9 @@ services:
     env_file: ./kira-orb/.env
     networks: [agentnet]      # no published ports; Caddy reaches it as kira-orb:8080
     volumes:
-      # read-only, so the orb can read each agent's SOUL.md for its full name
-      - ./data/openclaw:/openclaw:ro
+      # The orb reads each agent's SOUL.md (full names) and saves attached files into that
+      # agent's workspace inbox/. Its code only ever writes inside workspace*/inbox/.
+      - ./data/openclaw:/openclaw
     depends_on:
       - openclaw-gateway
 

@@ -167,15 +167,23 @@ docker compose exec kira-orb wget -qO- --post-data='{"agent":"main","text":"Syst
 
 ## Using it
 
+- **Attach files** with the 📎 button, by dragging them onto the orb, or by pasting. Each file shows as a chip
+  you can remove before sending, and voice messages carry pending attachments too.
+  - **Images** (PNG, JPEG, GIF, WebP, HEIC) go to the agent with the message so it can see them: up to 8 per
+    message, 20 MB in total. Large photos are scaled to 2048 px first.
+  - **Text files** (txt, md, csv, json, code, logs… up to 200 KB) are included in the message.
+  - **Everything else** (PDF, Word, Excel, zip…, up to 25 MB) is saved to the agent's own workspace in `inbox/`,
+    for example `data/openclaw/workspace-ledger/inbox/statement.pdf`, and the agent is told the path so it can
+    open it with its file tools. Existing files are never overwritten; a timestamp is added instead.
+  - For this the orb mounts OpenClaw's data folder read-write. Its code only writes inside `workspace*/inbox/`.
 - **Power down:** type or say "Power down the interface" (also "Kira, power down", "shut down the orb", "power off"),
   or use Settings → Power down interface. The startup sequence plays in reverse and the screen collapses to a
   standby dot; tap or press any key to power back up. The command is handled by the orb and never sent to the
   agent, and only a message that is just the command counts, so "can you power down the display on my server" still
   goes to the agent. While powered down the orb stops polling and drawing.
 - **Full names** under each acronym come from the agent's own `SOUL.md` (refreshed every 30 seconds), using a line
-  such as `## F.O.R.G.E. - Fabrication Operations ...`, `FORGE: ...` or `... stands for ...`. The words must spell
-  the acronym. Agents without one show "AI Core". The orb mounts OpenClaw's data folder read-only and only opens
-  `workspace*/SOUL.md` files in it.
+  such as `**Name:** FORGE — Federated Operations, Runtime & Graph Engineer`, `## K.I.R.A. - ...` or
+  `... stands for ...`. The words must spell the acronym. Agents without one show "AI Core".
 - **Startup sequence** plays the first time the app opens in a browser tab or as the phone app (a reload skips it).
   Tap or press any key to skip it; **Settings → Replay startup sequence** plays it again. Every status in its log
   is a real check: gateway link and latency, agents found, who's online, and whether voice input is available.

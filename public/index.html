@@ -211,6 +211,22 @@ form.ask { width: 100%; box-sizing: border-box; display: flex; gap: 8px; align-i
 .mic, .send { flex: none; width: 48px; height: 48px; border-radius: 14px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); display: grid; place-items: center; cursor: pointer; }
 .mic[aria-pressed="true"] { border-color: var(--arc); color: var(--void); background: var(--arc); }
 :is(.mic, .send):disabled { opacity: .35; cursor: not-allowed; }
+/* attachments */
+.attach { flex: none; width: 48px; height: 48px; border-radius: 14px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); display: grid; place-items: center; cursor: pointer; }
+.attach:focus-visible { outline: 2px solid var(--arc); outline-offset: 2px; }
+.attach:disabled { opacity: .35; cursor: not-allowed; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; }
+.fchip { display: inline-flex; align-items: center; gap: 8px; max-width: 100%; min-width: 0; padding: 5px 6px 5px 10px; border-radius: 999px; border: 1px solid color-mix(in srgb, var(--arc) 40%, var(--line)); background: var(--panel); font: 12px/1.2 var(--f-mono); }
+.fchip img { width: 22px; height: 22px; border-radius: 4px; object-fit: cover; }
+.fchip .fn { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 22ch; }
+.fchip .fk { color: var(--dim); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; }
+.fchip button { border: 0; background: none; color: var(--dim); font: 16px/1 var(--f-body); cursor: pointer; padding: 0 4px; }
+.fchip button:hover { color: var(--ink); }
+.drop { position: fixed; inset: 0; z-index: 40; display: grid; place-items: center; pointer-events: none;
+  background: color-mix(in srgb, var(--void) 70%, transparent); border: 2px dashed var(--arc); border-radius: 18px; margin: 10px;
+  font: 600 14px/1 var(--f-display); letter-spacing: .3em; text-transform: uppercase; color: var(--arc); }
+.turn .files { display: flex; flex-wrap: wrap; gap: 6px; }
+.turn .files span { font: 11px/1.4 var(--f-mono); color: var(--dim); border: 1px solid var(--line); border-radius: 6px; padding: 2px 6px; }
 .hint { text-align: center; font: 500 11px/1.4 var(--f-display); letter-spacing: .14em; text-transform: uppercase; color: var(--dim); }
 
 /* ---------- instruments (right) ---------- */
@@ -300,7 +316,12 @@ form.ask { width: 100%; box-sizing: border-box; display: flex; gap: 8px; align-i
 
   <div class="dock">
     <div class="caption" id="caption" aria-live="polite"></div>
+    <div class="chips" id="chips" hidden></div>
     <form class="ask" id="ask">
+      <input type="file" id="fileIn" multiple hidden>
+      <button class="attach" id="attachBtn" type="button" aria-label="Attach files" title="Attach files (or drop them anywhere)">
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5 12.5 20a5.5 5.5 0 0 1-7.8-7.8l8.5-8.5a3.7 3.7 0 0 1 5.2 5.2l-8.5 8.5a1.8 1.8 0 0 1-2.6-2.6l7.8-7.8"/></svg>
+      </button>
       <button class="mic" id="mic" type="button" aria-pressed="false" aria-label="Talk">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
       </button>
@@ -366,6 +387,8 @@ form.ask { width: 100%; box-sizing: border-box; display: flex; gap: 8px; align-i
     <p class="note">You can also type or say “Power down the interface.”</p>
   </aside>
 </div>
+
+<div class="drop" id="drop" hidden>Drop files for the agent</div>
 
 <div class="boot" id="boot" role="status" aria-label="Starting up">
   <div class="boot-inner">
@@ -539,6 +562,7 @@ form.ask { width: 100%; box-sizing: border-box; display: flex; gap: 8px; align-i
     for (const t of turns) {
       const d = document.createElement('div'); d.className = 'turn ' + (t.who === 'you' ? 'you' : 'kira');
       const w = document.createElement('div'); w.className = 'who'; w.textContent = t.who === 'you' ? 'You' : currentLabel(); d.append(w);
+      if (t.files?.length) { const f = document.createElement('div'); f.className = 'files'; for (const n of t.files) { const s = document.createElement('span'); s.textContent = '📎 ' + n; f.append(s); } d.append(f); }
       String(t.text).split(/```[\w-]*\n?/).forEach((part, i) => {
         if (!part.trim()) return;
         const el = document.createElement(i % 2 ? 'pre' : 'div'); if (!(i % 2)) el.className = 'txt'; el.textContent = part.replace(/\n$/, ''); d.append(el);
@@ -731,6 +755,82 @@ form.ask { width: 100%; box-sizing: border-box; display: flex; gap: 8px; align-i
     if (state !== 'idle' && state !== 'offline') setState('idle');
   }
 
+  // ---------- attachments ----------
+  // Images go to the agent with the message; text files are included inline; anything else
+  // (PDF, Word, Excel, zip…) is saved to the agent's workspace inbox and the agent is told where.
+  const attachments = [];      // { id, file, kind: 'image' | 'text' | 'file', thumb? }
+  const TEXT_EXT = /\.(txt|md|markdown|csv|tsv|json|jsonl|ya?ml|toml|ini|cfg|conf|log|xml|html?|css|js|mjs|ts|tsx|jsx|py|rb|go|rs|java|kt|c|h|cpp|cs|php|sh|ps1|bat|sql|env\.example|srt|vtt)$/i;
+  const IMG_TYPES = /^image\/(png|jpeg|gif|webp|heic|heif)$/;
+  const fmtSize = b => b < 1024 ? b + ' B' : b < 1048576 ? (b / 1024).toFixed(0) + ' KB' : (b / 1048576).toFixed(1) + ' MB';
+  const kindOf = f => IMG_TYPES.test(f.type) ? 'image' : (f.type.startsWith('text/') || TEXT_EXT.test(f.name)) && f.size <= 200 * 1024 ? 'text' : 'file';
+  function addFiles(list) {
+    for (const file of list) {
+      if (!file || !file.size) continue;
+      if (file.size > 25 * 1048576) { caption(`<span class="err">${esc(file.name)} is over 25 MB, so it can't be sent.</span>`); continue; }
+      const a = { id: Math.random().toString(36).slice(2), file, kind: kindOf(file) };
+      if (a.kind === 'image' && attachments.filter(x => x.kind === 'image').length >= 8) a.kind = 'file';   // 9th image onward → inbox
+      if (a.kind === 'image') a.thumb = URL.createObjectURL(file);
+      attachments.push(a);
+    }
+    renderChips();
+  }
+  function removeAttachment(id) {
+    const i = attachments.findIndex(a => a.id === id); if (i < 0) return;
+    if (attachments[i].thumb) URL.revokeObjectURL(attachments[i].thumb);
+    attachments.splice(i, 1); renderChips();
+  }
+  function clearAttachments() { attachments.splice(0).forEach(a => a.thumb && URL.revokeObjectURL(a.thumb)); renderChips(); }
+  function renderChips() {
+    const box = $('chips'); box.textContent = ''; box.hidden = !attachments.length;
+    for (const a of attachments) {
+      const c = document.createElement('span'); c.className = 'fchip';
+      if (a.thumb) { const im = document.createElement('img'); im.src = a.thumb; im.alt = ''; c.append(im); }
+      const n = document.createElement('span'); n.className = 'fn'; n.textContent = a.file.name;
+      const k = document.createElement('span'); k.className = 'fk'; k.textContent = a.kind === 'image' ? 'image' : a.kind === 'text' ? 'text' : 'to inbox';
+      const x = document.createElement('button'); x.type = 'button'; x.textContent = '×'; x.setAttribute('aria-label', 'Remove ' + a.file.name);
+      x.addEventListener('click', () => removeAttachment(a.id));
+      c.append(n, k, x); box.append(c);
+    }
+  }
+  const readAs = (file, how) => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(r.error); r[how](file); });
+  // Big photos are scaled to 2048px JPEG so several fit inside the 20 MB message limit.
+  async function imageData(file) {
+    if (file.size <= 3 * 1048576 || !/jpeg|png|webp/.test(file.type)) return readAs(file, 'readAsDataURL');
+    try {
+      const bmp = await createImageBitmap(file), k = Math.min(1, 2048 / Math.max(bmp.width, bmp.height));
+      const c = document.createElement('canvas'); c.width = Math.round(bmp.width * k); c.height = Math.round(bmp.height * k);
+      c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
+      return c.toDataURL('image/jpeg', 0.88);
+    } catch { return readAs(file, 'readAsDataURL'); }
+  }
+  // Turn the pending attachments into what the agent receives.
+  async function packAttachments(forAgent) {
+    const images = [], blocks = [], saved = [], names = [];
+    for (const a of attachments) {
+      names.push(a.file.name);
+      if (a.kind === 'image') { images.push(await imageData(a.file)); continue; }
+      if (a.kind === 'text') { blocks.push(`--- ${a.file.name} ---\n\`\`\`\n${await readAs(a.file, 'readAsText')}\n\`\`\``); continue; }
+      if (DEMO) { saved.push({ path: 'inbox/' + a.file.name, bytes: a.file.size }); continue; }
+      const r = await fetch(`/api/upload?agent=${encodeURIComponent(forAgent)}&name=${encodeURIComponent(a.file.name)}`, { method: 'POST', body: a.file, headers: { 'Content-Type': 'application/octet-stream' } });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(j.error || `Couldn't save ${a.file.name} for the agent.`);
+      saved.push(j);
+    }
+    let extra = '';
+    if (blocks.length) extra += '\n\n' + blocks.join('\n\n');
+    if (saved.length) extra += '\n\n[Files saved to your workspace for you to open: ' + saved.map(s => `${s.path} (${fmtSize(s.bytes)})`).join(', ') + ']';
+    return { images, extra, names };
+  }
+  $('attachBtn').addEventListener('click', () => $('fileIn').click());
+  $('fileIn').addEventListener('change', e => { addFiles(e.target.files); e.target.value = ''; });
+  addEventListener('paste', e => { const fs = [...(e.clipboardData?.files || [])]; if (fs.length) { e.preventDefault(); addFiles(fs); } });
+  let dragDepth = 0;
+  const hasFiles = e => [...(e.dataTransfer?.types || [])].includes('Files');
+  addEventListener('dragenter', e => { if (!hasFiles(e) || poweredDown) return; e.preventDefault(); dragDepth++; $('drop').hidden = false; });
+  addEventListener('dragover', e => { if (hasFiles(e)) e.preventDefault(); });
+  addEventListener('dragleave', e => { if (!hasFiles(e)) return; if (--dragDepth <= 0) { dragDepth = 0; $('drop').hidden = true; } });
+  addEventListener('drop', e => { if (!hasFiles(e)) return; e.preventDefault(); dragDepth = 0; $('drop').hidden = true; if (!poweredDown) addFiles(e.dataTransfer.files); });
+
   // ---------- talking to the agent ----------
   // "Power down the interface", "shut down the orb", "power off" … handled here and never sent to the agent.
   // The whole message must be the command (an optional "Kira," / "please" is fine), so ordinary
@@ -739,11 +839,19 @@ form.ask { width: 100%; box-sizing: border-box; display: flex; gap: 8px; align-i
   const isPowerDown = t => POWER_RE.test(t.trim());
   async function send(text) {
     if (text && isPowerDown(text)) { stopListening(); powerDown(); return; }
-    if (!text || state === 'offline') return;
+    if ((!text && !attachments.length) || state === 'offline') return;
     synth?.cancel(); stopAgentVoice(); speakQueue = 0;
-    addTurn('you', text);
-    caption('<span class="you">' + esc(text) + '</span>');
+    const hasFiles = attachments.length > 0;
+    if (!text) text = attachments.length === 1 ? `Here's ${attachments[0].file.name}.` : `Here are ${attachments.length} files.`;
+    const youTurn = addTurn('you', text);
+    caption('<span class="you">' + esc(text) + (hasFiles ? ` · ${attachments.length} attachment${attachments.length > 1 ? 's' : ''}` : '') + '</span>');
     setState('thinking');
+    let packed = { images: [], extra: '', names: [] };
+    if (hasFiles) {
+      try { packed = await packAttachments(agent); }
+      catch (e) { setState('error'); caption('<span class="err">' + esc(e.message) + '</span>'); setTimeout(() => state === 'error' && setState('idle'), 4000); return; }
+      youTurn.files = packed.names; clearAttachments();
+    }
     const turn = addTurn('agent', '');
     let buf = '', spoken = 0, first = 0;
     const t0 = performance.now();
@@ -756,7 +864,7 @@ form.ask { width: 100%; box-sizing: border-box; display: flex; gap: 8px; align-i
       if (cut > spoken && !inCodeFence(buf.slice(0, cut))) { speak(buf.slice(spoken, cut)); spoken = cut; }
     };
     try {
-      if (DEMO) await demoReply(onDelta); else await streamChat(text, onDelta);
+      if (DEMO) await demoReply(onDelta, packed.names); else await streamChat(text + packed.extra, onDelta, packed.images);
       streaming = false;
       const s = st(); s.turns++; s.times.push(performance.now() - t0); if (first) s.firsts.push(first);
       if (s.times.length > 16) s.times.shift(); if (s.firsts.length > 16) s.firsts.shift();
@@ -777,9 +885,9 @@ form.ask { width: 100%; box-sizing: border-box; display: flex; gap: 8px; align-i
   function lastSentenceEnd(s, from) { const re = /[.!?…:](\s|$)|\n\n/g; re.lastIndex = from; let m, end = from; while ((m = re.exec(s))) end = m.index + m[0].length; return end; }
   const inCodeFence = s => ((s.match(/```/g) || []).length % 2) === 1;
 
-  async function streamChat(text, onDelta) {
+  async function streamChat(text, onDelta, images = []) {
     abortCtl = new AbortController();
-    const r = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ agent, session: convId(), text }), signal: abortCtl.signal });
+    const r = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ agent, session: convId(), text, images }), signal: abortCtl.signal });
     if (!r.ok) {
       let msg = `The relay returned ${r.status}.`;
       try { const j = await r.json(); if (j.error) msg = j.error; } catch {}
@@ -801,8 +909,14 @@ form.ask { width: 100%; box-sizing: border-box; display: flex; gap: 8px; align-i
       }
     }
   }
-  async function demoReply(onDelta) {
+  async function demoReply(onDelta, files = []) {
     abortCtl = new AbortController(); const sig = abortCtl.signal;
+    if (files.length) {
+      const reply = `Preview mode, so nothing was sent. On your server I'd receive ${files.length === 1 ? files[0] : files.length + ' files'}: images I can see directly, text files arrive inline, and anything else lands in my workspace inbox for me to open.`;
+      await wait(800, sig);
+      for (const word of reply.split(/(?<=\s)/)) { onDelta(word); await wait(40, sig); }
+      return;
+    }
     const lines = [
       `This is a preview, so I'm not connected to OpenClaw yet. On your server, what you just said goes straight to ${currentLabel()}, and the reply streams back here and is read aloud.`,
       'The panel on the left shows every agent. A coloured dot means online, grey means offline. Pick L.E.D.G.E.R. to see what the orb looks like when an agent is down.',
@@ -824,7 +938,7 @@ form.ask { width: 100%; box-sizing: border-box; display: flex; gap: 8px; align-i
   $('orbBtn').addEventListener('click', orbTap);
   $('mic').addEventListener('click', orbTap);
   $('ask').addEventListener('submit', e => {
-    e.preventDefault(); const v = $('text').value.trim(); if (!v) return;
+    e.preventDefault(); const v = $('text').value.trim(); if (!v && !attachments.length) return;
     if (state === 'offline' && !isPowerDown(v)) { caption(`<span class="you">${esc(currentLabel())} is offline. Messages can't be sent until it's back.</span>`); return; }
     $('text').value = ''; stopListening(); send(v);
   });

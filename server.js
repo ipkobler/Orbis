@@ -1,7 +1,7 @@
 // Kira Orb — tiny relay between the browser and the OpenClaw gateway.
 // Zero dependencies (Node 22+). The gateway token never leaves this container.
 import http from 'node:http';
-import { readFile, readdir } from 'node:fs/promises';
+import { readFile, readdir, mkdir, writeFile, stat } from 'node:fs/promises';
 import { Readable } from 'node:stream';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -122,11 +122,11 @@ function send(res, status, body, type = 'application/json') {
   res.end(typeof body === 'string' ? body : JSON.stringify(body));
 }
 
-function readBody(req, limit = 64 * 1024) {
+function readBody(req, limit = 64 * 1024, raw = false) {
   return new Promise((resolve, reject) => {
     let size = 0; const chunks = [];
     req.on('data', c => { size += c.length; if (size > limit) { reject(new Error('too large')); req.destroy(); } else chunks.push(c); });
-    req.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
+    req.on('end', () => { const b = Buffer.concat(chunks); resolve(raw ? b : b.toString('utf8')); });
     req.on('error', reject);
   });
 }
@@ -183,14 +183,21 @@ const markOk = id => { if (failures.delete(id)) statusAt = 0; };
 
 async function handleChat(req, res) {
   let payload;
-  try { payload = JSON.parse(await readBody(req)); } catch { return send(res, 400, { error: 'Bad request body.' }); }
+  try { payload = JSON.parse(await readBody(req, 28 * 1024 * 1024)); }
+  catch (e) { return send(res, e.message === 'too large' ? 413 : 400, { error: e.message === 'too large' ? 'Attachments are too large (20 MB of images per message).' : 'Bad request body.' }); }
   const agent = String(payload.agent || DEFAULT_AGENT);
   const session = String(payload.session || '');
   const text = String(payload.text || '').trim();
+  // Images ride along as OpenAI-style image_url parts (OpenClaw accepts up to 8, 20 MB in total).
+  const images = Array.isArray(payload.images) ? payload.images.map(String) : [];
+  const IMG_RE = /^data:image\/(png|jpeg|gif|webp|heic|heif);base64,[A-Za-z0-9+/=]+$/;
+  if (images.length > 8) return send(res, 400, { error: 'Up to 8 images per message.' });
+  if (images.some(u => !IMG_RE.test(u))) return send(res, 400, { error: 'Images must be PNG, JPEG, GIF, WebP or HEIC.' });
+  if (images.reduce((n, u) => n + u.length * 0.75, 0) > 20 * 1024 * 1024) return send(res, 413, { error: 'Images add up to more than 20 MB. Send fewer or smaller ones.' });
   if (!AGENT_RE.test(agent)) return send(res, 400, { error: 'Unknown agent.' });
   if (ALLOW.length && !ALLOW.includes(agent)) return send(res, 403, { error: 'That agent is not enabled for the orb.' });
   if (!SESSION_RE.test(session)) return send(res, 400, { error: 'Missing conversation id.' });
-  if (!text || text.length > 8000) return send(res, 400, { error: 'Say something between 1 and 8000 characters.' });
+  if (!text || text.length > 250000) return send(res, 400, { error: 'The message is empty or too long.' });
 
   const abort = new AbortController();
   res.on('close', () => abort.abort()); // user tapped the orb to interrupt → cancel the agent run
@@ -204,7 +211,9 @@ async function handleChat(req, res) {
         model: `openclaw/${agent}`,
         user: `${SESSION_PREFIX}:${agent}:${session}`, // stable session per orb conversation
         stream: true,
-        messages: [{ role: 'user', content: text }],      // OpenClaw keeps the history server-side
+        messages: [{ role: 'user', content: images.length          // OpenClaw keeps the history server-side
+          ? [{ type: 'text', text }, ...images.map(url => ({ type: 'image_url', image_url: { url } }))]
+          : text }],
       }),
       signal: abort.signal,
     });
@@ -237,6 +246,42 @@ async function handleChat(req, res) {
     if (s.includes('"error"') && !sawContent) markFailed(agent, 'Last request failed');
   });
   stream.on('error', () => res.end()).pipe(res);
+}
+
+// ---- files for the agent: saved into its own workspace, in inbox/ ------------------------------
+const MAX_UPLOAD = Number(process.env.MAX_UPLOAD_MB || 25) * 1024 * 1024;
+async function workspaceFor(id) {
+  let dirs = [];
+  try { dirs = (await readdir(OPENCLAW_DATA, { withFileTypes: true })).filter(d => d.isDirectory()).map(d => d.name); } catch { return null; }
+  return dirs.includes(`workspace-${id}`) ? `workspace-${id}` : id === DEFAULT_AGENT && dirs.includes('workspace') ? 'workspace' : null;
+}
+const safeName = n => {
+  const base = path.basename(String(n || 'file')).normalize('NFKC').replace(/[^A-Za-z0-9._ -]+/g, '_').replace(/^[.\s]+/, '').trim().slice(0, 120);
+  return base || 'file';
+};
+async function handleUpload(req, res, url) {
+  const agent = url.searchParams.get('agent') || '';
+  if (!AGENT_RE.test(agent) || (ALLOW.length && !ALLOW.includes(agent))) return send(res, 400, { error: 'Unknown agent.' });
+  const ws = await workspaceFor(agent);
+  if (!ws) return send(res, 404, { error: `No workspace found for ${agent}. Is OpenClaw's data folder mounted into the orb?` });
+  let body;
+  try { body = await readBody(req, MAX_UPLOAD, true); }
+  catch { return send(res, 413, { error: `Files are limited to ${MAX_UPLOAD / 1048576} MB.` }); }
+  if (!body.length) return send(res, 400, { error: 'The file is empty.' });
+  let name = safeName(url.searchParams.get('name'));
+  const inbox = path.join(OPENCLAW_DATA, ws, 'inbox');
+  try {
+    await mkdir(inbox, { recursive: true });
+    // never overwrite: report.pdf → report-2026-10-22T16-44-05.pdf if one already exists
+    try { await stat(path.join(inbox, name)); const ext = path.extname(name); name = `${name.slice(0, name.length - ext.length)}-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}${ext}`; } catch {}
+    const target = path.join(inbox, name);
+    if (!target.startsWith(inbox + path.sep)) return send(res, 400, { error: 'Bad file name.' });
+    await writeFile(target, body, { flag: 'wx', mode: 0o644 });
+  } catch (e) {
+    console.error('[kira-orb] upload failed:', e.message);
+    return send(res, 500, { error: e.code === 'EROFS' || e.code === 'EACCES' ? "The orb can't write to OpenClaw's data folder. Mount it read-write (see README)." : 'Could not save the file.' });
+  }
+  send(res, 200, { name, path: `inbox/${name}`, absolutePath: `/home/node/.openclaw/${ws}/inbox/${name}`, bytes: body.length });
 }
 
 async function handleTts(req, res) {
@@ -285,6 +330,7 @@ http.createServer(async (req, res) => {
     if (pathname === '/api/agents' && req.method === 'GET') return send(res, 200, await agentStatus(new URL(req.url, 'http://x').searchParams.has('refresh')));
     if (pathname === '/api/chat' && req.method === 'POST') return await handleChat(req, res);
     if (pathname === '/api/tts' && req.method === 'POST') return await handleTts(req, res);
+    if (pathname === '/api/upload' && req.method === 'POST') return await handleUpload(req, res, new URL(req.url, 'http://x'));
     if (req.method === 'GET') return await serveStatic(req, res, pathname);
     send(res, 405, { error: 'Method not allowed.' });
   } catch (e) {
