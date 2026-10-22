@@ -362,6 +362,7 @@ form.ask { width: 100%; box-sizing: border-box; display: flex; gap: 8px; align-i
       <canvas id="spark" height="56"></canvas>
       <div class="rows">
         <div class="row"><span>First word</span><span class="mono" id="hFirst">–</span></div>
+        <div class="row"><span>Voice start</span><span class="mono" id="hVoice">–</span></div>
         <div class="row"><span>Average reply</span><span class="mono" id="hAvg">–</span></div>
       </div>
     </section>
@@ -580,7 +581,8 @@ form.ask { width: 100%; box-sizing: border-box; display: flex; gap: 8px; align-i
     }
     log.scrollTop = log.scrollHeight;
   }
-  const st = () => (stats[agent] ||= { times: [], firsts: [], turns: 0, talkMs: 0 });
+  const st = () => (stats[agent] ||= { times: [], firsts: [], voices: [], turns: 0, talkMs: 0 });
+  let turnStart = 0, voiceStartLogged = true;
   function renderStats() {
     const s = st();
     $('sessId').textContent = convId().slice(0, 8).toUpperCase();
@@ -589,6 +591,7 @@ form.ask { width: 100%; box-sizing: border-box; display: flex; gap: 8px; align-i
     $('hTalk').textContent = `${m}:${String(sec).padStart(2, '0')}`;
     $('respLast').textContent = s.times.length ? secs(s.times.at(-1)) : '–';
     $('hFirst').textContent = s.firsts.length ? secs(s.firsts.at(-1)) : '–';
+    $('hVoice').textContent = s.voices?.length ? secs(s.voices.at(-1)) : '–';
     $('hAvg').textContent = s.times.length ? secs(s.times.reduce((a, b) => a + b, 0) / s.times.length) : '–';
   }
   function caption(html) { $('caption').innerHTML = html; $('caption').scrollTop = $('caption').scrollHeight; }
@@ -718,9 +721,15 @@ form.ask { width: 100%; box-sizing: border-box; display: flex; gap: 8px; align-i
     // Routing through the analyser makes the orb follow the real waveform, but if the browser has the
     // audio system paused, routed audio is silent, so in that case play the clip directly.
     try { if (audioCtx && audioCtx.state === 'running') audioCtx.createMediaElementSource(el).connect(ttsAnalyser); } catch {}
-    el.onplay = () => { if (state !== 'speaking') { setState('speaking'); speakStart = performance.now(); } };
+    el.onplay = () => { if (state !== 'speaking') { setState('speaking'); speakStart = performance.now(); } noteVoiceStart(); };
     el.onended = el.onerror = done;
     el.play().catch(done);
+  }
+  function noteVoiceStart() {
+    if (voiceStartLogged || !turnStart) return;
+    voiceStartLogged = true;
+    const s = st(); s.voices.push(performance.now() - turnStart); if (s.voices.length > 16) s.voices.shift();
+    renderStats();
   }
   function stopAgentVoice() {
     for (const it of ttsQueue.splice(0)) it.ctl.abort();
@@ -739,7 +748,7 @@ form.ask { width: 100%; box-sizing: border-box; display: flex; gap: 8px; align-i
     const u = new SpeechSynthesisUtterance(t);
     const vn = resolvedVoices[agent] || autoVoices()[agent]; const v = voices.find(x => x.name === vn); if (v) u.voice = v;
     u.rate = rate;
-    u.onstart = () => { if (state !== 'speaking') { setState('speaking'); speakStart = performance.now(); } speakPulse = 1; };
+    u.onstart = () => { if (state !== 'speaking') { setState('speaking'); speakStart = performance.now(); } speakPulse = 1; noteVoiceStart(); };
     u.onboundary = () => { speakPulse = 1; };
     u.onend = u.onerror = () => { speakQueue--; if (speakQueue <= 0 && state === 'speaking' && !streaming) finishTurn(); };
     speakQueue++; synth.speak(u);
@@ -909,6 +918,7 @@ form.ask { width: 100%; box-sizing: border-box; display: flex; gap: 8px; align-i
     const turn = addTurn('agent', '');
     let buf = '', spoken = 0, first = 0;
     const t0 = performance.now();
+    turnStart = t0; voiceStartLogged = false;
     streaming = true;
     const onDelta = d => {
       if (!first) first = performance.now() - t0;

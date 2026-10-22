@@ -42,6 +42,7 @@ def load_model():
         state["model"] = TTSModel.load_model()
         state["load_seconds"] = round(time.time() - t0, 1)
         print(f"[voice] ready in {state['load_seconds']}s, {torch.get_num_threads()} threads", flush=True)
+        warm_voices()
     except Exception as e:
         msg = f"{type(e).__name__}: {e}"
         if any(k in msg for k in ("401", "403", "gated", "GatedRepo", "Unauthorized", "access")):
@@ -49,6 +50,18 @@ def load_model():
                    "and put a Read token in voice.env as HF_TOKEN. (" + msg[:200] + ")")
         state["error"] = msg
         print(f"[voice] failed to load model: {msg}", flush=True)
+
+
+def warm_voices():
+    # Analysing a clip is the slow step, so do every agent's clip now instead of on its first reply.
+    for name in list_voices():
+        t0 = time.time()
+        try:
+            with gen_lock:
+                voice_state(name)
+            print(f"[voice] prepared voice '{name}' in {time.time() - t0:.1f}s", flush=True)
+        except Exception as e:
+            print(f"[voice] couldn't prepare voice '{name}': {getattr(e, 'detail', e)}", flush=True)
 
 
 @app.on_event("startup")
@@ -135,8 +148,10 @@ async def speech(req: SpeechRequest):
     if (req.response_format or "wav") != "wav":
         raise HTTPException(400, "Only wav output is supported.")
     t0 = time.time()
-    audio = await asyncio.to_thread(synthesize, req.input.strip()[:MAX_CHARS], req.voice)
+    text = req.input.strip()[:MAX_CHARS]
+    audio = await asyncio.to_thread(synthesize, text, req.voice)
     secs = (len(audio) - 44) / (2 * int(state["model"].sample_rate))
+    print(f"[voice] {req.voice}: {len(text)} chars -> {secs:.1f}s of speech in {time.time() - t0:.2f}s", flush=True)
     return Response(audio, media_type="audio/wav", headers={
         "X-Gen-Seconds": f"{time.time() - t0:.2f}", "X-Audio-Seconds": f"{secs:.2f}", "Cache-Control": "no-store"})
 
