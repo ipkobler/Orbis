@@ -205,10 +205,10 @@ canvas#orb { position: absolute; inset: 0; width: 100%; height: 100%; }
 .caption { min-height: 3em; max-height: 7.5em; overflow-y: auto; text-align: center; font-size: 16px; text-wrap: pretty; }
 .caption .you { color: var(--dim); }
 .caption .err { color: var(--alert); }
-form.ask { width: 100%; box-sizing: border-box; display: flex; gap: 8px; align-items: center; }
-.ask input { flex: 1; min-width: 0; width: 0; box-sizing: border-box; font: 15px var(--f-body); color: var(--ink); background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 13px 16px; }
-.ask input:focus { outline: none; border-color: var(--arc); }
-.ask input:disabled { opacity: .5; }
+form.ask { width: 100%; box-sizing: border-box; display: flex; gap: 8px; align-items: flex-end; }
+.ask textarea { flex: 1; min-width: 0; width: 0; box-sizing: border-box; font: 15px/1.4 var(--f-body); color: var(--ink); background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 12px 16px; resize: none; overflow-y: hidden; max-height: 9.5em; display: block; }
+.ask textarea:focus { outline: none; border-color: var(--arc); }
+.ask textarea:disabled { opacity: .5; }
 .mic, .send { flex: none; width: 48px; height: 48px; border-radius: 14px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); display: grid; place-items: center; cursor: pointer; }
 .mic[aria-pressed="true"] { border-color: var(--arc); color: var(--void); background: var(--arc); }
 :is(.mic, .send):disabled { opacity: .35; cursor: not-allowed; }
@@ -332,7 +332,7 @@ form.ask { width: 100%; box-sizing: border-box; display: flex; gap: 8px; align-i
       <button class="mic" id="mic" type="button" aria-pressed="false" aria-label="Talk">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
       </button>
-      <input id="text" autocomplete="off" placeholder="Type, or tap the orb to talk">
+      <textarea id="text" rows="1" autocomplete="off" placeholder="Type, or tap the orb to talk" title="Enter to send · Shift+Enter for a new line"></textarea>
       <button class="send" id="sendBtn" type="submit" aria-label="Send">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
       </button>
@@ -758,7 +758,7 @@ form.ask { width: 100%; box-sizing: border-box; display: flex; gap: 8px; align-i
   const DAYS = { mon: 'Monday', tue: 'Tuesday', tues: 'Tuesday', wed: 'Wednesday', thu: 'Thursday', thur: 'Thursday', thurs: 'Thursday', fri: 'Friday', sat: 'Saturday', sun: 'Sunday' };
   const MONTHS = { jan: 'January', feb: 'February', mar: 'March', apr: 'April', may: 'May', jun: 'June', jul: 'July', aug: 'August', sep: 'September', sept: 'September', oct: 'October', nov: 'November', dec: 'December' };
   const MONTH_RE = 'Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|June?|July?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?';
-  const AP = '\\s?([AaPp])\\.?\\s?[Mm]\\.?(?![a-z])';
+  const AP = '\\s?([AaPp])\\.?\\s?[Mm](?:\\.(?!\\s+[A-Z]|\\s*$))?(?![a-z])';   // "3 PM. Call" keeps its full stop
   const ABBR = [[/\be\.g\.,?/gi, 'for example,'], [/\bi\.e\.,?/gi, 'that is,'], [/\betc\.?/gi, 'et cetera'], [/\bvs\.?(?=\s)/gi, 'versus'],
     [/\bapprox\.?(?=\s)/gi, 'about'], [/\bw\/o\b/gi, 'without'], [/\bw\/(?=\s)/gi, 'with'], [/\bDr\.(?=\s+[A-Z])/g, 'Doctor'],
     [/\bASAP\b/g, 'as soon as possible'], [/\bFYI\b/g, 'for your information'], [/\bETA\b/g, 'E T A'], [/\bTBD\b/g, 'to be decided'],
@@ -779,6 +779,47 @@ form.ask { width: 100%; box-sizing: border-box; display: flex; gap: 8px; align-i
     const n = Number(clean);
     return Number.isFinite(n) && n < 1e12 ? num(n) : str;
   }
+  // ---- addresses: "85189 Amaryllis Ct, Fernandina Beach, FL 32034" → "eight fifty-one eighty-nine Amaryllis Court, … Florida, three two zero three four"
+  const STREET = { st: 'Street', rd: 'Road', ave: 'Avenue', av: 'Avenue', blvd: 'Boulevard', dr: 'Drive', ln: 'Lane', ct: 'Court', pl: 'Place', pkwy: 'Parkway', hwy: 'Highway',
+    cir: 'Circle', ter: 'Terrace', terr: 'Terrace', trl: 'Trail', sq: 'Square', cv: 'Cove', xing: 'Crossing', expy: 'Expressway', fwy: 'Freeway', tpke: 'Turnpike', aly: 'Alley', way: 'Way', loop: 'Loop', run: 'Run', path: 'Path', pt: 'Point', bnd: 'Bend', crk: 'Creek', holw: 'Hollow', lndg: 'Landing', mdws: 'Meadows', pass: 'Pass', plz: 'Plaza', row: 'Row', walk: 'Walk', grv: 'Grove', hts: 'Heights', est: 'Estates', ests: 'Estates', isle: 'Isle', rdg: 'Ridge', vw: 'View', vis: 'Vista', street: 'Street', road: 'Road', avenue: 'Avenue', boulevard: 'Boulevard', drive: 'Drive', lane: 'Lane', court: 'Court', place: 'Place', parkway: 'Parkway', highway: 'Highway', circle: 'Circle', terrace: 'Terrace', trail: 'Trail' };
+  const DIRS = { n: 'North', s: 'South', e: 'East', w: 'West', ne: 'Northeast', nw: 'Northwest', se: 'Southeast', sw: 'Southwest' };
+  const US_STATES = { AL: 'Alabama', AK: 'Alaska', AZ: 'Arizona', AR: 'Arkansas', CA: 'California', CO: 'Colorado', CT: 'Connecticut', DE: 'Delaware', DC: 'D C', FL: 'Florida', GA: 'Georgia', HI: 'Hawaii', ID: 'Idaho', IL: 'Illinois', IN: 'Indiana', IA: 'Iowa', KS: 'Kansas', KY: 'Kentucky', LA: 'Louisiana', ME: 'Maine', MD: 'Maryland', MA: 'Massachusetts', MI: 'Michigan', MN: 'Minnesota', MS: 'Mississippi', MO: 'Missouri', MT: 'Montana', NE: 'Nebraska', NV: 'Nevada', NH: 'New Hampshire', NJ: 'New Jersey', NM: 'New Mexico', NY: 'New York', NC: 'North Carolina', ND: 'North Dakota', OH: 'Ohio', OK: 'Oklahoma', OR: 'Oregon', PA: 'Pennsylvania', RI: 'Rhode Island', SC: 'South Carolina', SD: 'South Dakota', TN: 'Tennessee', TX: 'Texas', UT: 'Utah', VT: 'Vermont', VA: 'Virginia', WA: 'Washington', WV: 'West Virginia', WI: 'Wisconsin', WY: 'Wyoming', PR: 'Puerto Rico' };
+  const AMBIG_US_STATES = new Set(['OK', 'IN', 'ME', 'OR', 'HI', 'OH', 'ID', 'PA', 'MA', 'CO', 'DE', 'LA', 'MO', 'NE', 'AL', 'MI']);   // ordinary words or common abbreviations: only with a ZIP code
+  const digits = s => [...s].map(d => ONES[d]).join(' ');
+  function houseNumber(s) {            // said the way people say street numbers: 8787 → eighty-seven eighty-seven, 405 → four oh five
+    const pair = p => +p === 0 ? 'hundred' : +p < 10 ? 'oh ' + num(+p) : num(+p);
+    if (s.length > 1 && s[0] === '0') return digits(s);
+    if (s.length <= 2) return num(+s);
+    if (s.length === 3) return num(+s[0]) + ' ' + pair(s.slice(1));
+    if (s.length === 4) return +s % 1000 === 0 ? num(+s) : num(+s.slice(0, 2)) + ' ' + pair(s.slice(2));
+    if (s.length === 5) return s[1] === '0' ? num(+s.slice(0, 2)) + ' ' + houseNumber(s.slice(2)) : num(+s[0]) + ' ' + houseNumber(s.slice(1));
+    return houseNumber(s.slice(0, s.length - 4)) + ' ' + houseNumber(s.slice(-4));
+  }
+  const STREET_RE = Object.keys(STREET).sort((a, b) => b.length - a.length).join('|');
+  function sayAddresses(t) {
+    // house number + optional direction + 1–4 name words + street type: "85189 Amaryllis Ct", "1200 W 5th St", "8787 Baypine Rd"
+    t = t.replace(new RegExp(`\\b(\\d{1,6})\\s+((?:(?:N|S|E|W|NE|NW|SE|SW)\\.?\\s+)?(?:(?:[A-Z][\\w'’.-]*|\\d{1,3}(?:st|nd|rd|th))\\s+){1,4}?)(${STREET_RE})\\b\\.?(?:\\s+(N|S|E|W|NE|NW|SE|SW)\\b\\.?)?`, 'gi'),
+      (m, n, name, type, dir) => {
+        if (!/^[A-Z0-9]/.test(name)) return m;
+        const words = name.trim().split(/\s+/).map((w, i) => i === 0 && DIRS[w.replace('.', '').toLowerCase()] && /^[NSEW]{1,2}\.?$/.test(w) ? DIRS[w.replace('.', '').toLowerCase()] : w);
+        return `${houseNumber(n)} ${words.join(' ')} ${STREET[type.toLowerCase()]}${dir ? ' ' + DIRS[dir.toLowerCase()] : ''}`;
+      });
+    // units: Apt 4B, Ste 200, Unit #12
+    t = t.replace(/\b(Apt|Ste|Suite|Unit|Bldg)\.?\s*#?\s*(\w+)/g, (_, k, v) => ({ Apt: 'apartment', Ste: 'suite', Suite: 'suite', Unit: 'unit', Bldg: 'building' }[k]) + ' ' + v);
+    // "City, FL 32034" / "City, FL" → "City, Florida, three two zero three four"
+    t = t.replace(/\b([A-Z][A-Za-z.'’-]*),\s+([A-Z]{2})\b(?:\s+(\d{5})(?:-(\d{4}))?\b)?(?![\w'’-])/g, (m, city, st, zip, plus4) => {
+      if (!US_STATES[st] || (!zip && AMBIG_US_STATES.has(st))) return m;
+      return `${city}, ${US_STATES[st]}${zip ? ', ' + digits(zip) + (plus4 ? ', ' + digits(plus4) : '') : ''}`;
+    });
+    // roads: I-95 → I ninety-five, US-1 / US 1 → U S one, SR 200 → State Road two hundred, CR 108 → County Road one oh eight
+    t = t.replace(/\bI-\s?(\d{1,3})\b/g, (_, n) => 'I ' + num(+n))
+         .replace(/\bUS[-\s](\d{1,3})\b/g, (_, n) => 'U S ' + num(+n))
+         .replace(/\b(SR|CR)[-\s](A1A|\d{1,4})\b/g, (_, k, n) => (k === 'SR' ? 'State Road ' : 'County Road ') + (n === 'A1A' ? 'A one A' : houseNumber(n)))
+         .replace(/\bA1A\b/g, 'A one A');
+    // distances and speeds: 41.6 mi, 65 mph, 300 ft, 12 km
+    t = t.replace(/(\d)\s?(mi|mph|ft|km|kph|lbs?)\b\.?/g, (_, d, u) => d + ' ' + ({ mi: 'miles', mph: 'miles per hour', ft: 'feet', km: 'kilometers', kph: 'kilometers per hour', lb: 'pounds', lbs: 'pounds' }[u]));
+    return t;
+  }
   function speechify(text) {
     let t = String(text).replace(/\bhttps?:\/\/\S+|\bwww\.\S+/gi, 'the link');
     // formatting that shouldn't be read out: headings, bullets, list numbers, emphasis, code ticks, emoji
@@ -787,6 +828,7 @@ form.ask { width: 100%; box-sizing: border-box; display: flex; gap: 8px; align-i
          .replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}\u{200D}]/gu, '');
     // agents' acronyms are said as names: K.I.R.A. → Kira
     for (const a of agents) { const ac = acronym(a.label).replace(/\./g, '\\.'); t = t.replace(new RegExp(ac + '(?=\\W|$)', 'g'), a.label); }
+    t = sayAddresses(t);
     // list lines become sentences, so each one gets its own natural pause
     t = t.replace(/[ \t]*\n+[ \t]*/g, (m, i) => { const before = t.slice(0, i).trimEnd(); return /[.!?,;:]$/.test(before) || !before ? ' ' : '. '; });
     // ISO dates: 2026-11-03 → November third, twenty twenty-six
@@ -827,6 +869,7 @@ form.ask { width: 100%; box-sizing: border-box; display: flex; gap: 8px; align-i
          .replace(/\s+\/\s+|(?<=[a-z])\/(?=[a-z])/gi, ' or ').replace(/\s*&\s*/g, ' and ').replace(/\s*\+\s*(?=\w)/g, ' plus ')
          .replace(/\s*(?:->|→|=>)\s*/g, ', ').replace(/[#~^|<>{}\[\]]/g, ' ');
     t = t.replace(/\s+([,.;:!?])/g, '$1').replace(/,\s*,/g, ',').replace(/([.!?])\s*,/g, '$1').replace(/,([.!?;:])/g, '$1').replace(/\s{2,}/g, ' ').trim();
+    t = t.replace(/[,;:]+$/, '.');
     return t.replace(/(^|[.!?]\s+)([a-z])/g, (_, p, c) => p + c.toUpperCase());   // capitalised sentence starts sound more natural
   }
   function speak(text, who = agent) {
@@ -1109,7 +1152,13 @@ form.ask { width: 100%; box-sizing: border-box; display: flex; gap: 8px; align-i
   $('ask').addEventListener('submit', e => {
     e.preventDefault(); const v = $('text').value.trim(); if (!v && !attachments.length) return;
     if (state === 'offline' && !isPowerDown(v) && !isSignOut(v)) { caption(`<span class="you">${esc(currentLabel())} is offline. Messages can't be sent until it's back.</span>`); return; }
-    $('text').value = ''; stopListening(); send(v);
+    $('text').value = ''; fitText(); stopListening(); send(v);
+  });
+  // Enter sends; Shift+Enter starts a new line. The box grows with the text, up to about six lines.
+  function fitText() { const el = $('text'); el.style.height = 'auto'; el.style.height = el.scrollHeight + 2 + 'px'; el.style.overflowY = el.scrollHeight > el.clientHeight + 2 ? 'auto' : 'hidden'; }
+  $('text').addEventListener('input', fitText);
+  $('text').addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); $('ask').requestSubmit(); }
   });
   $('handsFree').addEventListener('click', () => {
     handsFree = !handsFree; $('handsFree').setAttribute('aria-pressed', String(handsFree));
