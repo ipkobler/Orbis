@@ -904,8 +904,11 @@ form.ask { width: 100%; box-sizing: border-box; display: flex; gap: 8px; align-i
     : 'This browser has no speech recognition (Firefox, for example). Type instead, or open the orb in Chrome, Edge or Safari.';
   if (!SR) { $('mic').disabled = true; $('handsFree').disabled = true; $('hint').textContent = 'Voice input needs Chrome, Edge or Safari · typing works everywhere'; }
 
+  // Phones can't share the mic between the level meter and speech recognition:
+  // the meter would take it and recognition would hear silence. On phones, skip the meter.
+  const MOBILE = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
   async function openMicMeter() {
-    if (analyser || !navigator.mediaDevices?.getUserMedia) return;
+    if (MOBILE || analyser || !navigator.mediaDevices?.getUserMedia) return;
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
       const ac = new (window.AudioContext || window.webkitAudioContext)();
@@ -936,6 +939,10 @@ form.ask { width: 100%; box-sizing: border-box; display: flex; gap: 8px; align-i
     };
     rec.onerror = e => {
       if (e.error === 'not-allowed' || e.error === 'service-not-allowed') { handsFree = false; $('handsFree').setAttribute('aria-pressed', 'false'); caption('<span class="err">Microphone access is blocked. Allow it in the browser’s site settings, then try again.</span>'); }
+      else if (e.error === 'no-speech') { if (!handsFree) caption('<span class="err">I didn’t hear anything. Tap the mic and try again.</span>'); }
+      else if (e.error === 'audio-capture') caption('<span class="err">Another app is using the microphone. Close it, then try again.</span>');
+      else if (e.error === 'network') caption('<span class="err">Speech recognition couldn’t reach its service. Check your connection and try again.</span>');
+      else if (e.error !== 'aborted') caption('<span class="err">Voice input stopped (' + esc(e.error) + '). Tap the mic to try again.</span>');
     };
     rec.onend = () => { if (state === 'listening' && !gotFinal) { setState('idle'); if (handsFree) setTimeout(() => handsFree && state === 'idle' && listen(), 400); } };
     setState('listening');
