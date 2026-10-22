@@ -390,7 +390,7 @@ form.ask { width: 100%; box-sizing: border-box; display: flex; gap: 8px; align-i
     <p class="note" id="sttNote"></p>
     <button class="btn" id="replayBoot" type="button">Replay startup sequence</button>
     <button class="btn" id="powerBtn" type="button">Power down interface</button>
-    <a class="btn" id="signOut" href="/logout" style="text-align:center;text-decoration:none">Sign out</a>
+    <button class="btn" id="signOut" type="button">Sign out</button>
     <p class="note">You can also type or say “Power down the interface.”</p>
   </aside>
 </div>
@@ -888,7 +888,10 @@ form.ask { width: 100%; box-sizing: border-box; display: flex; gap: 8px; align-i
   // requests like "can you power down the display on my server" still go to the agent.
   const POWER_RE = /^\W*(?:(?:hey|ok|okay)\s+)?(?:[a-z.]+[,:]?\s+)?(?:please\s+)?(?:power|shut)\s*(?:down|off)(?:\s+(?:the|your))?(?:\s+(?:interface|orb|console|system|display|screen))?(?:\s+(?:now|please))?\W*$/i;
   const isPowerDown = t => POWER_RE.test(t.trim());
+  const SIGNOUT_RE = /^\W*(?:(?:hey|ok|okay)\s+)?(?:[a-z.]+[,:]?\s+)?(?:please\s+)?(?:sign|log)\s*(?:me\s+)?(?:out|off)(?:\s+(?:now|please))?\W*$/i;
+  const isSignOut = t => !!window.__ORB_SERVER__ && SIGNOUT_RE.test(t.trim());
   async function send(text) {
+    if (text && isSignOut(text)) { stopListening(); powerDown({ signOut: true }); return; }
     if (text && isPowerDown(text)) { stopListening(); powerDown(); return; }
     if ((!text && !attachments.length) || state === 'offline') return;
     synth?.cancel(); stopAgentVoice(); speakQueue = 0;
@@ -911,7 +914,10 @@ form.ask { width: 100%; box-sizing: border-box; display: flex; gap: 8px; align-i
       if (!first) first = performance.now() - t0;
       turn.text += d; buf += d;
       caption(esc(speakable(turn.text)).slice(-420) || '…');
-      const cut = lastSentenceEnd(buf, spoken);
+      let cut = lastSentenceEnd(buf, spoken);
+      // Start talking sooner: if the first sentence isn't finished yet, speak its first phrase on its own
+      // (up to a comma/semicolon/dash once there are a few words), so the voice starts in about a second.
+      if (cut <= spoken && spoken === 0) cut = firstPhraseEnd(buf);
       if (cut > spoken && !inCodeFence(buf.slice(0, cut))) { speak(buf.slice(spoken, cut)); spoken = cut; }
     };
     try {
@@ -935,6 +941,10 @@ form.ask { width: 100%; box-sizing: border-box; display: flex; gap: 8px; align-i
   }
   function lastSentenceEnd(s, from) { const re = /[.!?…:](\s|$)|\n\n/g; re.lastIndex = from; let m, end = from; while ((m = re.exec(s))) end = m.index + m[0].length; return end; }
   const inCodeFence = s => ((s.match(/```/g) || []).length % 2) === 1;
+  function firstPhraseEnd(s) {
+    const m = /^[\s\S]{24,}?[,;:\u2013\u2014](\s)/.exec(s);
+    return m && m[0].length <= 140 ? m[0].length : 0;
+  }
 
   async function streamChat(text, onDelta, images = []) {
     abortCtl = new AbortController();
@@ -990,7 +1000,7 @@ form.ask { width: 100%; box-sizing: border-box; display: flex; gap: 8px; align-i
   $('mic').addEventListener('click', orbTap);
   $('ask').addEventListener('submit', e => {
     e.preventDefault(); const v = $('text').value.trim(); if (!v && !attachments.length) return;
-    if (state === 'offline' && !isPowerDown(v)) { caption(`<span class="you">${esc(currentLabel())} is offline. Messages can't be sent until it's back.</span>`); return; }
+    if (state === 'offline' && !isPowerDown(v) && !isSignOut(v)) { caption(`<span class="you">${esc(currentLabel())} is offline. Messages can't be sent until it's back.</span>`); return; }
     $('text').value = ''; stopListening(); send(v);
   });
   $('handsFree').addEventListener('click', () => {
@@ -1417,14 +1427,14 @@ form.ask { width: 100%; box-sizing: border-box; display: flex; gap: 8px; align-i
   // ---------- power-down sequence ----------
   // The startup sequence in reverse: voice closes, agents go to standby, the name expands back out,
   // the core ring drains, and the screen collapses to a line and a dot. Tap or any key powers back up.
-  async function powerDown() {
-    if (poweredDown) return;
+  async function powerDown({ signOut = false } = {}) {
+    if (poweredDown && !signOut) return;
     poweredDown = true;
     const run = ++bootRun, el = $('boot'), nameEl = $('bootName');
     handsFree = false; $('handsFree').setAttribute('aria-pressed', 'false');
     stopAll();
     document.querySelectorAll('.sheet').forEach(s => s.hidden = true);
-    caption('<span class="you">Powering down the interface.</span>');
+    caption(`<span class="you">${signOut ? 'Signing out.' : 'Powering down the interface.'}</span>`);
 
     // set the overlay up at "fully booted": 100%, ring drawn, acronym showing
     el.classList.remove('drain', 'fading', 'off'); $('bootSleep').hidden = true;
@@ -1435,7 +1445,7 @@ form.ask { width: 100%; box-sizing: border-box; display: flex; gap: 8px; align-i
     buildBootName(cur() || agents[0]);
     nameEl.style.transition = 'none'; nameEl.classList.add('show', 'collapse'); void nameEl.offsetWidth; nameEl.style.transition = '';
     $('bootBar').style.width = '100%'; $('bootPct').textContent = '100%';
-    $('bootState').textContent = 'Shutdown requested'; $('bootSkip').textContent = 'Tap or press any key to skip';
+    $('bootState').textContent = signOut ? 'Sign-out requested' : 'Shutdown requested'; $('bootSkip').textContent = 'Tap or press any key to skip';
     requestAnimationFrame(() => requestAnimationFrame(() => el.classList.remove('out')));
 
     let skipped = false;
@@ -1443,6 +1453,7 @@ form.ask { width: 100%; box-sizing: border-box; display: flex; gap: 8px; align-i
       if (run !== bootRun || sleeping) return;
       skipped = true; sleeping = true;
       el.classList.add('drain', 'fading', 'off');
+      if (signOut) { setTimeout(() => { location.href = window.__ORB_SERVER__ ? '/logout' : location.href; }, 950); return; }
       setTimeout(() => {
         if (run !== bootRun) return;
         $('bootSleep').hidden = false;
@@ -1473,8 +1484,8 @@ form.ask { width: 100%; box-sizing: border-box; display: flex; gap: 8px; align-i
     };
     try {
       await step(900);
-      line('F&K Core · Power-down sequence', true);
-      $('bootState').textContent = 'Shutting down';
+      line(signOut ? 'F&K Core · Sign-out sequence' : 'F&K Core · Power-down sequence', true);
+      $('bootState').textContent = signOut ? 'Signing out' : 'Shutting down';
       let set = line('Voice channel'); await step(350); set('CLOSED'); progress(90);
       set = line('Conversation sessions'); await step(380); set('PRESERVED'); progress(80);
       const shown = agents.slice(0, 5);
@@ -1485,12 +1496,13 @@ form.ask { width: 100%; box-sizing: border-box; display: flex; gap: 8px; align-i
       }
       if (agents.length > shown.length) line(`+ ${agents.length - shown.length} more on standby`, true);
       set = line('Gateway link'); await step(320); set('RELEASED'); progress(30);
+      if (signOut) { set = line('Session credentials'); await step(300); set('CLEARED'); }
       set = line('Orb core');
       nameEl.classList.remove('collapse');                 // K.I.R.A. expands back to its full name
       el.classList.add('drain');                           // and the core ring drains away
       for (let p = 30; p >= 0; p -= 2) { progress(p); await step(75); }
       set('POWERED DOWN', 'ok', 'var(--dim)');
-      $('bootState').textContent = 'Interface offline';
+      $('bootState').textContent = signOut ? 'Signed out' : 'Interface offline';
       await step(500);
       nameEl.classList.remove('show');
       el.classList.add('fading');
@@ -1504,6 +1516,7 @@ form.ask { width: 100%; box-sizing: border-box; display: flex; gap: 8px; align-i
   }
   $('powerBtn').addEventListener('click', () => powerDown());
   if (!window.__ORB_SERVER__) $('signOut').hidden = true;
+  $('signOut').addEventListener('click', () => powerDown({ signOut: true }));
 
   // ---------- go ----------
   let firstBoot = true;
