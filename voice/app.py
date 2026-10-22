@@ -1,13 +1,15 @@
-"""Chatterbox Nano voice service for the Kira Orb.
+"""Kyutai Pocket TTS voice service for the Kira Orb.
 
 POST /v1/audio/speech   {"input": "...", "voice": "main"}  ->  audio/wav   (OpenAI-style)
-GET  /v1/voices         -> {"voices": ["forge", "main", ...]}
+GET  /v1/voices         -> {"voices": ["forge", "ledger", "main"]}
 GET  /health            -> {"ready": bool, ...}
 
-A voice is a reference clip in /voices named after the agent id: main.wav, forge.wav, ledger.wav.
-Each clip must be longer than 5 seconds; about 10 seconds of clean, single-speaker speech works best.
+A voice is a reference clip in /voices named after the agent id: main.mp3, forge.wav, ledger.wav …
+(.wav .mp3 .m4a .flac .ogg). Clips are converted to clean mono WAV and trimmed to 20 seconds, and each
+voice is analysed once and kept in memory. BUILTIN_VOICES can give agents without a clip one of Pocket
+TTS's built-in voices, e.g. "scout=alba,dana=jane".
 """
-import asyncio, io, os, re, threading, time, wave
+import asyncio, io, os, re, subprocess, tempfile, threading, time, wave
 from pathlib import Path
 
 import numpy as np
@@ -16,43 +18,47 @@ from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
 VOICES_DIR = Path(os.getenv("VOICES_DIR", "/voices"))
-VARIANT = os.getenv("TTS_VARIANT", "nano").lower()          # nano (default) or turbo
-THREADS = int(os.getenv("TORCH_THREADS", "0") or 0)
+THREADS = int(os.getenv("TORCH_THREADS", "2") or 2)
 MAX_CHARS = int(os.getenv("MAX_CHARS", "600"))
+CLIP_SECONDS = float(os.getenv("CLIP_SECONDS", "20"))
+BUILTIN = dict(p.split("=", 1) for p in os.getenv("BUILTIN_VOICES", "").replace(" ", "").split(",") if "=" in p)
 VOICE_RE = re.compile(r"^[A-Za-z0-9._-]{1,64}$")
 AUDIO_EXT = (".wav", ".mp3", ".flac", ".ogg", ".m4a")
+TMP = Path(tempfile.gettempdir()) / "voice-prompts"
 
-app = FastAPI(title="Kira Orb voice")
-state = {"model": None, "error": None, "loaded_at": None, "load_seconds": None}
-conds_cache: dict[str, tuple[float, object]] = {}           # voice -> (file mtime, conditionals)
-gen_lock = threading.Lock()                                  # one model, one CPU job at a time
+app = FastAPI(title="Kira Orb voice (Pocket TTS)")
+state = {"model": None, "error": None, "load_seconds": None}
+voice_cache: dict[str, tuple[float, object]] = {}           # voice -> (source mtime, voice state)
+gen_lock = threading.Lock()
 
 
 def load_model():
     try:
         import torch
-        if THREADS > 0:
-            torch.set_num_threads(THREADS)
-        from chatterbox.tts_turbo import ChatterboxTurboTTS
+        torch.set_num_threads(THREADS)
+        from pocket_tts import TTSModel
         t0 = time.time()
-        print(f"[voice] loading Chatterbox {VARIANT} on cpu (first start downloads the weights)…", flush=True)
-        state["model"] = ChatterboxTurboTTS.from_pretrained(device="cpu", nano=(VARIANT == "nano"))
+        print("[voice] loading Pocket TTS (first start downloads the weights)…", flush=True)
+        state["model"] = TTSModel.load_model()
         state["load_seconds"] = round(time.time() - t0, 1)
-        state["loaded_at"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
         print(f"[voice] ready in {state['load_seconds']}s, {torch.get_num_threads()} threads", flush=True)
-    except Exception as e:  # keep serving /health so the orb can show what went wrong
-        state["error"] = f"{type(e).__name__}: {e}"
-        print(f"[voice] failed to load model: {state['error']}", flush=True)
+    except Exception as e:
+        msg = f"{type(e).__name__}: {e}"
+        if any(k in msg for k in ("401", "403", "gated", "GatedRepo", "Unauthorized", "access")):
+            msg = ("Can't download Pocket TTS: accept the terms at https://huggingface.co/kyutai/pocket-tts "
+                   "and put a Read token in voice.env as HF_TOKEN. (" + msg[:200] + ")")
+        state["error"] = msg
+        print(f"[voice] failed to load model: {msg}", flush=True)
 
 
 @app.on_event("startup")
 def startup():
-    VOICES_DIR.mkdir(parents=True, exist_ok=True)
+    TMP.mkdir(parents=True, exist_ok=True)
     threading.Thread(target=load_model, daemon=True).start()
 
 
-def voice_file(name: str) -> Path | None:
-    if not VOICE_RE.match(name):
+def clip_for(name: str) -> Path | None:
+    if not VOICE_RE.match(name) or not VOICES_DIR.is_dir():
         return None
     for ext in AUDIO_EXT:
         p = VOICES_DIR / f"{name}{ext}"
@@ -62,31 +68,51 @@ def voice_file(name: str) -> Path | None:
 
 
 def list_voices() -> list[str]:
-    if not VOICES_DIR.is_dir():
-        return []
-    return sorted({p.stem for p in VOICES_DIR.iterdir() if p.suffix.lower() in AUDIO_EXT and VOICE_RE.match(p.stem)})
+    clips = {p.stem for p in VOICES_DIR.iterdir() if p.suffix.lower() in AUDIO_EXT and VOICE_RE.match(p.stem)} if VOICES_DIR.is_dir() else set()
+    return sorted(clips | set(BUILTIN))
+
+
+def prepared_wav(src: Path) -> Path:
+    """Any supported format -> 24 kHz mono 16-bit WAV, trimmed, with leading silence removed."""
+    out = TMP / f"{src.stem}.wav"
+    cmd = ["ffmpeg", "-v", "error", "-y", "-i", str(src), "-t", str(CLIP_SECONDS),
+           "-af", "silenceremove=start_periods=1:start_threshold=-45dB", "-ac", "1", "-ar", "24000", "-sample_fmt", "s16", str(out)]
+    r = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+    if r.returncode != 0 or not out.exists():
+        raise HTTPException(422, f"Couldn't read voice clip '{src.name}': {r.stderr.strip()[:200]}")
+    with wave.open(str(out)) as w:
+        secs = w.getnframes() / w.getframerate()
+    if secs < 2.0:
+        raise HTTPException(422, f"Voice clip '{src.name}' has only {secs:.1f}s of speech; use at least 5 seconds.")
+    return out
+
+
+def voice_state(name: str):
+    model = state["model"]
+    clip = clip_for(name)
+    if clip is not None:
+        key, mtime = name, clip.stat().st_mtime
+        cached = voice_cache.get(key)
+        if not cached or cached[0] != mtime:          # analyse each clip once, again if the file changes
+            voice_cache[key] = (mtime, model.get_state_for_audio_prompt(str(prepared_wav(clip))))
+        return voice_cache[key][1]
+    if name in BUILTIN:
+        key = "builtin:" + BUILTIN[name]
+        if key not in voice_cache:
+            voice_cache[key] = (0, model.get_state_for_audio_prompt(BUILTIN[name]))
+        return voice_cache[key][1]
+    raise HTTPException(404, f"No voice clip named '{name}' in the voices folder.")
 
 
 def synthesize(text: str, voice: str) -> bytes:
     model = state["model"]
-    path = voice_file(voice)
-    if path is None:
-        raise HTTPException(404, f"No voice clip named '{voice}' in the voices folder.")
     with gen_lock:
-        mtime = path.stat().st_mtime
-        cached = conds_cache.get(voice)
-        if not cached or cached[0] != mtime:            # analyse each clip once, re-analyse if the file changes
-            try:
-                model.prepare_conditionals(str(path))
-            except AssertionError as e:
-                raise HTTPException(422, f"Voice clip '{path.name}' is too short: {e}") from e
-            conds_cache[voice] = (mtime, model.conds)
-        model.conds = conds_cache[voice][1]
+        vs = voice_state(voice)
         import torch
         with torch.inference_mode():
-            wav = model.generate(text)
-        sr = model.sr
-    pcm = np.clip(wav.squeeze(0).cpu().numpy(), -1.0, 1.0)
+            audio = model.generate_audio(vs, text)
+        sr = int(model.sample_rate)
+    pcm = np.clip(audio.detach().cpu().numpy().reshape(-1), -1.0, 1.0)
     pcm = (pcm * 32767).astype(np.int16)
     buf = io.BytesIO()
     with wave.open(buf, "wb") as w:
@@ -99,7 +125,7 @@ class SpeechRequest(BaseModel):
     voice: str
     model: str | None = None
     response_format: str | None = "wav"
-    speed: float | None = None       # accepted for compatibility; Chatterbox has no speed control
+    speed: float | None = None       # accepted for compatibility; not supported
 
 
 @app.post("/v1/audio/speech")
@@ -108,10 +134,9 @@ async def speech(req: SpeechRequest):
         raise HTTPException(503, state["error"] or "The voice model is still loading.")
     if (req.response_format or "wav") != "wav":
         raise HTTPException(400, "Only wav output is supported.")
-    text = req.input.strip()[:MAX_CHARS]
     t0 = time.time()
-    audio = await asyncio.to_thread(synthesize, text, req.voice)
-    secs = len(audio) / (2 * state["model"].sr)
+    audio = await asyncio.to_thread(synthesize, req.input.strip()[:MAX_CHARS], req.voice)
+    secs = (len(audio) - 44) / (2 * int(state["model"].sample_rate))
     return Response(audio, media_type="audio/wav", headers={
         "X-Gen-Seconds": f"{time.time() - t0:.2f}", "X-Audio-Seconds": f"{secs:.2f}", "Cache-Control": "no-store"})
 
@@ -123,5 +148,5 @@ def voices():
 
 @app.get("/health")
 def health():
-    return {"ready": state["model"] is not None, "variant": VARIANT, "error": state["error"],
+    return {"ready": state["model"] is not None, "engine": "pocket-tts", "error": state["error"],
             "load_seconds": state["load_seconds"], "voices": list_voices()}

@@ -5,6 +5,7 @@ import { readFile, readdir, mkdir, writeFile, stat } from 'node:fs/promises';
 import { Readable } from 'node:stream';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import crypto from 'node:crypto';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC = path.join(__dirname, 'public');
@@ -32,7 +33,7 @@ const TITLES = Object.fromEntries(
 const SESSION_PREFIX = process.env.SESSION_PREFIX || 'orb';
 // OpenClaw's data folder, mounted read-only. The orb only ever opens workspace*/SOUL.md inside it.
 const OPENCLAW_DATA = process.env.OPENCLAW_DATA || '/openclaw';
-// Chatterbox Nano voice service (optional). Blank = the orb uses browser voices only.
+// Pocket TTS voice service (optional). Blank = the orb uses browser voices only.
 const VOICE_URL = (process.env.VOICE_URL || '').replace(/\/+$/, '');
 
 // ---- voice service status --------------------------------------------------------------------
@@ -296,7 +297,7 @@ async function handleTts(req, res) {
   try {
     const r = await fetch(`${VOICE_URL}/v1/audio/speech`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model: 'chatterbox-nano', voice: agent, input: text, response_format: 'wav' }),
+      body: JSON.stringify({ model: 'pocket-tts', voice: agent, input: text, response_format: 'wav' }),
       signal: abort.signal,
     });
     if (!r.ok) { const j = await r.json().catch(() => ({})); return send(res, r.status, { error: j.detail || `Voice service returned ${r.status}.` }); }
@@ -323,10 +324,109 @@ async function serveStatic(req, res, urlPath) {
   } catch { send(res, 404, 'Not found', 'text/plain'); }
 }
 
+// ---- sign-in: one email + password, a signed session cookie ------------------------------------
+const ORB_EMAIL = (process.env.ORB_EMAIL || '').trim().toLowerCase();
+const ORB_PASSWORD = process.env.ORB_PASSWORD || '';
+const AUTH_ON = !!(ORB_EMAIL && ORB_PASSWORD);
+// Sessions are signed with SESSION_SECRET, or a key derived from the gateway token so they survive restarts.
+const SESSION_KEY = crypto.createHash('sha256').update('kira-orb-session:' + (process.env.SESSION_SECRET || TOKEN || crypto.randomBytes(32).toString('hex'))).digest();
+const SESSION_DAYS = Number(process.env.SESSION_DAYS || 30);
+if (!AUTH_ON) console.warn('[kira-orb] ORB_EMAIL / ORB_PASSWORD not set: the sign-in page is OFF.');
+
+const b64u = b => Buffer.from(b).toString('base64url');
+const sign = data => crypto.createHmac('sha256', SESSION_KEY).update(data).digest('base64url');
+const credStamp = () => crypto.createHash('sha256').update(ORB_EMAIL + '\0' + ORB_PASSWORD).digest('base64url').slice(0, 12); // changing the password signs everyone out
+function makeSession() {
+  const body = b64u(JSON.stringify({ e: ORB_EMAIL, x: Date.now() + SESSION_DAYS * 864e5, c: credStamp() }));
+  return `${body}.${sign(body)}`;
+}
+function validSession(req) {
+  const m = /(?:^|;\s*)orb_session=([^;]+)/.exec(req.headers.cookie || '');
+  if (!m) return false;
+  const [body, sig] = m[1].split('.');
+  if (!body || !sig) return false;
+  const want = sign(body);
+  if (sig.length !== want.length || !crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(want))) return false;
+  try { const j = JSON.parse(Buffer.from(body, 'base64url').toString()); return j.e === ORB_EMAIL && j.c === credStamp() && j.x > Date.now(); } catch { return false; }
+}
+const sameText = (a, b) => { const x = crypto.createHash('sha256').update(String(a)).digest(), y = crypto.createHash('sha256').update(String(b)).digest(); return crypto.timingSafeEqual(x, y); };
+const clientIp = req => String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').split(',')[0].trim();
+const attempts = new Map();   // ip -> [timestamps]: at most 5 failed sign-ins per 10 minutes
+const tooMany = ip => (attempts.get(ip) || []).filter(t => Date.now() - t < 600000).length >= 5;
+const cookie = (val, maxAge) => `orb_session=${val}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${maxAge}`;
+
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+function loginPage(error = '', email = '') {
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#061227"><link rel="manifest" href="/manifest.webmanifest"><link rel="icon" href="/icon.svg">
+<title>Sign in · Kira Orb</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600&family=IBM+Plex+Sans:wght@400;500&display=swap">
+<style>
+:root{--void:#061227;--hi:#0e2650;--lo:#030915;--panel:#0b1a33;--line:#1c3256;--ink:#d9e7ee;--dim:#7a90b0;--arc:#ff7ac8;--alert:#ff6b6b;color-scheme:dark}
+*{box-sizing:border-box}html,body{height:100%;margin:0}
+body{display:grid;place-items:center;padding:24px max(16px,env(safe-area-inset-right)) 24px max(16px,env(safe-area-inset-left));
+ background:radial-gradient(ellipse 70% 60% at 50% 40%,var(--hi),var(--void) 60%,var(--lo));color:var(--ink);font:15px/1.5 "IBM Plex Sans","Segoe UI",system-ui,sans-serif}
+.card{width:min(380px,100%);display:grid;gap:18px}
+.brand{text-align:center;display:grid;gap:8px;text-transform:uppercase;margin-bottom:6px}
+.brand b{font:600 15px/1 "Chakra Petch","Segoe UI",sans-serif;letter-spacing:.5em;padding-left:.5em}
+.brand span{font:500 10px/1 "Chakra Petch","Segoe UI",sans-serif;letter-spacing:.6em;padding-left:.6em;color:var(--dim)}
+.ring{width:84px;height:84px;margin:4px auto 0;border-radius:50%;border:1px solid var(--arc);box-shadow:0 0 24px -6px var(--arc),inset 0 0 18px -8px var(--arc);
+ background:radial-gradient(circle,rgba(255,122,200,.35),transparent 62%);animation:b 4s ease-in-out infinite}
+@keyframes b{50%{box-shadow:0 0 34px -4px var(--arc),inset 0 0 24px -6px var(--arc)}}
+@media (prefers-reduced-motion:reduce){.ring{animation:none}}
+form{display:grid;gap:14px;background:rgba(11,26,51,.85);border:1px solid var(--line);border-radius:14px;padding:22px}
+label{display:grid;gap:6px;font:500 11px/1 "Chakra Petch","Segoe UI",sans-serif;letter-spacing:.18em;text-transform:uppercase;color:var(--dim)}
+input{font:15px "IBM Plex Sans",system-ui,sans-serif;color:var(--ink);background:var(--void);border:1px solid var(--line);border-radius:10px;padding:12px 14px;text-transform:none;letter-spacing:0}
+input:focus{outline:none;border-color:var(--arc)}
+button{font:600 13px/1 "Chakra Petch","Segoe UI",sans-serif;letter-spacing:.2em;text-transform:uppercase;color:var(--void);background:var(--arc);border:0;border-radius:10px;padding:14px;cursor:pointer}
+button:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+.err{color:var(--alert);font-size:14px;margin:0;text-align:center}
+.foot{text-align:center;color:var(--dim);font-size:12px;letter-spacing:.12em;text-transform:uppercase}
+</style></head><body><main class="card">
+<div class="brand"><b>Finnesey &amp; Kobler</b><span>The Model Shop</span><div class="ring" aria-hidden="true"></div></div>
+<form method="post" action="/login">
+${error ? `<p class="err" role="alert">${esc(error)}</p>` : ''}
+<label>Email<input type="email" name="email" autocomplete="username" required autofocus value="${esc(email)}"></label>
+<label>Password<input type="password" name="password" autocomplete="current-password" required></label>
+<button type="submit">Sign in</button>
+</form>
+<div class="foot">K.I.R.A. · Agent interface</div>
+</main></body></html>`;
+}
+async function handleLogin(req, res) {
+  const ip = clientIp(req);
+  if (tooMany(ip)) { res.writeHead(429, { 'Content-Type': 'text/html; charset=utf-8', ...SECURITY_HEADERS }); return res.end(loginPage('Too many attempts. Wait 10 minutes and try again.')); }
+  let form;
+  try { form = new URLSearchParams(await readBody(req, 4096)); } catch { return send(res, 400, 'Bad request', 'text/plain'); }
+  const email = String(form.get('email') || '').trim().toLowerCase(), pw = String(form.get('password') || '');
+  const ok = sameText(email, ORB_EMAIL) & sameText(pw, ORB_PASSWORD);
+  if (!ok) {
+    attempts.set(ip, [...(attempts.get(ip) || []).filter(t => Date.now() - t < 600000), Date.now()]);
+    console.warn(`[kira-orb] failed sign-in from ${ip}`);
+    await new Promise(r => setTimeout(r, 600));
+    res.writeHead(401, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', ...SECURITY_HEADERS });
+    return res.end(loginPage("That email and password don't match.", email));
+  }
+  attempts.delete(ip);
+  res.writeHead(303, { Location: '/', 'Set-Cookie': cookie(makeSession(), SESSION_DAYS * 86400), 'Cache-Control': 'no-store' });
+  res.end();
+}
+const PUBLIC_PATHS = new Set(['/healthz', '/login', '/manifest.webmanifest', '/icon.svg']);
+
 http.createServer(async (req, res) => {
   const { pathname } = new URL(req.url, 'http://x');
   try {
     if (pathname === '/healthz') return send(res, 200, { ok: true });
+    if (AUTH_ON) {
+      if (pathname === '/login' && req.method === 'POST') return await handleLogin(req, res);
+      if (pathname === '/login') { res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', ...SECURITY_HEADERS }); return res.end(loginPage()); }
+      if (pathname === '/logout') { res.writeHead(303, { Location: '/login', 'Set-Cookie': cookie('', 0) }); return res.end(); }
+      if (!PUBLIC_PATHS.has(pathname) && !validSession(req)) {
+        if (pathname.startsWith('/api/')) return send(res, 401, { error: 'Signed out. Reload to sign in again.' });
+        res.writeHead(303, { Location: '/login' }); return res.end();
+      }
+    }
     if (pathname === '/api/agents' && req.method === 'GET') return send(res, 200, await agentStatus(new URL(req.url, 'http://x').searchParams.has('refresh')));
     if (pathname === '/api/chat' && req.method === 'POST') return await handleChat(req, res);
     if (pathname === '/api/tts' && req.method === 'POST') return await handleTts(req, res);

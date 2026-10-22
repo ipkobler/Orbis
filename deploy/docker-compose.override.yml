@@ -60,22 +60,22 @@ services:
     depends_on:
       - openclaw-gateway
 
-  # ---- new: Chatterbox Nano voices (each agent speaks in its own cloned voice) ----
+  # ---- new: Kyutai Pocket TTS voices (each agent speaks in its own cloned voice) ----
   voice:
     build: ./kira-orb/voice
     restart: unless-stopped
     networks: [agentnet]      # no published ports; only the orb talks to it
     env_file:
-      - path: ./voice.env     # optional Hugging Face token; the model is public, so normally not needed
+      - path: ./voice.env     # HF_TOKEN: the Pocket TTS weights are gated on Hugging Face (see README)
         required: false
     environment:
-      TTS_VARIANT: nano
       TORCH_THREADS: "2"
+      # BUILTIN_VOICES: "scout=alba"   # optional: built-in Pocket TTS voices for agents without a clip
     volumes:
       - ./kira-orb/voices:/voices:ro    # one clip per agent, kept in the Orbis repo: main.mp3, forge.mp3, ledger.wav
       - ./data/voice-cache:/cache       # downloaded model weights (kept out of backups)
-    mem_limit: 3g
-    cpus: "1.5"               # leaves headroom so OpenClaw stays responsive while it speaks
+    mem_limit: 1536m
+    cpus: "2.0"
 
   # ---- new: nightly encrypted backup of the whole stack folder ----
   backup:

@@ -269,6 +269,12 @@ form.ask { width: 100%; box-sizing: border-box; display: flex; gap: 8px; align-i
 .field select { font: 14px var(--f-body); color: var(--ink); background: var(--void); border: 1px solid var(--line); border-radius: 10px; padding: 9px 10px; }
 .field input[type=range] { accent-color: var(--arc); }
 .note { color: var(--dim); font-size: 13px; margin: 0; }
+.avlist { display: grid; gap: 8px; }
+.avrow { display: grid; grid-template-columns: 9px minmax(0, 7.5em) minmax(0, 1fr) auto; align-items: center; gap: 10px; }
+.avrow i { width: 8px; height: 8px; border-radius: 50%; }
+.avrow span { font: 600 12px/1.2 var(--f-display); letter-spacing: .1em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.avrow select { min-width: 0; font: 13px var(--f-body); color: var(--ink); background: var(--void); border: 1px solid var(--line); border-radius: 8px; padding: 7px 8px; }
+.avrow button { border: 1px solid var(--line); background: var(--panel); color: var(--ink); border-radius: 8px; padding: 6px 9px; cursor: pointer; font: 12px var(--f-body); }
 
 /* ---------- narrower screens ---------- */
 @media (max-width: 1000px) {
@@ -376,14 +382,15 @@ form.ask { width: 100%; box-sizing: border-box; display: flex; gap: 8px; align-i
 
   <aside class="sheet" id="setSheet" hidden>
     <h2>Settings <button class="close" data-close="setSheet" aria-label="Close">×</button></h2>
-    <div class="field"><label for="engine">Agent voices</label><select id="engine"><option value="chatterbox">Chatterbox Nano (each agent's own voice)</option><option value="browser">Browser voice</option></select></div>
+    <div class="field"><label for="engine">Agent voices</label><select id="engine"><option value="clone">Cloned agent voices (Pocket TTS)</option><option value="browser">Browser voice</option></select></div>
     <p class="note" id="voiceNote"></p>
-    <div class="field"><label for="voice">Browser voice (fallback)</label><select id="voice"></select></div>
+    <div class="field"><span class="label">Browser voice for each agent</span><div id="agentVoices" class="avlist"></div></div>
     <div class="field"><label for="rate">Browser speaking speed <span id="rateVal">1×</span></label><input id="rate" type="range" min="0.7" max="1.4" step="0.05" value="1"></div>
     <div class="field"><label for="speakOn">Speak replies</label><select id="speakOn"><option value="1">On</option><option value="0">Off (text only)</option></select></div>
     <p class="note" id="sttNote"></p>
     <button class="btn" id="replayBoot" type="button">Replay startup sequence</button>
     <button class="btn" id="powerBtn" type="button">Power down interface</button>
+    <a class="btn" id="signOut" href="/logout" style="text-align:center;text-decoration:none">Sign out</a>
     <p class="note">You can also type or say “Power down the interface.”</p>
   </aside>
 </div>
@@ -535,6 +542,7 @@ form.ask { width: 100%; box-sizing: border-box; display: flex; gap: 8px; align-i
     if (DEMO) return;
     try {
       const r = await fetch('/api/agents' + (force ? '?refresh=1' : ''), { cache: 'no-store' });
+      if (r.status === 401) { location.href = '/login'; return; }
       if (!r.ok) throw new Error(r.status);
       const j = await r.json();
       agents = j.agents || []; gateway = j.gateway || { online: false }; voiceInfo = j.voice || voiceInfo;
@@ -544,6 +552,7 @@ form.ask { width: 100%; box-sizing: border-box; display: flex; gap: 8px; align-i
       else { gateway = { online: false, error: 'Orb server unreachable' }; agents = agents.map(a => ({ ...a, online: false, reason: 'Orb server unreachable' })); }
     }
     nameplate(); applyColor(); renderGateway(); syncOnline(false); renderVoiceNote();
+    if (agents.map(a => a.id).join() !== lastVoiceAgents) { lastVoiceAgents = agents.map(a => a.id).join(); renderAgentVoices(); }
   }
   setInterval(() => { if (document.visibilityState === 'visible' && !poweredDown) poll(); }, 15000);
   document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && !poweredDown && poll(true));
@@ -588,17 +597,51 @@ form.ask { width: 100%; box-sizing: border-box; display: flex; gap: 8px; align-i
   const synth = window.speechSynthesis;
   let voices = [], speakQueue = 0, speakStart = 0;
   let voiceName = store.get('voice', ''), rate = store.get('rate', 1), speakOn = store.get('speakOn', true);
+  // ---- a different browser voice for each agent ----
+  // Choices are remembered per device (each browser has its own set of voices). Agents without a choice get
+  // a distinct one picked automatically: a female voice for the first agent, male voices next, natural-sounding
+  // (Edge "Natural" / Google / Apple premium) voices first.
+  let agentVoices = store.get('agentVoices', {});
+  const FEMALE = /\b(female|aria|jenny|sonia|libby|ava|emma|michelle|ana|natasha|clara|maisie|samantha|karen|moira|tessa|victoria|fiona|zira|hazel|susan|serena|allison|joanna|salli|kimberly|nicole|olivia|amy|siri female)\b/i;
+  const MALE = /\b(male|guy|davis|ryan|christopher|eric|andrew|brian|roger|steffan|thomas|william|liam|daniel|alex|fred|oliver|arthur|aaron|tom|david|mark|george|james|rishi|matthew|justin|joey|siri male)\b/i;
+  const quality = v => (/natural|neural|online/i.test(v.name) ? 3 : 0) + (/google/i.test(v.name) ? 2 : 0) + (/premium|enhanced/i.test(v.name) ? 2 : 0) + (/^en-(US|GB)/i.test(v.lang) ? 1 : 0);
+  function autoVoices() {
+    const sorted = [...voices].sort((a, b) => quality(b) - quality(a));
+    const fem = sorted.filter(v => FEMALE.test(v.name) && !MALE.test(v.name.replace(/female/i, '')));
+    const mal = sorted.filter(v => MALE.test(v.name) && !/female/i.test(v.name));
+    const used = new Set(agents.map(a => agentVoices[a.id]).filter(Boolean));
+    const take = list => { const v = list.find(x => !used.has(x.name)) || sorted.find(x => !used.has(x.name)) || sorted[0]; if (v) used.add(v.name); return v?.name; };
+    const out = {};
+    agents.forEach((a, i) => { out[a.id] = agentVoices[a.id] && voices.some(v => v.name === agentVoices[a.id]) ? agentVoices[a.id] : take(i === 0 ? fem : mal); });
+    return out;
+  }
+  let resolvedVoices = {};
+  function renderAgentVoices() {
+    resolvedVoices = autoVoices();
+    const box = $('agentVoices'); if (!box) return;
+    box.textContent = '';
+    if (!voices.length) { box.innerHTML = '<p class="note">This browser has no speech voices installed.</p>'; return; }
+    for (const a of agents) {
+      const row = document.createElement('div'); row.className = 'avrow';
+      const dot = document.createElement('i'); dot.style.background = agentColor(a.id);
+      const nm = document.createElement('span'); nm.textContent = acronym(a.label);
+      const sel = document.createElement('select'); sel.setAttribute('aria-label', 'Voice for ' + acronym(a.label));
+      for (const v of [...voices].sort((x, y) => quality(y) - quality(x) || x.name.localeCompare(y.name))) {
+        const o = document.createElement('option'); o.value = v.name; o.textContent = v.name.replace(/^Microsoft /, '').replace(/ Online \(Natural\)/, ' (Natural)'); sel.append(o);
+      }
+      sel.value = resolvedVoices[a.id] || '';
+      sel.addEventListener('change', () => { agentVoices[a.id] = sel.value; store.set('agentVoices', agentVoices); resolvedVoices[a.id] = sel.value; });
+      const test = document.createElement('button'); test.type = 'button'; test.textContent = 'Test';
+      test.addEventListener('click', () => { synth.cancel(); const u = new SpeechSynthesisUtterance(`${acronym(a.label).replace(/\./g, ' ')} online.`); const v = voices.find(x => x.name === sel.value); if (v) u.voice = v; u.rate = rate; synth.speak(u); });
+      row.append(dot, nm, sel, test); box.append(row);
+    }
+  }
   function pickVoices() {
     if (!synth) return;
     voices = synth.getVoices().filter(v => /^en/i.test(v.lang));
-    const sel = $('voice'); sel.textContent = '';
-    if (!voices.length) { const o = document.createElement('option'); o.textContent = 'Browser default'; sel.append(o); return; }
-    for (const v of voices) { const o = document.createElement('option'); o.value = v.name; o.textContent = `${v.name} (${v.lang})`; sel.append(o); }
-    if (!voices.some(v => v.name === voiceName)) voiceName = (voices.find(v => /Google UK English Female|Samantha|Aria|Jenny|Libby|Sonia|Natural/i.test(v.name)) || voices[0]).name;
-    sel.value = voiceName;
+    renderAgentVoices();
   }
   if (synth) { pickVoices(); synth.onvoiceschanged = pickVoices; }
-  $('voice').addEventListener('change', e => { voiceName = e.target.value; store.set('voice', voiceName); });
   const fmtRate = r => Number(r).toFixed(2).replace(/\.?0+$/, '') + '×';
   $('rate').value = rate; $('rateVal').textContent = fmtRate(rate);
   $('rate').addEventListener('input', e => { rate = Number(e.target.value); store.set('rate', rate); $('rateVal').textContent = fmtRate(rate); });
@@ -612,11 +655,12 @@ form.ask { width: 100%; box-sizing: border-box; display: flex; gap: 8px; align-i
       .replace(/^\s{0,3}#{1,6}\s+/gm, '').replace(/^\s*[-*+]\s+/gm, '').replace(/[*_~>|]/g, '')
       .replace(/\s+/g, ' ').trim();
   }
-  // ---- Chatterbox Nano: each agent speaks in its own cloned voice ----
-  let engine = store.get('engine', 'chatterbox'), voiceInfo = { enabled: false, ready: false, voices: [] };
+  // ---- Pocket TTS: each agent speaks in its own cloned voice ----
+  let lastVoiceAgents = '';
+  let engine = store.get('engine3', 'clone'), voiceInfo = { enabled: false, ready: false, voices: [] };
   $('engine').value = engine;
-  $('engine').addEventListener('change', e => { engine = e.target.value; store.set('engine', engine); renderVoiceNote(); });
-  const usesAgentVoice = () => engine === 'chatterbox' && !DEMO && !!cur()?.voice;
+  $('engine').addEventListener('change', e => { engine = e.target.value; store.set('engine3', engine); renderVoiceNote(); });
+  const usesAgentVoice = () => engine === 'clone' && !DEMO && !!cur()?.voice;
   function renderVoiceNote() {
     const withVoice = agents.filter(a => a.voice).map(a => acronym(a.label));
     $('voiceNote').textContent = !voiceInfo.enabled ? 'No voice service is connected, so the browser voice is used.'
@@ -638,6 +682,7 @@ form.ask { width: 100%; box-sizing: border-box; display: flex; gap: 8px; align-i
     }
     audioCtx?.resume?.().catch(() => {});
   }
+  ['pointerdown', 'keydown', 'touchend'].forEach(ev => addEventListener(ev, () => ensureAudio(), { passive: true }));
   function readTts() {
     if (!ttsPlaying || !ttsAnalyser) return 0;
     ttsAnalyser.getByteTimeDomainData(ttsBuf);
@@ -647,8 +692,11 @@ form.ask { width: 100%; box-sizing: border-box; display: flex; gap: 8px; align-i
   function queueAgentVoice(t) {
     ensureAudio();
     const ctl = new AbortController();
+    // Give the voice service time proportional to the sentence (it runs on the VPS CPU); if it's late, the browser voice says it.
+    const limit = Math.min(60000, 15000 + t.length * 120);
+    const timer = setTimeout(() => ctl.abort(), limit);
     const item = { text: t, ctl, audio: fetch('/api/tts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ agent, text: t }), signal: ctl.signal })
-      .then(r => (r.ok ? r.blob() : null)).catch(() => null) };
+      .then(r => (r.ok ? r.blob() : null)).catch(() => null).finally(() => clearTimeout(timer)) };
     ttsQueue.push(item); speakQueue++;
     if (!ttsPlaying) playNextVoice();
   }
@@ -667,7 +715,9 @@ form.ask { width: 100%; box-sizing: border-box; display: flex; gap: 8px; align-i
     if (!blob) { ttsPlaying = null; speakQueue--; speakBrowser(item.text); if (ttsQueue.length) playNextVoice(); return; }   // this sentence falls back
     const url = URL.createObjectURL(blob), el = new Audio(url);
     ttsPlaying = { el, url };
-    try { if (audioCtx) audioCtx.createMediaElementSource(el).connect(ttsAnalyser); } catch {}
+    // Routing through the analyser makes the orb follow the real waveform, but if the browser has the
+    // audio system paused, routed audio is silent, so in that case play the clip directly.
+    try { if (audioCtx && audioCtx.state === 'running') audioCtx.createMediaElementSource(el).connect(ttsAnalyser); } catch {}
     el.onplay = () => { if (state !== 'speaking') { setState('speaking'); speakStart = performance.now(); } };
     el.onended = el.onerror = done;
     el.play().catch(done);
@@ -687,7 +737,7 @@ form.ask { width: 100%; box-sizing: border-box; display: flex; gap: 8px; align-i
   function speakBrowser(t) {
     if (!t || !synth || !speakOn) return;
     const u = new SpeechSynthesisUtterance(t);
-    const v = voices.find(v => v.name === voiceName); if (v) u.voice = v;
+    const vn = resolvedVoices[agent] || autoVoices()[agent]; const v = voices.find(x => x.name === vn); if (v) u.voice = v;
     u.rate = rate;
     u.onstart = () => { if (state !== 'speaking') { setState('speaking'); speakStart = performance.now(); } speakPulse = 1; };
     u.onboundary = () => { speakPulse = 1; };
@@ -812,6 +862,7 @@ form.ask { width: 100%; box-sizing: border-box; display: flex; gap: 8px; align-i
       if (a.kind === 'text') { blocks.push(`--- ${a.file.name} ---\n\`\`\`\n${await readAs(a.file, 'readAsText')}\n\`\`\``); continue; }
       if (DEMO) { saved.push({ path: 'inbox/' + a.file.name, bytes: a.file.size }); continue; }
       const r = await fetch(`/api/upload?agent=${encodeURIComponent(forAgent)}&name=${encodeURIComponent(a.file.name)}`, { method: 'POST', body: a.file, headers: { 'Content-Type': 'application/octet-stream' } });
+      if (r.status === 401) { location.href = '/login'; throw new Error('Signed out.'); }
       const j = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(j.error || `Couldn't save ${a.file.name} for the agent.`);
       saved.push(j);
@@ -891,7 +942,7 @@ form.ask { width: 100%; box-sizing: border-box; display: flex; gap: 8px; align-i
     if (!r.ok) {
       let msg = `The relay returned ${r.status}.`;
       try { const j = await r.json(); if (j.error) msg = j.error; } catch {}
-      if (r.status === 401) msg = 'Your sign-in expired. Reload the page.';
+      if (r.status === 401) { location.href = '/login'; msg = 'Signed out.'; }
       throw new Error(msg);
     }
     const reader = r.body.getReader(); const dec = new TextDecoder(); let pending = '';
@@ -1182,7 +1233,7 @@ form.ask { width: 100%; box-sizing: border-box; display: flex; gap: 8px; align-i
     const voiceLive = state === 'speaking' && ttsPlaying?.el && ttsAnalyser;
     if (live) analyser.getByteFrequencyData(freqBuf);
     if (voiceLive) ttsAnalyser.getByteFrequencyData(ttsFreq);
-    $('voiceSrc').textContent = state === 'offline' ? 'no signal' : live ? 'mic' : voiceLive ? 'chatterbox' : state === 'speaking' ? 'speech' : state === 'thinking' ? 'processing' : 'idle';
+    $('voiceSrc').textContent = state === 'offline' ? 'no signal' : live ? 'mic' : voiceLive ? 'cloned' : state === 'speaking' ? 'speech' : state === 'thinking' ? 'processing' : 'idle';
     const gap = 3, bw = (w - gap * (BARS - 1)) / BARS;
     const [r, gg, b] = col.map(Math.round);
     for (let i = 0; i < BARS; i++) {
@@ -1345,7 +1396,7 @@ form.ask { width: 100%; box-sizing: border-box; display: flex; gap: 8px; align-i
       set = line('Voice input'); await step(260); set(SR ? 'READY' : 'TEXT ONLY', SR ? 'ok' : 'warn'); progress(78);
       set = line('Voice synthesis'); await step(260);
       const nv = agents.filter(a => a.voice).length;
-      if (voiceInfo.ready && nv) set(`CHATTERBOX · ${nv} voice${nv > 1 ? 's' : ''}`);
+      if (voiceInfo.ready && nv) set(`POCKET TTS · ${nv} voice${nv > 1 ? 's' : ''}`);
       else if (voiceInfo.enabled && !voiceInfo.ready) set('LOADING · BROWSER', 'warn');
       else set('BROWSER');
       progress(84);
@@ -1452,6 +1503,7 @@ form.ask { width: 100%; box-sizing: border-box; display: flex; gap: 8px; align-i
     }
   }
   $('powerBtn').addEventListener('click', () => powerDown());
+  if (!window.__ORB_SERVER__) $('signOut').hidden = true;
 
   // ---------- go ----------
   let firstBoot = true;

@@ -29,9 +29,7 @@ viking.bigsixtech.tech {
 }
 
 orb.bigsixtech.tech {
-  basic_auth {
-    ian PASTE_HASH_HERE
-  }
+  # Sign-in is handled by the orb itself (email + password page).
   reverse_proxy kira-orb:8080 {
     flush_interval -1
   }
