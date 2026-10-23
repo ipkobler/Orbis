@@ -1384,6 +1384,15 @@ form.ask.chatask { margin-top: 2px; }
     const PHASES = { preparing_workspace: 'Preparing', preparing_context: 'Reading context', starting_model: 'Thinking', waiting_for_model: 'Waiting for model', memory_flushing: 'Saving memory' };
     const on = {
       delta: onDelta,
+      // the reply was rewritten (e.g. a draft replaced by the final answer): show the new text and keep
+      // speaking from where the voice already is, without repeating what was said
+      reset: text => {
+        if (!first) first = performance.now() - t0;
+        turn.text = text; buf = text;
+        if (spoken > buf.length) spoken = buf.length;
+        caption(esc(speakable(turn.text)).slice(-420) || '…');
+        refreshLive();
+      },
       status: ph => { if (state === 'thinking' && !turn.text) setState('thinking', PHASES[ph] || 'Thinking'); },
       tool: ev => {
         const i = turn.tools.findIndex(x => x.id === ev.id);
@@ -1466,6 +1475,7 @@ form.ask.chatask { margin-top: 2px; }
         const data = line.slice(5).trim(); if (data === '[DONE]') return;
         let j; try { j = JSON.parse(data); } catch { continue; }
         if (j.type === 'delta') on.delta(j.text);
+        else if (j.type === 'reset') on.reset?.(j.text);
         else if (j.type === 'tool') on.tool(j);
         else if (j.type === 'media') on.media(j.items || []);
         else if (j.type === 'status') on.status(j.phase);

@@ -124,8 +124,19 @@ const announce = (() => {   // tell the open orbs, at most about twice a second 
     }, 500));
   };
 })();
+// The same gateway event can reach the orb twice (once as a broadcast, once through the conversation
+// subscription); handle each one once, or the reply text doubles.
+const seenEvents = new Set();
+function seenBefore(event, p) {
+  if ((event !== 'chat' && event !== 'agent') || !p.runId || !Number.isInteger(p.seq)) return false;
+  const id = `${event}|${p.runId}|${p.seq}|${p.stream || p.state || ''}`;
+  if (seenEvents.has(id)) return true;
+  seenEvents.add(id);
+  if (seenEvents.size > 5000) seenEvents.delete(seenEvents.values().next().value);
+  return false;
+}
 link?.on('event', (event, payload) => {
-  if (!payload?.sessionKey) return;
+  if (!payload?.sessionKey || seenBefore(event, payload)) return;
   if (event === 'chat' || event === 'agent') sessionStreams.get(payload.sessionKey)?.handler(event, payload);
   if (!watchers.has(payload.sessionKey) || sessionStreams.has(payload.sessionKey)) return;   // the orb's own reply is shown live
   // A finished run the orb didn't start, or a message written straight into the conversation. Generated
@@ -336,10 +347,33 @@ async function chatOverLink({ agent, session, text, images, names }, req, res) {
   await pendingAborts.get(sessionKey);
   const out = openStream(res);
   let otherRun = null;   // another run already working in this session (e.g. started from the OpenClaw page)
-  let finished = false, streamed = '', segment = null, segText = '', sawText = false, expectMedia = false;
+  let finished = false, streamed = '', sawText = false, expectMedia = false;
   // The gateway reports reply text twice: as agent "assistant" events and as chat deltas. Use whichever
   // arrives first for this run and ignore the other, or every word would show (and be spoken) twice.
   let textSource = null;
+  // Text can also be replaced, not just extended (a model's draft swapped for its final answer, for
+  // example), so keep the whole reply here and send the browser either the new tail or a full reset.
+  const segs = new Map();          // agent source: assistant item id -> its text (one paragraph block each)
+  let chatText = '';               // chat source: current display text
+  // Some model runtimes stream an answer and then publish the same answer again as a new item: keep one copy.
+  const flat = t => t.replace(/\s+/g, ' ').trim();
+  function currentText() {
+    if (textSource === 'chat') return chatText;
+    const kept = [];
+    for (const t of segs.values()) {
+      const f = flat(t); if (!f) continue;
+      const i = kept.findIndex(k => flat(k).includes(f) || f.includes(flat(k)));
+      if (i < 0) kept.push(t); else if (f.length > flat(kept[i]).length) kept[i] = t;
+    }
+    return kept.join('\n\n');
+  }
+  function push() {
+    const next = currentText();
+    if (next === streamed) return;
+    if (next.startsWith(streamed)) out.emit({ type: 'delta', text: next.slice(streamed.length) });
+    else out.emit({ type: 'reset', text: next });
+    streamed = next; if (next) sawText = true;
+  }
   const itemTools = new Set();     // tool calls reported by item events (they carry friendly titles)
   const toolsUsed = [];            // tool names, for the log
 
@@ -366,7 +400,6 @@ async function chatOverLink({ agent, session, text, images, names }, req, res) {
         }
       } catch (e) { console.warn('[kira-orb] could not read the run from history:', e.message); }
       if (!mediaCount && !sawText && !streamed && (recovered || finalText)) out.emit({ type: 'delta', text: recovered || finalText });
-      else if (textSource === 'chat' && finalText && !streamed.includes(finalText.trim())) out.emit({ type: 'delta', text: '\n\n' + finalText });
       const toolNames = toolsUsed.join(', ');
       if (watchers.has(sessionKey)) subscribeMessages(sessionKey);
       console.log(`[kira-orb] ${agent} reply: ${streamed.length || (recovered || finalText).length} chars${streamed ? '' : recovered ? ' (from history)' : finalText ? ' (from final)' : ' (none)'}, tools: ${toolNames || 'none'}, media: ${mediaCount}`);
@@ -392,16 +425,13 @@ async function chatOverLink({ agent, session, text, images, names }, req, res) {
       if (p.stream === 'assistant') {
         if (Array.isArray(d.mediaUrls) && d.mediaUrls.length) expectMedia = true;
         if (textSource === 'chat') return;
-        // each assistant item is one stretch of text (text, tool calls, more text…): keep them as paragraphs
-        if (d.itemId !== segment) {
-          if (segText && !streamed.endsWith('\n')) { out.emit({ type: 'delta', text: '\n\n' }); streamed += '\n\n'; }
-          segment = d.itemId; segText = '';
-        }
-        let add = '';
-        if (typeof d.delta === 'string' && d.delta) add = d.delta;
-        else if (typeof d.text === 'string' && d.text.length > segText.length && d.text.startsWith(segText)) add = d.text.slice(segText.length);
-        if (add) { textSource = 'agent'; segText += add; streamed += add; sawText = true; out.emit({ type: 'delta', text: add }); }
-        if (Array.isArray(d.mediaUrls) && d.mediaUrls.length) expectMedia = true;
+        // each assistant item is one stretch of text (text, tool calls, more text…): one paragraph block each
+        const id = d.itemId || '_', cur = segs.get(id) ?? '';
+        let next = cur;
+        if (d.replace === true && typeof d.text === 'string') next = d.text;          // full replacement
+        else if (typeof d.delta === 'string' && d.delta) next = cur + d.delta;
+        else if (typeof d.text === 'string' && d.text.startsWith(cur)) next = d.text;  // snapshot
+        if (next !== cur) { textSource = 'agent'; segs.set(id, next); push(); }
       } else if (p.stream === 'item' && d.kind === 'tool') {
         const id = d.toolCallId || d.itemId;
         if (!itemTools.has(id)) toolsUsed.push(d.name);
@@ -416,14 +446,19 @@ async function chatOverLink({ agent, session, text, images, names }, req, res) {
     }
     if (event === 'chat') {
       if (p.state === 'status') out.emit({ type: 'status', phase: p.phase });
-      else if (p.state === 'delta' && textSource !== 'agent' && p.deltaText) {
-        textSource = 'chat';
-        if (!p.replace) { streamed += p.deltaText; out.emit({ type: 'delta', text: p.deltaText }); }
-        else if (p.deltaText.startsWith(streamed) && p.deltaText.length > streamed.length) { const add = p.deltaText.slice(streamed.length); streamed += add; out.emit({ type: 'delta', text: add }); }
+      else if (p.state === 'delta' && textSource !== 'agent') {
+        // a snapshot message is authoritative; an empty replacement only marks a boundary
+        const snap = p.message ? textOf(p.message) : null;
+        let next = chatText;
+        if (snap) next = snap;
+        else if (p.replace) { if (p.deltaText) next = p.deltaText; }
+        else if (p.deltaText) next = chatText + p.deltaText;
+        if (next !== chatText) { textSource = 'chat'; chatText = next; push(); }
       }
       else if (p.state === 'final') {
         // the message was folded into a run that was already working: its answer arrives on that run
         if (!sawText && !streamed && !itemTools.size && !textOf(p.message) && otherRun) { runId = otherRun; rememberRun(runId); otherRun = null; sessionStreams.get(sessionKey).runId = runId; return; }
+        if (textSource === 'chat' && textOf(p.message) && textOf(p.message) !== chatText) { chatText = textOf(p.message); push(); }
         finish('final', p);
       }
       else if (p.state === 'aborted') finish('aborted');
@@ -582,7 +617,8 @@ async function handleHistory(req, res, url) {
         const media = mediaOf(m);
         const prev = messages.at(-1);
         // one agent turn = consecutive assistant messages (tool calls, then the answer)
-        if (prev?.role === 'agent') { if (text) prev.text = prev.text ? prev.text + '\n\n' + text : text; prev.tools.push(...tools); prev.media = uniqueMedia([...prev.media, ...media]); }
+        const same = (a, b) => a.replace(/\s+/g, ' ').trim().includes(b.replace(/\s+/g, ' ').trim());
+        if (prev?.role === 'agent') { if (text && !same(prev.text, text)) prev.text = prev.text && !same(text, prev.text) ? prev.text + '\n\n' + text : text; prev.tools.push(...tools); prev.media = uniqueMedia([...prev.media, ...media]); }
         else messages.push({ role: 'agent', text, tools, media });
       }
     }
