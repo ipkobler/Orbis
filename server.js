@@ -244,6 +244,7 @@ async function agentStatus(force = false) {
       const j = await link.request('agents.list', {}, { timeoutMs: 6000 });
       latencyMs = Date.now() - t0;
       gatewayIds = (j.agents || []).map(a => String(a.id));
+      for (const a of j.agents || []) if (Array.isArray(a.thinkingOptions)) thinkingOptions.set(String(a.id), a.thinkingOptions.map(String));
     } catch { /* fall through to HTTP */ }
   }
   if (!gatewayIds) try {
@@ -326,7 +327,8 @@ async function readChatRequest(req, res) {
   if (!SESSION_RE.test(session)) return fail(400, 'Missing conversation id.');
   if (!text || text.length > 250000) return fail(400, 'The message is empty or too long.');
   const names = Array.isArray(payload.imageNames) ? payload.imageNames.map(n => String(n).slice(0, 120)) : [];
-  return { agent, session, text, images, names };
+  const speed = ['fast', 'balanced', 'thorough'].includes(payload.speed) ? payload.speed : 'thorough';
+  return { agent, session, text, images, names, speed };
 }
 
 async function handleChat(req, res) {
@@ -337,7 +339,19 @@ async function handleChat(req, res) {
 }
 
 // Full tools: a normal chat turn over the gateway WebSocket, exactly like the OpenClaw Control UI.
-async function chatOverLink({ agent, session, text, images, names }, req, res) {
+// ---- response speed: how long the agent thinks before answering, per orb message ------------------
+// Fast = the least thinking the agent's model allows, Balanced = light thinking, Thorough = the agent's
+// own setting. Only messages sent from the orb are affected; OpenClaw's chat page, Slack etc. are not.
+const thinkingOptions = new Map();   // agent id -> thinking levels its model accepts (from agents.list)
+function thinkingFor(agent, speed) {
+  if (speed === 'thorough') return undefined;
+  const opts = thinkingOptions.get(agent);
+  if (!opts?.length) return undefined;               // unknown: leave the agent's own setting
+  const prefer = speed === 'fast' ? ['off', 'minimal', 'low'] : ['low', 'minimal', 'medium'];
+  return prefer.find(l => opts.includes(l));
+}
+
+async function chatOverLink({ agent, session, text, images, names, speed }, req, res) {
   const sessionKey = sessionKeyFor(agent, session);
   let runId = crypto.randomUUID();
   rememberRun(runId);
@@ -347,7 +361,8 @@ async function chatOverLink({ agent, session, text, images, names }, req, res) {
   await pendingAborts.get(sessionKey);
   const out = openStream(res);
   let otherRun = null;   // another run already working in this session (e.g. started from the OpenClaw page)
-  let finished = false, streamed = '', sawText = false, expectMedia = false;
+  let finished = false, streamed = '', sawText = false, expectMedia = false, firstTextAt = 0;
+  const startedAt = Date.now();
   // The gateway reports reply text twice: as agent "assistant" events and as chat deltas. Use whichever
   // arrives first for this run and ignore the other, or every word would show (and be spoken) twice.
   let textSource = null;
@@ -370,6 +385,7 @@ async function chatOverLink({ agent, session, text, images, names }, req, res) {
   function push() {
     const next = currentText();
     if (next === streamed) return;
+    if (!firstTextAt && next) firstTextAt = Date.now();
     if (next.startsWith(streamed)) out.emit({ type: 'delta', text: next.slice(streamed.length) });
     else out.emit({ type: 'reset', text: next });
     streamed = next; if (next) sawText = true;
@@ -402,7 +418,7 @@ async function chatOverLink({ agent, session, text, images, names }, req, res) {
       if (!mediaCount && !sawText && !streamed && (recovered || finalText)) out.emit({ type: 'delta', text: recovered || finalText });
       const toolNames = toolsUsed.join(', ');
       if (watchers.has(sessionKey)) subscribeMessages(sessionKey);
-      console.log(`[kira-orb] ${agent} reply: ${streamed.length || (recovered || finalText).length} chars${streamed ? '' : recovered ? ' (from history)' : finalText ? ' (from final)' : ' (none)'}, tools: ${toolNames || 'none'}, media: ${mediaCount}`);
+      console.log(`[kira-orb] ${agent} reply (${speed}${thinking ? ', thinking ' + thinking : ''}, ${((Date.now() - startedAt) / 1000).toFixed(1)} s, first text ${firstTextAt ? ((firstTextAt - startedAt) / 1000).toFixed(1) + ' s' : '–'}): ${streamed.length || (recovered || finalText).length} chars${streamed ? '' : recovered ? ' (from history)' : finalText ? ' (from final)' : ' (none)'}, tools: ${toolNames || 'none'}, media: ${mediaCount}`);
       out.emit({ type: 'done', transport: 'ws' });
     } else if (kind === 'error') {
       out.emit({ type: 'error', message: detail });
@@ -479,7 +495,8 @@ async function chatOverLink({ agent, session, text, images, names }, req, res) {
     const ext = (m[1].split('/')[1] || 'png').replace('jpeg', 'jpg');
     return { type: 'image', mimeType: m[1], fileName: names[i] || `image-${i + 1}.${ext}`, content: m[2] };
   });
-  const params = { sessionKey, message: text, deliver: false, idempotencyKey: runId, ...(attachments.length ? { attachments } : {}) };
+  const thinking = thinkingFor(agent, speed);
+  const params = { sessionKey, message: text, deliver: false, idempotencyKey: runId, ...(thinking ? { thinking } : {}), ...(attachments.length ? { attachments } : {}) };
   if (attachments.length && JSON.stringify(params).length > (link.maxPayload || 25 * 1048576) * 0.95) return finish('error', 'Those images are too big to send in one message. Send fewer or smaller ones.');
   try {
     const ack = await link.request('chat.send', params, { timeoutMs: 120000 });

@@ -445,6 +445,8 @@ form.ask.chatask { margin-top: 2px; }
     <div class="field"><span class="label">Browser voice for each agent</span><div id="agentVoices" class="avlist"></div></div>
     <div class="field"><label for="rate">Browser speaking speed <span id="rateVal">1×</span></label><input id="rate" type="range" min="0.7" max="1.4" step="0.05" value="1"></div>
     <div class="field"><label for="sfxOn">Startup &amp; shutdown sounds</label><select id="sfxOn"><option value="1">On</option><option value="0">Off</option></select></div>
+    <div class="field"><label for="speed">Response speed</label><select id="speed"><option value="fast">Fast: answers quickly, thinks less</option><option value="balanced">Balanced: a little thinking</option><option value="thorough">Thorough: the agent's full thinking</option></select></div>
+    <p class="note">Only affects messages from the orb. Tasks like browsing or making images take as long as the work does.</p>
     <div class="field"><label for="speakOn">Speak replies</label><select id="speakOn"><option value="1">On</option><option value="0">Off (text only)</option></select></div>
     <p class="note" id="sttNote"></p>
     <button class="btn" id="replayBoot" type="button">Replay startup sequence</button>
@@ -935,6 +937,9 @@ form.ask.chatask { margin-top: 2px; }
   const fmtRate = r => Number(r).toFixed(2).replace(/\.?0+$/, '') + '×';
   $('rate').value = rate; $('rateVal').textContent = fmtRate(rate);
   $('rate').addEventListener('input', e => { rate = Number(e.target.value); store.set('rate', rate); $('rateVal').textContent = fmtRate(rate); });
+  let speed = store.get('speed', 'fast');
+  $('speed').value = speed;
+  $('speed').addEventListener('change', e => { speed = e.target.value; store.set('speed', speed); });
   $('speakOn').value = speakOn ? '1' : '0';
   $('speakOn').addEventListener('change', e => { speakOn = e.target.value === '1'; store.set('speakOn', speakOn); if (!speakOn) { synth?.cancel(); stopAgentVoice(); } });
 
@@ -1457,7 +1462,7 @@ form.ask.chatask { margin-top: 2px; }
   };
   async function streamChat(text, on, images = [], imageNames = []) {
     abortCtl = new AbortController();
-    const r = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ agent, session: convId(), text, images, imageNames }), signal: abortCtl.signal });
+    const r = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ agent, session: convId(), text, images, imageNames, speed }), signal: abortCtl.signal });
     if (!r.ok) {
       let msg = `The relay returned ${r.status}.`;
       try { const j = await r.json(); if (j.error) msg = j.error; } catch {}
