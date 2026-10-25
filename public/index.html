@@ -257,6 +257,9 @@ form.ask { width: 100%; box-sizing: border-box; display: flex; gap: 8px; align-i
   padding: 18px max(18px, env(safe-area-inset-right, 0px)) 18px 18px;
   display: flex; flex-direction: column; gap: 14px;
 }
+/* the settings sheet scrolls on short screens (phones), with the page itself kept still */
+#setSheet { overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+#setSheet > * { flex: none; }
 .sheet h2 { margin: 0; font: 600 13px/1 var(--f-display); letter-spacing: .22em; text-transform: uppercase; display: flex; justify-content: space-between; align-items: center; }
 .sheet .close { background: none; border: 0; color: var(--dim); font: 22px/1 var(--f-body); cursor: pointer; padding: 4px 8px; }
 .log { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 16px; padding-right: 4px; overscroll-behavior: contain; }
@@ -450,8 +453,7 @@ form.ask.chatask { margin-top: 2px; }
     <div class="field"><label for="speakOn">Speak replies</label><select id="speakOn"><option value="1">On</option><option value="0">Off (text only)</option></select></div>
     <p class="note" id="sttNote"></p>
     <button class="btn" id="replayBoot" type="button">Replay startup sequence</button>
-    <button class="btn" id="powerBtn" type="button">Power down interface</button>
-    <button class="btn" id="signOut" type="button">Sign out</button>
+    <button class="btn" id="powerBtn" type="button">Shut down &amp; sign out</button>
     <p class="note">You can also type or say “Power down the interface.”</p>
   </aside>
 </div>
@@ -2100,7 +2102,8 @@ form.ask.chatask { margin-top: 2px; }
   // ---------- power-down sequence ----------
   // The startup sequence in reverse: voice closes, agents go to standby, the name expands back out,
   // the core ring drains, and the screen collapses to a line and a dot. Tap or any key powers back up.
-  async function powerDown({ signOut = false } = {}) {
+  // Shutting down signs you out on your server (the preview has no sign-in, so it just powers down).
+  async function powerDown({ signOut = !!window.__ORB_SERVER__ } = {}) {
     if (poweredDown && !signOut) return;
     poweredDown = true;
     const run = ++bootRun, el = $('boot'), nameEl = $('bootName');
@@ -2194,8 +2197,8 @@ form.ask.chatask { margin-top: 2px; }
     }
   }
   $('powerBtn').addEventListener('click', () => powerDown());
-  if (!window.__ORB_SERVER__) $('signOut').hidden = true;
-  $('signOut').addEventListener('click', () => powerDown({ signOut: true }));
+  if (!window.__ORB_SERVER__) $('powerBtn').textContent = 'Power down interface';
+
 
   // ---------- go ----------
   let firstBoot = true;

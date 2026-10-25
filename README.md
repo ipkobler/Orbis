@@ -227,7 +227,7 @@ docker compose exec kira-orb wget -S -O /dev/null -T 120 --post-data='{"voice":"
   Browsers only allow sound after you've tapped the page, so if the app opens without that, it shows a
   "tap to power up" standby screen first.
 - **Shutdown system:** say or type "Shutdown system" (or "Shut down the system", "System shutdown") to run the full
-  shutdown sequence and sign out. "Power down the interface" just powers down and keeps you signed in.
+  shutdown sequence and sign out. "Power down the interface" and Settings → Shut down & sign out do the same.
 - **Power down:** type or say "Power down the interface" (also "Kira, power down", "shut down the orb", "power off"),
   or use Settings → Power down interface. The startup sequence plays in reverse and the screen collapses to a
   standby dot; tap or press any key to power back up. The command is handled by the orb and never sent to the
