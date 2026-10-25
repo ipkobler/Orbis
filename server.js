@@ -272,7 +272,8 @@ async function agentStatus(force = false) {
     let online = true, reason = null;
     if (!gatewayIds) { online = false; reason = gatewayError; }
     else if (!gatewayIds.includes(id)) { online = false; reason = 'Not found in OpenClaw'; }
-    else if (failures.has(id)) { online = false; reason = failures.get(id).reason; }
+    // a failed request greys the agent out for a minute only, so one model hiccup can't lock the orb out
+    else if (failures.has(id) && Date.now() - failures.get(id).at < 60000) { online = false; reason = failures.get(id).reason; }
     return { id, label: prettyName(id), title: souls[id] || TITLES[id] || null, color: COLORS[id] || null, online, reason,
       voice: voice.ready && voice.voices.includes(id) };
   });
@@ -478,7 +479,7 @@ async function chatOverLink({ agent, session, text, images, names, speed }, req,
         finish('final', p);
       }
       else if (p.state === 'aborted') finish('aborted');
-      else if (p.state === 'error') { markFailed(agent, 'Last request failed'); finish('error', p.errorMessage || 'The agent run failed.'); }
+      else if (p.state === 'error') { finish('error', p.errorMessage || 'The agent run failed.'); }
     }
   }
   sessionStreams.set(sessionKey, { handler: onEvent, runId });
