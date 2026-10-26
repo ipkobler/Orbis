@@ -202,6 +202,20 @@ function saveColors() {
     catch (e) { console.warn('[kira-orb] could not save colours:', e.message); }
   });
 }
+// your own picture beside your messages in the chat (a small data: image, chosen in Settings)
+const USER_FILE = path.join(STATE_DIR, 'user.json');
+let userProfile = {};
+try { userProfile = JSON.parse(await readFile(USER_FILE, 'utf8')) || {}; } catch { /* none yet */ }
+async function handleUserIcon(req, res) {
+  let j; try { j = JSON.parse(await readBody(req, 300 * 1024)); } catch { return send(res, 400, { error: 'Picture is too large or unreadable.' }); }
+  const icon = j.icon == null ? null : String(j.icon);
+  if (icon && !/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(icon)) return send(res, 400, { error: 'Use a PNG, JPEG or WebP picture.' });
+  if (icon) userProfile.icon = icon; else delete userProfile.icon;
+  try { await mkdir(STATE_DIR, { recursive: true }); await writeFile(USER_FILE + '.tmp', JSON.stringify(userProfile)); await rename(USER_FILE + '.tmp', USER_FILE); }
+  catch (e) { console.warn('[kira-orb] could not save your icon:', e.message); }
+  statusAt = 0;
+  send(res, 200, { icon: userProfile.icon || null });
+}
 async function handleColors(req, res) {
   let j; try { j = JSON.parse(await readBody(req, 4096)); } catch { return send(res, 400, { error: 'Bad request body.' }); }
   const agent = String(j.agent || '');
@@ -220,7 +234,7 @@ const SESSION_RE = /^[a-zA-Z0-9-]{8,64}$/;
 const SKELETON = `<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#0c1a3a">
+<meta name="theme-color" content="#06112b">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <link rel="manifest" href="/manifest.webmanifest">
@@ -308,7 +322,7 @@ async function agentStatus(force = false) {
     return { id, label: prettyName(id), title: souls[id] || TITLES[id] || null, color: pickedColors[id]?.color || COLORS[id] || null, accent: pickedColors[id]?.accent || null, online, reason,
       voice: voice.ready && voice.voices.includes(id) };
   });
-  statusCache = { gateway: { online: !!gatewayIds, latencyMs, error: gatewayError }, link: linkStatus(), conversations, voice, agents, default: DEFAULT_AGENT, checkedAt: new Date().toISOString() };
+  statusCache = { gateway: { online: !!gatewayIds, latencyMs, error: gatewayError }, link: linkStatus(), conversations, voice, user: { icon: userProfile.icon || null }, agents, default: DEFAULT_AGENT, checkedAt: new Date().toISOString() };
   statusAt = Date.now();
   return statusCache;
 }
@@ -809,11 +823,11 @@ const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;',
 function loginPage(error = '', email = '') {
   return `<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#0c1a3a"><link rel="manifest" href="/manifest.webmanifest"><link rel="icon" href="/icon.svg">
+<meta name="theme-color" content="#06112b"><link rel="manifest" href="/manifest.webmanifest"><link rel="icon" href="/icon.svg">
 <title>Sign in · K.I.B.I.</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600&family=IBM+Plex+Sans:wght@400;500&display=swap">
 <style>
-:root{--void:#0c1a3a;--hi:#172d62;--lo:#060f25;--panel:#112347;--line:#233b6b;--ink:#e2ecf4;--dim:#8ea3c6;--arc:#ff7ac8;--alert:#ff6b6b;color-scheme:dark}
+:root{--void:#06112b;--hi:#0f2350;--lo:#020814;--panel:#0b1a38;--line:#1b3058;--ink:#e2ecf4;--dim:#8ea3c6;--arc:#ff7ac8;--alert:#ff6b6b;color-scheme:dark}
 *{box-sizing:border-box}html,body{height:100%;margin:0}
 body{display:grid;place-items:center;padding:24px max(16px,env(safe-area-inset-right)) 24px max(16px,env(safe-area-inset-left));
  background:radial-gradient(ellipse 70% 60% at 50% 40%,var(--hi),var(--void) 60%,var(--lo));color:var(--ink);font:15px/1.5 "IBM Plex Sans","Segoe UI",system-ui,sans-serif}
@@ -884,6 +898,7 @@ http.createServer(async (req, res) => {
     if (pathname === '/api/upload' && req.method === 'POST') return await handleUpload(req, res, new URL(req.url, 'http://x'));
     if (pathname === '/api/conversation' && req.method === 'POST') return await handleConversation(req, res);
     if (pathname === '/api/colors' && req.method === 'POST') return await handleColors(req, res);
+    if (pathname === '/api/user-icon' && req.method === 'POST') return await handleUserIcon(req, res);
     if (pathname === '/api/watch' && req.method === 'GET') return handleWatch(req, res, new URL(req.url, 'http://x'));
     if (pathname === '/api/history' && req.method === 'GET') return await handleHistory(req, res, new URL(req.url, 'http://x'));
     if (pathname === '/api/media' && req.method === 'GET') return await handleMedia(req, res, new URL(req.url, 'http://x'));

@@ -248,6 +248,11 @@ docker compose exec kira-orb wget -S -O /dev/null -T 120 --post-data='{"voice":"
 - **Agent colours:** Settings → Agent colours has a main and an accent colour for each agent. Choices are saved
   on the server (`state/colors.json`) per agent id, so every device matches and renaming an agent keeps them.
   Reset goes back to `AGENT_COLORS`. New agents get a colour automatically until you pick one.
+- **Chat Mode:** in the chat window, **Full screen** turns it into a ChatGPT-style page: a centred conversation, the
+  agent's live glass orb at the top and as its icon beside each reply, agent switcher pills, and a large message bar
+  with attach, mic and send. Esc or **Exit full screen** goes back. On phones the chat always opens this way.
+- **Your chat icon:** Settings → Your chat icon sets the picture beside your messages (saved on the server in
+  `state/user.json`, so every device shows it). OpenClaw doesn't share a user picture, so choose it here.
 - **Agent names** come from `AGENT_LABELS`, otherwise from the name OpenClaw gives the agent, otherwise its id.
 - **Left panel:** every agent with its coloured dot when online, grey when offline (on a phone it's a row of chips).
   The orb checks every 15 seconds. An agent shows offline when the gateway can't be reached, when it's no longer
