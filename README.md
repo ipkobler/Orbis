@@ -1,8 +1,9 @@
-# Kira Orb
+# K.I.B.I. — Kobler Interactive Bot Interface
 
-A Jarvis-style talking orb for your OpenClaw agents. Talk to it, it answers out loud,
-and the dot sphere reacts: each agent has its own colour (Kira pink, Forge blue, Ledger green),
-the orb brightens and swirls while the agent works, and it swells with the voice while it speaks.
+A Jarvis-style talking orb for your OpenClaw agents (the project started as "Kira Orb"). Talk to it, it answers
+out loud, and the glass orb reacts: light ribbons turn inside it in each agent's own two colours (Kira pink,
+Forge blue, Ledger green, or whatever you pick in Settings), they spin faster while the agent thinks, and they
+fold into a voice waveform that follows the speech while it talks.
 Tap the orb mid-reply to interrupt.
 
 ```
@@ -237,19 +238,28 @@ docker compose exec kira-orb wget -S -O /dev/null -T 120 --post-data='{"voice":"
   such as `**Name:** FORGE — Federated Operations, Runtime & Graph Engineer`, `## K.I.R.A. - ...` or
   `... stands for ...`. The words must spell the acronym. Agents without one show "AI Core".
 - **Startup sequence** plays the first time the app opens in a browser tab or as the phone app (a reload skips it).
-  Tap or press any key to skip it; **Settings → Replay startup sequence** plays it again. Every status in its log
-  is a real check: gateway link and latency, agents found, who's online, and whether voice input is available.
+  The K.I.B.I. screen loads each system from 0000 to 1000 on a red-to-green bar, then the console's panels power
+  up one at a time, the orb draws itself in the middle, and the live agent says "Startup sequence complete,
+  Kira online". Tap or press any key to skip; **Settings → Replay startup sequence** plays it again. The gateway,
+  agent tools, roster, each agent, voice input and speech rows are real checks.
+- **Shutdown** (Settings → Shut down & sign out, or say "Power down the interface") is the startup in reverse:
+  "Shutting down all systems", the orb un-draws, the panels switch off last to first, and the K.I.B.I. screen
+  drains every system from 1000 to 0000 before the screen collapses.
+- **Agent colours:** Settings → Agent colours has a main and an accent colour for each agent. Choices are saved
+  on the server (`state/colors.json`) per agent id, so every device matches and renaming an agent keeps them.
+  Reset goes back to `AGENT_COLORS`. New agents get a colour automatically until you pick one.
+- **Agent names** come from `AGENT_LABELS`, otherwise from the name OpenClaw gives the agent, otherwise its id.
 - **Left panel:** every agent with its coloured dot when online, grey when offline (on a phone it's a row of chips).
   The orb checks every 15 seconds. An agent shows offline when the gateway can't be reached, when it's no longer
   in OpenClaw's agent list, or when its last request failed (it comes back as soon as it answers again).
   Agents named in `AGENT_LABELS` or `AGENT_COLORS` stay in the list even after they disappear from OpenClaw.
-- **Offline orb:** the sphere goes grey, two thirds of the dots go dark, the core light goes out and it barely
-  turns. A faint ring in the agent's own colour pulses every few seconds while it waits to reconnect.
+- **Offline orb:** the ribbons, glow and inner bubble fade away, leaving only the grey glass rim and a small dot
+  in the agent's own colour breathing in the middle while it waits to reconnect.
   Talking is disabled until the agent is back; tapping the orb checks again immediately.
 - **HUD effects** around the orb are decoration: compass ring, radar sweep, orbiting satellites, scan line and
-  corner brackets. The four readouts on leader lines are real: orb rotation, dot count, frame rate and link latency.
+  corner brackets. The four readouts on leader lines are real: orb rotation, ribbon strand count, frame rate and link latency.
 - **Right-hand boxes** (wide screens): live voice bars (your mic while listening, the speech while it talks),
-  a decorative scope, gateway status and latency, reply timing with a trend line, and this session's exchanges and talk time.
+  the Scope (a spinning neural core whose impulses speed up while listening and thinking), gateway status and latency, reply timing with a trend line, and this session's exchanges and talk time.
 - **Tap the orb** (or the mic, or hold **Space** on a keyboard) to talk. Tap again to interrupt.
 - **Hands-free** keeps listening after every reply, like a real conversation.
 - **Chat** opens the chat window: the full conversation (it survives a reload and is shared with your phone),

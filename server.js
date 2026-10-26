@@ -189,12 +189,38 @@ const MEDIA_RE = /^\/(?:api\/chat\/media\/|__openclaw__\/assistant-media)/;
 const mediaUrl = u => (typeof u === 'string' && MEDIA_RE.test(u)) ? `/api/media?u=${encodeURIComponent(u)}` : (typeof u === 'string' && /^https:\/\//.test(u) ? u : null);
 
 const AGENT_RE = /^[a-zA-Z0-9._-]{1,64}$/;
+
+// ---- orb colours picked in Settings (per agent id, shared by every device) ---------------------
+const COLOR_FILE = path.join(STATE_DIR, 'colors.json');
+const HEX_RE = /^#[0-9a-fA-F]{6}$/;
+let pickedColors = {};
+try { pickedColors = JSON.parse(await readFile(COLOR_FILE, 'utf8')) || {}; } catch { /* none yet */ }
+let colorSave = Promise.resolve();
+function saveColors() {
+  colorSave = colorSave.then(async () => {
+    try { await mkdir(STATE_DIR, { recursive: true }); await writeFile(COLOR_FILE + '.tmp', JSON.stringify(pickedColors, null, 1)); await rename(COLOR_FILE + '.tmp', COLOR_FILE); }
+    catch (e) { console.warn('[kira-orb] could not save colours:', e.message); }
+  });
+}
+async function handleColors(req, res) {
+  let j; try { j = JSON.parse(await readBody(req, 4096)); } catch { return send(res, 400, { error: 'Bad request body.' }); }
+  const agent = String(j.agent || '');
+  if (!AGENT_RE.test(agent)) return send(res, 400, { error: 'Bad agent.' });
+  if (j.reset) delete pickedColors[agent];
+  else {
+    const color = j.color == null ? null : String(j.color), accent = j.accent == null ? null : String(j.accent);
+    if ((color && !HEX_RE.test(color)) || (accent && !HEX_RE.test(accent))) return send(res, 400, { error: 'Colours must be #rrggbb.' });
+    pickedColors[agent] = { ...(pickedColors[agent] || {}), ...(color ? { color } : {}), ...(accent ? { accent } : {}) };
+  }
+  saveColors(); statusAt = 0;
+  send(res, 200, { agent, ...(pickedColors[agent] || {}) });
+}
 const SESSION_RE = /^[a-zA-Z0-9-]{8,64}$/;
 
 const SKELETON = `<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#061227">
+<meta name="theme-color" content="#13234d">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <link rel="manifest" href="/manifest.webmanifest">
@@ -232,7 +258,8 @@ const upstreamHeaders = () => ({ Authorization: `Bearer ${TOKEN}`, 'Content-Type
 const failures = new Map();          // agentId -> { at, reason }
 let statusCache = null, statusAt = 0;
 
-const prettyName = id => LABELS[id] || id.replace(/[-_]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+const gatewayNames = new Map();     // agent id -> name OpenClaw gives it (agents.list)
+const prettyName = id => LABELS[id] || gatewayNames.get(id) || id.replace(/[-_]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 
 async function agentStatus(force = false) {
   if (!force && statusCache && Date.now() - statusAt < 5000) return statusCache;
@@ -244,7 +271,11 @@ async function agentStatus(force = false) {
       const j = await link.request('agents.list', {}, { timeoutMs: 6000 });
       latencyMs = Date.now() - t0;
       gatewayIds = (j.agents || []).map(a => String(a.id));
-      for (const a of j.agents || []) if (Array.isArray(a.thinkingOptions)) thinkingOptions.set(String(a.id), a.thinkingOptions.map(String));
+      for (const a of j.agents || []) {
+        if (Array.isArray(a.thinkingOptions)) thinkingOptions.set(String(a.id), a.thinkingOptions.map(String));
+        const nm = a.name || a.identity?.name || a.displayName;
+        if (typeof nm === 'string' && nm.trim() && nm.length <= 40) gatewayNames.set(String(a.id), nm.trim()); else gatewayNames.delete(String(a.id));
+      }
     } catch { /* fall through to HTTP */ }
   }
   if (!gatewayIds) try {
@@ -274,7 +305,7 @@ async function agentStatus(force = false) {
     else if (!gatewayIds.includes(id)) { online = false; reason = 'Not found in OpenClaw'; }
     // a failed request greys the agent out for a minute only, so one model hiccup can't lock the orb out
     else if (failures.has(id) && Date.now() - failures.get(id).at < 60000) { online = false; reason = failures.get(id).reason; }
-    return { id, label: prettyName(id), title: souls[id] || TITLES[id] || null, color: COLORS[id] || null, online, reason,
+    return { id, label: prettyName(id), title: souls[id] || TITLES[id] || null, color: pickedColors[id]?.color || COLORS[id] || null, accent: pickedColors[id]?.accent || null, online, reason,
       voice: voice.ready && voice.voices.includes(id) };
   });
   statusCache = { gateway: { online: !!gatewayIds, latencyMs, error: gatewayError }, link: linkStatus(), conversations, voice, agents, default: DEFAULT_AGENT, checkedAt: new Date().toISOString() };
@@ -778,11 +809,11 @@ const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;',
 function loginPage(error = '', email = '') {
   return `<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#061227"><link rel="manifest" href="/manifest.webmanifest"><link rel="icon" href="/icon.svg">
-<title>Sign in · Kira Orb</title>
+<meta name="theme-color" content="#13234d"><link rel="manifest" href="/manifest.webmanifest"><link rel="icon" href="/icon.svg">
+<title>Sign in · K.I.B.I.</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600&family=IBM+Plex+Sans:wght@400;500&display=swap">
 <style>
-:root{--void:#061227;--hi:#0e2650;--lo:#030915;--panel:#0b1a33;--line:#1c3256;--ink:#d9e7ee;--dim:#7a90b0;--arc:#ff7ac8;--alert:#ff6b6b;color-scheme:dark}
+:root{--void:#13234d;--hi:#20387a;--lo:#0b1736;--panel:#182b5a;--line:#2b4580;--ink:#e2ecf4;--dim:#8ea3c6;--arc:#ff7ac8;--alert:#ff6b6b;color-scheme:dark}
 *{box-sizing:border-box}html,body{height:100%;margin:0}
 body{display:grid;place-items:center;padding:24px max(16px,env(safe-area-inset-right)) 24px max(16px,env(safe-area-inset-left));
  background:radial-gradient(ellipse 70% 60% at 50% 40%,var(--hi),var(--void) 60%,var(--lo));color:var(--ink);font:15px/1.5 "IBM Plex Sans","Segoe UI",system-ui,sans-serif}
@@ -852,6 +883,7 @@ http.createServer(async (req, res) => {
     if (pathname === '/api/tts' && req.method === 'POST') return await handleTts(req, res);
     if (pathname === '/api/upload' && req.method === 'POST') return await handleUpload(req, res, new URL(req.url, 'http://x'));
     if (pathname === '/api/conversation' && req.method === 'POST') return await handleConversation(req, res);
+    if (pathname === '/api/colors' && req.method === 'POST') return await handleColors(req, res);
     if (pathname === '/api/watch' && req.method === 'GET') return handleWatch(req, res, new URL(req.url, 'http://x'));
     if (pathname === '/api/history' && req.method === 'GET') return await handleHistory(req, res, new URL(req.url, 'http://x'));
     if (pathname === '/api/media' && req.method === 'GET') return await handleMedia(req, res, new URL(req.url, 'http://x'));

@@ -1,4 +1,4 @@
-<title>Kira Orb</title>
+<title>K.I.B.I.</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -8,14 +8,14 @@
    instrument boxes on the right. Under 1000px the roster becomes a chip row and the instruments fold away. */
 :root {
   color-scheme: dark;
-  --void: #061227;          /* page ground: deep midnight blue */
-  --void-hi: #0e2650;       /* lighter blue glow behind the orb */
-  --void-lo: #030915;       /* darkest blue at the edges */
-  --panel: #0b1a33;         /* boxes, sheets and inputs */
-  --line: #1c3256;          /* hairlines */
-  --ink: #d9e7ee;           /* primary text */
-  --dim: #7a90b0;           /* secondary text */
-  --off: #4d5d75;           /* offline grey */
+  --void: #13234d;          /* page ground: navy blue, about 25% lighter than the original midnight */
+  --void-hi: #20387a;       /* lighter blue glow behind the orb */
+  --void-lo: #0b1736;       /* darkest blue at the edges */
+  --panel: #182b5a;         /* boxes, sheets and inputs */
+  --line: #2b4580;          /* hairlines */
+  --ink: #e2ecf4;           /* primary text */
+  --dim: #8ea3c6;           /* secondary text */
+  --off: #5a6b88;           /* offline grey */
   --arc: #ff7ac8;           /* the current agent's colour (set per agent) */
   --arc-hi: #ffc4e6;        /* lighter shade of it, used while thinking */
   --amber: #ffb547;         /* preview-mode tag */
@@ -67,71 +67,48 @@ header { grid-area: head; display: flex; align-items: center; gap: 10px; flex-wr
 .mark em { font: 500 11px/1 var(--f-display); font-style: normal; letter-spacing: .22em; color: var(--dim); opacity: .7; }
 .mark em::before { content: "·"; margin-right: 8px; }
 
-/* ---------- startup sequence ---------- */
+/* ---------- startup & shutdown: K.I.B.I. ---------- */
 .boot {
-  position: fixed; inset: 0; z-index: 50; cursor: pointer; overflow: hidden;
+  position: fixed; inset: 0; z-index: 50; cursor: pointer; overflow: hidden auto;
   background: radial-gradient(ellipse 70% 60% at 50% 45%, var(--void-hi), var(--void) 60%, var(--void-lo));
   display: grid; place-items: center;
-  padding: env(safe-area-inset-top, 0px) max(16px, env(safe-area-inset-right, 0px)) env(safe-area-inset-bottom, 0px) max(16px, env(safe-area-inset-left, 0px));
-  transition: opacity .75s ease, transform .75s ease;
+  padding: max(16px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) max(16px, env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
+  transition: opacity .75s ease, transform .75s ease, filter .75s ease;
 }
-.boot.out { opacity: 0; transform: scale(1.05); pointer-events: none; }
-.boot::after { /* fine scanlines over the boot screen */
-  content: ""; position: absolute; inset: 0; pointer-events: none; opacity: .5;
-  background: repeating-linear-gradient(to bottom, transparent 0 2px, rgba(0, 0, 0, .18) 2px 3px);
+.boot.out { opacity: 0; transform: scale(1.04); filter: blur(4px); pointer-events: none; }
+.boot::after { /* fine scanlines */
+  content: ""; position: fixed; inset: 0; pointer-events: none; opacity: .35;
+  background: repeating-linear-gradient(to bottom, transparent 0 2px, rgba(0, 0, 0, .16) 2px 3px);
 }
-.boot-inner { width: min(560px, 100%); display: grid; justify-items: center; gap: 22px; position: relative; z-index: 1; }
-.bb { text-align: center; display: grid; justify-items: center; gap: 8px; text-transform: uppercase; }
-.bb-co { font: 600 15px/1 var(--f-display); letter-spacing: .5em; padding-left: .5em; color: var(--ink); opacity: 0; animation: rise .8s .1s ease forwards; }
-.bb-sub { font: 500 10px/1 var(--f-display); letter-spacing: .6em; padding-left: .6em; color: var(--dim); display: flex; align-items: center; gap: 12px; opacity: 0; animation: rise .8s .35s ease forwards; }
-.bb-sub::before, .bb-sub::after { content: ""; height: 1px; width: 0; background: var(--dim); animation: grow 1s .55s ease forwards; }
+.boot-inner { width: min(780px, 100%); display: grid; justify-items: center; gap: 14px; position: relative; z-index: 1; }
+.kb { display: grid; justify-items: center; gap: 8px; text-align: center; text-transform: uppercase; }
+.kb-name { font: 600 clamp(40px, 8vw, 68px)/1 var(--f-display); letter-spacing: .3em; padding-left: .3em; color: var(--ink);
+  text-shadow: 0 0 28px color-mix(in srgb, var(--arc) 70%, transparent); opacity: 0; animation: rise .9s .1s ease forwards; }
+.kb-sub { font: 500 clamp(9px, 1.7vw, 12px)/1.3 var(--f-display); letter-spacing: .48em; padding-left: .48em; color: var(--arc); display: flex; align-items: center; gap: 12px; opacity: 0; animation: rise .9s .35s ease forwards; }
+.kb-sub::before, .kb-sub::after { content: ""; height: 1px; width: 0; background: var(--arc); opacity: .6; animation: grow 1s .6s ease forwards; }
+.kb-co { font: 500 10px/1 var(--f-display); letter-spacing: .32em; padding-left: .32em; color: var(--dim); opacity: 0; animation: rise .9s .55s ease forwards; }
 @keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
-@keyframes grow { to { width: 44px; } }
-.boot-ring { position: relative; width: min(220px, 56vw); aspect-ratio: 1; max-width: 100%; display: grid; place-items: center; }
-.boot-ring svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
-.boot-ring circle { fill: none; stroke: var(--arc); transform-origin: 50px 50px; }
-.r-draw { stroke-width: .7; stroke-dasharray: 289; stroke-dashoffset: 289; animation: draw 3.2s .3s cubic-bezier(.6,.1,.3,1) forwards; filter: drop-shadow(0 0 2px var(--arc)); }
-.r-dash { stroke-width: .5; stroke-dasharray: .6 2.4; opacity: .5; animation: spin 14s linear infinite; }
-.r-tick { stroke-width: 2.4; stroke-dasharray: .25 2.33; opacity: .35; animation: spin 30s linear infinite reverse; }
-.r-arc { stroke-width: 1.3; stroke-dasharray: 34 236; opacity: .8; animation: spin 2.2s linear infinite; }
-.r-arc2 { stroke-width: 1.3; stroke-dasharray: 12 240; opacity: .5; animation: spin 3.4s linear infinite reverse; }
-@keyframes draw { to { stroke-dashoffset: 0; } }
-@keyframes spin { to { transform: rotate(360deg); } }
-.boot-core { display: grid; justify-items: center; gap: 6px; }
-.boot-pct { font: 500 clamp(26px, 6vw, 36px)/1 var(--f-mono); font-variant-numeric: tabular-nums; color: var(--ink); text-shadow: 0 0 16px color-mix(in srgb, var(--arc) 60%, transparent); }
-.boot-core .label { color: var(--arc); letter-spacing: .3em; padding-left: .3em; }
-.boot-name { font: 600 clamp(15px, 3.4vw, 22px)/1.35 var(--f-display); letter-spacing: .16em; text-transform: uppercase; max-width: 100%; text-wrap: balance; min-height: 1.3em; text-align: center; opacity: 0; transition: opacity .6s ease, font-size .8s ease, letter-spacing .8s ease; }
-.boot-name.show { opacity: 1; }
-.boot-name.long:not(.collapse) { font-size: clamp(11px, 2.4vw, 17px); letter-spacing: .1em; }
-.boot-name .w { display: inline-block; margin-right: .45em; transition: margin .8s ease; }
-.boot-name .w:last-child { margin-right: 0; }
-.boot-name b { color: var(--arc); text-shadow: 0 0 14px var(--arc); font-weight: 600; }
-.boot-name .rest, .boot-name .pd { display: inline-block; vertical-align: bottom; overflow: hidden; transition: max-width .8s ease, opacity .5s ease; }
-.boot-name .rest { max-width: 16ch; color: var(--ink); }
-.boot-name .pd { max-width: 0; color: var(--arc); }
-.boot-name.collapse { font-size: clamp(28px, 6.5vw, 44px); letter-spacing: .24em; }
-.boot-name.collapse .w { margin-right: 0; }
-.boot-name.collapse .rest { max-width: 0; opacity: 0; }
-.boot-name.collapse .pd { max-width: 1ch; }
-.boot-log { width: 100%; font: 12px/1.75 var(--f-mono); color: var(--dim); min-height: 13em; }
-.bl { display: flex; align-items: baseline; gap: 8px; animation: rise .3s ease both; }
-.bl span { white-space: nowrap; }
-.bl i { flex: 1; min-width: 12px; border-bottom: 1px dotted color-mix(in srgb, var(--dim) 50%, transparent); transform: translateY(-3px); }
-.bl b { font-weight: 500; white-space: nowrap; }
-.bl b.pending { color: var(--dim); animation: blink .6s steps(2) infinite; }
-.bl b.ok { color: var(--arc); } .bl b.warn { color: var(--amber); } .bl b.bad { color: var(--alert); }
-.bl.head span { color: var(--ink); letter-spacing: .08em; }
+@keyframes grow { to { width: 40px; } }
+.kb-head { margin-top: 6px; min-height: 1.4em; font: 500 12px/1.4 var(--f-mono); letter-spacing: .32em; padding-left: .32em; color: var(--ink); text-align: center; }
+.kb-head::after { content: "▌"; color: var(--arc); animation: blink .8s steps(2) infinite; margin-left: 2px; }
+.kb-rows { width: 100%; display: grid; gap: 6px; font: 11.5px/1.2 var(--f-mono); }
+.kr { display: grid; grid-template-columns: minmax(0, 19em) minmax(40px, 1fr) 6.6em 9em; gap: 12px; align-items: center; animation: rise .25s ease both; }
+.kr .lab { color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; letter-spacing: .04em; }
+.kr .lab small { color: var(--dim); font-size: 10px; margin-right: 7px; letter-spacing: .08em; }
+.kr .trk, .kb-trk { position: relative; height: 7px; border-radius: 4px; background: color-mix(in srgb, var(--void-lo) 80%, transparent); border: 1px solid var(--line); overflow: hidden; }
+/* the gradient spans the whole track and the fill reveals it, so each bar climbs red → amber → green */
+.kr .trk i, .kb-trk i { position: absolute; inset: 0; background: linear-gradient(90deg, #ff3b4d 0%, #ff8a3d 33%, #ffd23d 60%, #3ee08f 100%); clip-path: inset(0 100% 0 0); }
+.kr .num { text-align: right; color: var(--dim); font-variant-numeric: tabular-nums; }
+.kr b { font-weight: 500; text-align: right; letter-spacing: .08em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.kr b.pending { color: #ffd23d; animation: blink .6s steps(2) infinite; }
+.kr b.ok { color: #3ee08f; } .kr b.warn { color: var(--amber); } .kr b.bad, .kr b.off { color: #ff5a6a; }
 @keyframes blink { 50% { opacity: .2; } }
-.boot-bar { width: 100%; height: 2px; background: var(--line); overflow: hidden; }
-.boot-bar i { display: block; height: 100%; width: 0; background: var(--arc); box-shadow: 0 0 10px var(--arc); transition: width .35s ease; }
-.boot-foot { width: 100%; display: flex; justify-content: space-between; gap: 12px; font: 500 10px/1 var(--f-display); letter-spacing: .2em; text-transform: uppercase; color: var(--dim); }
-#bootState { color: var(--arc); }
-/* power-down: ring drains, everything dims, then the screen collapses like an old CRT */
-@keyframes undraw { from { stroke-dashoffset: 0; } to { stroke-dashoffset: 289; } }
-.boot.drain .r-draw { animation: undraw 2.4s cubic-bezier(.5,0,.7,.4) forwards; }
-.boot.drain .r-dash, .boot.drain .r-tick, .boot.drain .r-arc, .boot.drain .r-arc2 { transition: opacity 2.2s ease; opacity: 0; }
-.boot.drain .boot-pct { transition: text-shadow 2s, color 2s; text-shadow: none; color: var(--dim); }
-.boot.fading .bb, .boot.fading .boot-log, .boot.fading .boot-foot, .boot.fading .boot-bar, .boot.fading .boot-ring { transition: opacity 1s ease; opacity: .12; }
+.kb-total { width: 100%; display: grid; gap: 7px; margin-top: 6px; }
+.kb-tt { display: flex; justify-content: space-between; font: 500 10px/1 var(--f-display); letter-spacing: .3em; text-transform: uppercase; color: var(--ink); }
+.kb-tt .mono { letter-spacing: .14em; }
+.kb-trk { height: 9px; border-radius: 5px; }
+.boot-foot { width: 100%; text-align: center; font: 500 10px/1 var(--f-display); letter-spacing: .2em; text-transform: uppercase; color: var(--dim); opacity: .7; }
+.boot.fading .boot-inner { transition: opacity 1s ease; opacity: .12; }
 .boot.off { background: #01040a; transition: background .6s ease .3s; }
 .boot.off-content .boot-inner { visibility: hidden; }
 .boot.off .boot-inner { animation: crt .75s cubic-bezier(.7,0,.3,1) forwards; }
@@ -141,14 +118,26 @@ header { grid-area: head; display: flex; align-items: center; gap: 10px; flex-wr
   75%  { transform: scale(.02, .006); filter: brightness(6); opacity: 1; }
   100% { transform: scale(0, 0); filter: brightness(8); opacity: 0; }
 }
-.boot-sleep { position: absolute; inset: 0; z-index: 2; display: grid; place-content: center; justify-items: center; gap: 18px; text-align: center; animation: rise 1.2s ease both; }
+.boot-sleep { position: fixed; inset: 0; z-index: 2; display: grid; place-content: center; justify-items: center; gap: 18px; text-align: center; animation: rise 1.2s ease both; }
 .boot-sleep i { width: 6px; height: 6px; border-radius: 50%; background: var(--arc); box-shadow: 0 0 14px var(--arc); animation: standby 3.2s ease-in-out infinite; }
 .boot-sleep .label { color: var(--dim); letter-spacing: .32em; padding-left: .32em; }
 .boot-sleep .hint2 { font: 500 10px/1.5 var(--f-display); letter-spacing: .2em; text-transform: uppercase; color: var(--dim); opacity: .55; }
 @keyframes standby { 0%, 100% { opacity: .15; transform: scale(.8); } 50% { opacity: .75; transform: scale(1); } }
+/* the console's panels power up one at a time after the boot screen, and off in reverse */
+.pwr-off { opacity: 0 !important; pointer-events: none; }
+.pwr-on { animation: pwrOn .55s ease-out both; }
+@keyframes pwrOn { 0% { opacity: 0; transform: translateY(6px); clip-path: inset(0 0 100% 0); } 30% { opacity: .55; } 45% { opacity: .15; } 60% { opacity: 1; clip-path: inset(0 0 0 0); } 100% { opacity: 1; transform: none; clip-path: inset(0 0 0 0); } }
+.pwr-down { animation: pwrDown .42s ease-in both; pointer-events: none; }
+@keyframes pwrDown { 0% { opacity: 1; clip-path: inset(0 0 0 0); } 40% { opacity: .85; clip-path: inset(0 0 0 0); } 55% { opacity: .15; } 70% { opacity: .5; } 100% { opacity: 0; transform: translateY(6px); clip-path: inset(0 0 100% 0); } }
+@media (max-width: 640px) {
+  .kr { grid-template-columns: minmax(0, 1fr) 5.6em 5.8em; gap: 4px 8px; font-size: 10.5px; }
+  .kr .trk { grid-column: 1 / -1; grid-row: 2; height: 5px; }
+  .kb-rows { gap: 5px; }
+}
+@media (max-height: 760px) and (min-width: 641px) { .kb-rows { gap: 3px; font-size: 10.5px; } .boot-inner { gap: 9px; } }
 @media (prefers-reduced-motion: reduce) {
-  .boot, .boot * { animation-duration: .01s !important; animation-iteration-count: 1 !important; transition-duration: .2s !important; }
-  .boot.out { transform: none; }
+  .boot, .boot *, .pwr-on, .pwr-down { animation-duration: .01s !important; animation-iteration-count: 1 !important; transition-duration: .2s !important; }
+  .boot.out { transform: none; filter: none; }
 }
 
 /* ---------- roster (left) ---------- */
@@ -323,6 +312,14 @@ form.ask.chatask { margin-top: 2px; }
 .avrow i { width: 8px; height: 8px; border-radius: 50%; }
 .avrow span { font: 600 12px/1.2 var(--f-display); letter-spacing: .1em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .avrow select { min-width: 0; font: 13px var(--f-body); color: var(--ink); background: var(--void); border: 1px solid var(--line); border-radius: 8px; padding: 7px 8px; }
+.aclist { display: grid; gap: 10px; }
+.acrow { display: grid; grid-template-columns: 9px minmax(0, 1fr) auto auto auto; align-items: center; gap: 10px; }
+.acrow i { width: 8px; height: 8px; border-radius: 50%; }
+.acrow > span { font: 600 12px/1.2 var(--f-display); letter-spacing: .1em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.acrow label { position: relative; display: grid; justify-items: center; gap: 3px; font: 500 9px/1 var(--f-display); letter-spacing: .14em; text-transform: uppercase; color: var(--dim); cursor: pointer; }
+.acrow label b { display: block; width: 30px; height: 30px; border-radius: 50%; border: 2px solid rgba(255,255,255,.22); box-shadow: 0 0 12px -4px currentColor; }
+.acrow input[type=color] { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; border: 0; padding: 0; }
+.acrow button { border: 1px solid var(--line); background: var(--panel); color: var(--dim); border-radius: 8px; padding: 6px 9px; cursor: pointer; font: 12px var(--f-body); }
 .avrow button { border: 1px solid var(--line); background: var(--panel); color: var(--ink); border-radius: 8px; padding: 6px 9px; cursor: pointer; font: 12px var(--f-body); }
 
 /* ---------- narrower screens ---------- */
@@ -395,7 +392,7 @@ form.ask.chatask { margin-top: 2px; }
     </section>
     <section class="box">
       <div class="box-head"><span class="label">Scope</span><span class="mono" id="scopeMode">auto</span></div>
-      <canvas id="scope" height="120"></canvas>
+      <canvas id="scope" height="170"></canvas>
     </section>
     <section class="box">
       <div class="box-head"><span class="label">Link</span><span class="mono" id="clock">--:--:--</span></div>
@@ -446,6 +443,8 @@ form.ask.chatask { margin-top: 2px; }
     <div class="field"><label for="engine">Agent voices</label><select id="engine"><option value="clone">Cloned agent voices (Pocket TTS)</option><option value="browser">Browser voice</option></select></div>
     <p class="note" id="voiceNote"></p>
     <div class="field"><span class="label">Browser voice for each agent</span><div id="agentVoices" class="avlist"></div></div>
+    <div class="field"><span class="label">Agent colours</span><div id="agentColors" class="aclist"></div>
+      <p class="note">Main colour and accent for each agent's orb. Saved for every device you sign in on, and kept if an agent is renamed. New agents get a colour automatically until you pick one.</p></div>
     <div class="field"><label for="rate">Browser speaking speed <span id="rateVal">1×</span></label><input id="rate" type="range" min="0.7" max="1.4" step="0.05" value="1"></div>
     <div class="field"><label for="sfxOn">Startup &amp; shutdown sounds</label><select id="sfxOn"><option value="1">On</option><option value="0">Off</option></select></div>
     <div class="field"><label for="speed">Response speed</label><select id="speed"><option value="fast">Fast: answers quickly, thinks less</option><option value="balanced">Balanced: a little thinking</option><option value="thorough">Thorough: the agent's full thinking</option></select></div>
@@ -460,30 +459,24 @@ form.ask.chatask { margin-top: 2px; }
 
 <div class="drop" id="drop" hidden>Drop files for the agent</div>
 
-<div class="boot" id="boot" role="status" aria-label="Starting up">
+<div class="boot" id="boot" role="status" aria-label="K.I.B.I. startup">
   <div class="boot-inner">
-    <div class="bb">
-      <div class="bb-co">Finnesey &amp; Kobler</div>
-      <div class="bb-sub">The Model Shop</div>
+    <div class="kb">
+      <div class="kb-name">K.I.B.I.</div>
+      <div class="kb-sub">Kobler Interactive Bot Interface</div>
+      <div class="kb-co">Finnesey &amp; Kobler · The Model Shop</div>
     </div>
-    <div class="boot-ring">
-      <svg viewBox="0 0 100 100" aria-hidden="true">
-        <circle class="r-tick" cx="50" cy="50" r="49"/>
-        <circle class="r-draw" cx="50" cy="50" r="46"/>
-        <circle class="r-arc" cx="50" cy="50" r="43"/>
-        <circle class="r-arc2" cx="50" cy="50" r="43"/>
-        <circle class="r-dash" cx="50" cy="50" r="39"/>
-      </svg>
-      <div class="boot-core"><div class="boot-pct" id="bootPct">0%</div><div class="label">Core</div></div>
+    <div class="kb-head" id="bootHead"></div>
+    <div class="kb-rows" id="bootLog"></div>
+    <div class="kb-total">
+      <div class="kb-tt"><span id="bootState">System load</span><span class="mono" id="bootPct">0000/1000</span></div>
+      <div class="kb-trk"><i id="bootBar"></i></div>
     </div>
-    <div class="boot-name" id="bootName"></div>
-    <div class="boot-log" id="bootLog"></div>
-    <div class="boot-bar"><i id="bootBar"></i></div>
-    <div class="boot-foot"><span id="bootState">Booting</span><span id="bootSkip">Tap or press any key to skip</span></div>
+    <div class="boot-foot" id="bootSkip">Tap or press any key to skip</div>
   </div>
   <div class="boot-sleep" id="bootSleep" hidden>
     <i></i>
-    <div class="label">Interface offline</div>
+    <div class="label">K.I.B.I. offline</div>
     <div class="hint2">Tap or press any key to power up</div>
   </div>
 </div>
@@ -500,7 +493,19 @@ form.ask.chatask { margin-top: 2px; }
   const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
   const hex = h => { h = String(h).replace('#', ''); return [0, 2, 4].map(i => parseInt(h.slice(i, i + 2), 16)); };
   const lighten = (rgb, k) => rgb.map(c => Math.round(c + (255 - c) * k));
-  const toHex = rgb => '#' + rgb.map(c => c.toString(16).padStart(2, '0')).join('');
+  const toHex = rgb => '#' + rgb.map(c => Math.round(c).toString(16).padStart(2, '0')).join('');
+  // rotate a colour around the colour wheel (degrees)
+  const hueShift = (rgb, deg) => {
+    let [r, g, b] = rgb.map(v => v / 255); const mx = Math.max(r, g, b), mn = Math.min(r, g, b), l = (mx + mn) / 2;
+    let h = 0, sat = 0;
+    if (mx !== mn) { const d = mx - mn; sat = l > 0.5 ? d / (2 - mx - mn) : d / (mx + mn);
+      h = mx === r ? (g - b) / d + (g < b ? 6 : 0) : mx === g ? (b - r) / d + 2 : (r - g) / d + 4; h /= 6; }
+    h = ((h + deg / 360) % 1 + 1) % 1;
+    const q = l < 0.5 ? l * (1 + sat) : l + sat - l * sat, pp = 2 * l - q;
+    const f = t => { t = (t + 1) % 1; return t < 1 / 6 ? pp + (q - pp) * 6 * t : t < 1 / 2 ? q : t < 2 / 3 ? pp + (q - pp) * (2 / 3 - t) * 6 : pp; };
+    return sat ? [f(h + 1 / 3), f(h), f(h - 1 / 3)].map(v => Math.round(v * 255)) : [l, l, l].map(v => Math.round(v * 255));
+  };
+  const clamp01 = x => Math.max(0, Math.min(1, x));
   const secs = ms => (ms / 1000).toFixed(1) + ' s';
   // Every agent name is shown as an acronym: Kira → K.I.R.A.
   const acronym = s => { const l = String(s).replace(/[^A-Za-z0-9]/g, '').toUpperCase(); return l ? l.split('').join('.') + '.' : String(s); };
@@ -538,10 +543,18 @@ form.ask.chatask { margin-top: 2px; }
     let h = 0; for (const c of String(id)) h = (h * 31 + c.charCodeAt(0)) >>> 0;
     return PALETTE[h % PALETTE.length];
   }
+  // Second colour for the glass orb's ribbons: the one picked in Settings, or a shade next to the main colour.
+  function agentAccent(id) {
+    const a = agents.find(x => x.id === id);
+    if (a?.accent) return a.accent;
+    return toHex(lighten(hueShift(hex(agentColor(id)), -45), 0.08));
+  }
   function applyColor() {
     base = hex(agentColor(agent)); hi = lighten(base, 0.45);
+    base2 = hex(agentAccent(agent)); hi2 = lighten(base2, 0.45);
     document.documentElement.style.setProperty('--arc', toHex(base));
     document.documentElement.style.setProperty('--arc-hi', toHex(hi));
+    document.documentElement.style.setProperty('--arc2', toHex(base2));
   }
   function renderRoster() {
     const box = $('agents');
@@ -614,13 +627,14 @@ form.ask.chatask { margin-top: 2px; }
       if (!wasLinked && linkInfo?.state === 'online') historyLoaded[agent] = null;   // full link just came up: fetch the conversation
       if (!agent || !agents.some(a => a.id === agent)) agent = j.default || agents[0]?.id;
     } catch {
-      if (!agents.length) { DEMO = true; $('demoTag').hidden = false; agents = DEMO_AGENTS; gateway = { online: true, latencyMs: 38 }; if (!agents.some(a => a.id === agent)) agent = 'main'; }
+      if (!agents.length) { DEMO = true; $('demoTag').hidden = false; const saved = store.get('colors', {}); agents = DEMO_AGENTS.map(a => ({ ...a, ...(saved[a.id] || {}) })); gateway = { online: true, latencyMs: 38 }; if (!agents.some(a => a.id === agent)) agent = 'main'; }
       else { gateway = { online: false, error: 'Orb server unreachable' }; agents = agents.map(a => ({ ...a, online: false, reason: 'Orb server unreachable' })); }
     }
     nameplate(); applyColor(); renderGateway(); syncOnline(false); renderVoiceNote(); renderLinkNote();
     if (linkInfo?.state === 'online') loadHistory();
     watchSession();
-    if (agents.map(a => a.id).join() !== lastVoiceAgents) { lastVoiceAgents = agents.map(a => a.id).join(); renderAgentVoices(); }
+    const sig = agents.map(a => a.id + a.label + (a.color || '') + (a.accent || '')).join();
+    if (sig !== lastVoiceAgents) { lastVoiceAgents = sig; renderAgentVoices(); renderAgentColors(); }
   }
   setInterval(() => { if (document.visibilityState === 'visible' && !poweredDown) poll(); }, 15000);
   // back on screen (phones pause pages in the background): catch up on anything that arrived meanwhile
@@ -910,6 +924,46 @@ form.ask.chatask { margin-top: 2px; }
     return out;
   }
   let resolvedVoices = {};
+  // ---------- agent colours (Settings) ----------
+  // Picked colours are saved on the orb server per agent id, so every device matches and a rename keeps them.
+  const colorTimers = {};
+  function saveAgentColor(id, patch) {
+    const a = agents.find(x => x.id === id); if (!a) return;
+    if (patch.reset) { delete a.accent; a.color = DEMO ? (DEMO_AGENTS.find(d => d.id === id)?.color || null) : null; }
+    else Object.assign(a, patch);
+    if (DEMO) { const all = store.get('colors', {}); if (patch.reset) delete all[id]; else all[id] = { ...(all[id] || {}), ...patch }; store.set('colors', all); }
+    applyColor(); renderRoster(); renderAgentColors(); renderAgentVoices();
+    if (DEMO) return;
+    clearTimeout(colorTimers[id]);
+    colorTimers[id] = setTimeout(async () => {
+      try {
+        const r = await fetch('/api/colors', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ agent: id, color: a.color || null, accent: a.accent || null, reset: !!patch.reset }) });
+        if (!r.ok) throw new Error(r.status);
+        if (patch.reset) poll(true);   // pick up the default colour from the server's settings
+      } catch { caption('<span class="err">Couldn\'t save that colour. Check the link and try again.</span>'); }
+    }, patch.reset ? 0 : 400);
+  }
+  function renderAgentColors() {
+    const box = $('agentColors'); if (!box) return;
+    if (box.contains(document.activeElement) && document.activeElement.type === 'color') return;   // don't rebuild under an open picker
+    box.textContent = '';
+    for (const a of agents) {
+      const row = document.createElement('div'); row.className = 'acrow';
+      const dot = document.createElement('i'); dot.style.background = agentColor(a.id); dot.style.boxShadow = `0 0 8px ${agentColor(a.id)}`;
+      const nm = document.createElement('span'); nm.textContent = acronym(a.label);
+      const sw = (which, value) => {
+        const l = document.createElement('label'); l.title = `${which === 'color' ? 'Main' : 'Accent'} colour for ${acronym(a.label)}`;
+        const b = document.createElement('b'); b.style.background = value; b.style.color = value;
+        const inp = document.createElement('input'); inp.type = 'color'; inp.value = value; inp.setAttribute('aria-label', l.title);
+        inp.addEventListener('input', () => { b.style.background = inp.value; b.style.color = inp.value; saveAgentColor(a.id, { [which]: inp.value }); });
+        l.append(b, inp, document.createTextNode(which === 'color' ? 'Main' : 'Accent'));
+        return l;
+      };
+      const reset = document.createElement('button'); reset.type = 'button'; reset.textContent = 'Reset';
+      reset.title = 'Back to the default colours'; reset.addEventListener('click', () => saveAgentColor(a.id, { reset: true }));
+      row.append(dot, nm, sw('color', agentColor(a.id)), sw('accent', agentAccent(a.id)), reset); box.append(row);
+    }
+  }
   function renderAgentVoices() {
     resolvedVoices = autoVoices();
     const box = $('agentVoices'); if (!box) return;
@@ -1556,7 +1610,7 @@ form.ask.chatask { margin-top: 2px; }
     if (id === 'logSheet' && open) { renderLinkNote(); renderLog(); loadHistory(); if (!MOBILE) setTimeout(() => $('chatText').focus(), 50); }
   };
   $('logBtn').addEventListener('click', () => toggleSheet('logSheet'));
-  $('setBtn').addEventListener('click', () => toggleSheet('setSheet'));
+  $('setBtn').addEventListener('click', () => { renderAgentColors(); toggleSheet('setSheet'); });
   document.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click', () => $(b.dataset.close).hidden = true));
   $('newConv').addEventListener('click', () => {
     stopAll(); const all = store.get('conv', {}); all[agent] = newId(); store.set('conv', all);
@@ -1570,14 +1624,27 @@ form.ask.chatask { margin-top: 2px; }
 
   // ---------- the orb ----------
   const cv = $('orb'), ctx = cv.getContext('2d');
-  const N = innerWidth < 600 ? 1100 : 1700, GOLD = Math.PI * (3 - Math.sqrt(5));
-  const pts = Array.from({ length: N }, (_, i) => {
-    const y = 1 - 2 * (i + 0.5) / N, r = Math.sqrt(1 - y * y), a = i * GOLD;
-    return { x: Math.cos(a) * r, y, z: Math.sin(a) * r, s: Math.random() * 6.283, keep: i % 3 === 0 };
-  });
+  // Glass orb: a dark glass sphere with soft light ribbons turning inside it, drawn in the agent's two colours.
+  // Speaking folds the ribbons into a voice waveform; offline leaves only the rim and a dot in the middle.
+  const RIBBONS = [
+    { rs: .84, tx: 1.10, ty: .30, sx: .11, sy: .07, ph: 0, w: .26, amp: .22, f: 2 },
+    { rs: .70, tx: -.60, ty: 1.2, sx: -.08, sy: .13, ph: 2, w: .20, amp: .30, f: 3 },
+    { rs: .92, tx: .30, ty: -.9, sx: .06, sy: -.10, ph: 4, w: .30, amp: .18, f: 2 },
+  ];
+  const STRANDS = innerWidth < 600 ? 12 : 20, SEG = innerWidth < 600 ? 80 : 110;
+  const N = RIBBONS.length * STRANDS;     // shown in the HUD readout
+  const SPARKS = Array.from({ length: 46 }, () => ({ ang: Math.PI * (.15 + Math.random() * .75), r: .80 + Math.random() * .17, ph: Math.random() * 6.28, sp: 1 + Math.random() * 2.5, sz: .4 + Math.random() * 1.3 }));
+  const ptsBuf = new Float32Array((SEG + 1) * 3);
+  let orbT = 0, voiceT = 0, voiceMix = 0, voiceLvl = 0;
+  // drawn-in amount: 0 = not drawn, 1 = whole orb. Startup draws it in, shutdown un-draws it.
+  let orbDraw = 1, orbAnim = null;
+  function animateOrbDraw(to, ms) {
+    return new Promise(res => { orbAnim = { from: orbDraw, to, at: performance.now(), ms: reduceMotion ? 200 : ms, res }; });
+  }
   const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
   const ALERT = hex(css('--alert') || '#ff6b6b'), GREY = hex(css('--off') || '#4d5d75');
   let base = hex(css('--arc') || '#ff7ac8'), hi = lighten(base, 0.45);
+  let base2 = hueShift(base, -45), hi2 = lighten(base2, 0.45), col2 = [...base2];
   let col = [...base], lvl = 0, rotY = 0, rotX = 0.35, swirl = 0, dim = 0, W = 0, H = 0, last = performance.now();
 
   function fit(c) { const d = Math.min(2, devicePixelRatio || 1); const w = c.clientWidth, h = c.clientHeight; c.width = w * d; c.height = h * d; c.getContext('2d').setTransform(d, 0, 0, d, 0, 0); return [w, h]; }
@@ -1598,6 +1665,13 @@ form.ask.chatask { margin-top: 2px; }
     dim += ((off ? 1 : 0) - dim) * 0.05;          // 0 = powered, 1 = powered down
     const goal = off ? GREY : state === 'thinking' ? hi : state === 'error' ? ALERT : base;
     col = col.map((c, i) => c + (goal[i] - c) * 0.06);
+    const goal2 = off ? GREY : state === 'thinking' ? hi2 : state === 'error' ? ALERT : base2;
+    col2 = col2.map((c, i) => c + (goal2[i] - c) * 0.06);
+    if (orbAnim) {
+      const p = clamp01((performance.now() - orbAnim.at) / orbAnim.ms), e = p < .5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2;
+      orbDraw = orbAnim.from + (orbAnim.to - orbAnim.from) * e;
+      if (p >= 1) { const r = orbAnim.res; orbAnim = null; r(); }
+    }
 
     const spin = reduceMotion ? 0.25 : 1;
     rotY += dt * spin * ((0.18 + (state === 'thinking' ? 1.2 : 0) + lvl * 0.5) * (1 - dim) + 0.03 * dim);
@@ -1607,15 +1681,9 @@ form.ask.chatask { margin-top: 2px; }
     ctx.clearRect(0, 0, W, H);
     const cx = W / 2, cy = H / 2 - Math.min(H * 0.05, 34);
     const R0 = Math.min(W, H) * 0.25;                       // fixed size: HUD rings and readouts never pulse
-    const R = R0 * (1 + lvl * 0.28) * (1 - dim * 0.1);      // the sphere itself breathes and pulses
+    const R = R0 * (1 + lvl * 0.05);                        // the glass breathes a little with the voice
     const [r, g, b] = col.map(Math.round);
 
-    // halo (fades out when powered down)
-    const halo = ctx.createRadialGradient(cx, cy, R * 0.1, cx, cy, R * 2.1);
-    halo.addColorStop(0, `rgba(${r},${g},${b},${(0.10 + lvl * 0.35) * (1 - dim * 0.8)})`);
-    halo.addColorStop(0.45, `rgba(${r},${g},${b},${(0.04 + lvl * 0.10) * (1 - dim * 0.8)})`);
-    halo.addColorStop(1, 'rgba(0,0,0,0)');
-    ctx.fillStyle = halo; ctx.fillRect(0, 0, W, H);
 
     if (decorOn) safe('decor', () => {
       try { drawDecor(t, dt, cx, cy, R0, r, g, b); }
@@ -1632,42 +1700,142 @@ form.ask.chatask { margin-top: 2px; }
     ctx.beginPath(); ctx.arc(cx, cy, R0 * 1.62, swirl * 0.3, swirl * 0.3 + 1.1); ctx.stroke();
     ctx.beginPath(); ctx.arc(cx, cy, R0 * 1.62, swirl * 0.3 + 3.14, swirl * 0.3 + 4.0); ctx.stroke();
 
-    // offline: a faint "searching" ping every 4 s in the agent's own colour
-    if (dim > 0.5) {
-      const p = (t % 4) / 4, [ar, ag, ab] = base;
-      ctx.strokeStyle = `rgba(${ar},${ag},${ab},${(1 - p) * 0.22 * dim})`;
-      ctx.lineWidth = 1.5;
-      ctx.beginPath(); ctx.arc(cx, cy, R0 * (0.3 + p * 1.4), 0, 6.283); ctx.stroke();
-      ctx.lineWidth = 1;
-    }
+    drawGlass(t, dt, cx, cy, R);
+  }
 
-    // dot sphere — when offline, two of every three dots go dark and the rest dim right down
-    const cY = Math.cos(rotY), sY = Math.sin(rotY), cX = Math.cos(rotX), sX = Math.sin(rotX);
-    ctx.globalCompositeOperation = 'lighter';
-    for (const p of pts) {
-      const fade = p.keep ? 1 - dim * 0.55 : 1 - dim;
-      if (fade < 0.02) continue;
-      let d = 1 + Math.sin(t * 2.4 + p.s + p.y * 5) * (0.012 + lvl * 0.16) * (1 - dim);
-      if (state === 'thinking') d += Math.sin(p.y * 9 - swirl * 1.6) * 0.045;
-      if (state === 'speaking') d += Math.sin(p.x * 7 + t * 9) * Math.sin(p.z * 5 - t * 6) * lvl * 0.12;
-      const x = p.x * d, y = p.y * d, z = p.z * d;
-      const x1 = x * cY - z * sY, z1 = x * sY + z * cY;
-      const y2 = y * cX - z1 * sX, z2 = y * sX + z1 * cX;
-      const persp = 2.6 / (2.6 - z2), depth = (z2 + 1) / 2;
-      const size = (0.5 + depth * 1.5) * (0.9 + lvl * 0.6);
-      ctx.fillStyle = `rgba(${r},${g},${b},${(0.08 + depth * depth * 0.8) * fade})`;
-      ctx.fillRect(cx + x1 * R * persp - size / 2, cy + y2 * R * persp - size / 2, size, size);
+  function ribbonPoints(rb, o, ri, energy) {
+    let ax = rb.tx + orbT * rb.sx; const ay = rb.ty + orbT * rb.sy;
+    if (voiceMix > .001) { ax = ((ax % Math.PI) + Math.PI) % Math.PI; ax += (Math.PI / 2 + (ri - 1) * .12 - ax) * voiceMix; }   // fold edge-on into a line
+    const cX = Math.cos(ax), sX = Math.sin(ax), cY = Math.cos(ay), sY = Math.sin(ay);
+    for (let i = 0; i <= SEG; i++) {
+      const u = i / SEG * 6.2832;
+      const wob = Math.sin(rb.f * u + rb.ph + orbT * .9) * rb.amp * (1 + energy * .9) * (1 - voiceMix * .75);
+      const rad = rb.rs * (1 + o * .9 * rb.w);
+      const x = Math.cos(u) * rad, y = Math.sin(u) * rad, z = wob + o * rb.w * 1.5 * Math.cos(u * 2 + orbT * .5);
+      const y1 = y * cX - z * sX, z1 = y * sX + z * cX;
+      let x2 = x * cY + z1 * sY, z2 = -x * sY + z1 * cY, y2 = y1;
+      if (voiceMix > .001) {   // the voice waveform: travelling waves, tapered at the sides, height follows the speech level
+        const env = Math.cos(Math.min(1, Math.abs(x2)) * Math.PI / 2) ** 2;
+        const wv = Math.sin(x2 * (7 + ri * 2.3) - voiceT * 9 + ri * 1.7 + o * 1.2) * .6 + Math.sin(x2 * (13 + ri * 3.1) + voiceT * 13 + ri) * .3 + Math.sin(x2 * 3 - voiceT * 4) * .35;
+        y2 += voiceMix * env * wv * (.05 + voiceLvl * .55) * (1 + o * .6);
+      }
+      const m = Math.hypot(x2, y2, z2); if (m > .96) { x2 *= .96 / m; y2 *= .96 / m; z2 *= .96 / m; }
+      ptsBuf[i * 3] = x2; ptsBuf[i * 3 + 1] = y2; ptsBuf[i * 3 + 2] = z2;
     }
-    // core light goes out when offline
-    const coreA = 1 - dim;
-    if (coreA > 0.02) {
-      const core = ctx.createRadialGradient(cx, cy, 0, cx, cy, R * 0.55);
-      core.addColorStop(0, `rgba(255,255,255,${(0.10 + lvl * 0.45) * coreA})`);
-      core.addColorStop(0.35, `rgba(${r},${g},${b},${(0.10 + lvl * 0.3) * coreA})`);
-      core.addColorStop(1, 'rgba(0,0,0,0)');
-      ctx.fillStyle = core; ctx.beginPath(); ctx.arc(cx, cy, R * 0.55, 0, 6.283); ctx.fill();
-    }
+    return ptsBuf;
+  }
+  function drawRibbons(cx, cy, R, front, alpha, energy, cA, cB) {
+    if (alpha < .01) return;
+    ctx.globalCompositeOperation = 'lighter'; ctx.lineCap = 'round';
+    RIBBONS.forEach((rb, ri) => {
+      for (let k = 0; k < STRANDS; k++) {
+        const o = k / (STRANDS - 1) - .5, core = Math.max(.08, 1 - Math.abs(o) * 1.9);
+        const tt = ri % 2 ? 1 - k / (STRANDS - 1) : k / (STRANDS - 1);
+        const c = cA.map((v, i) => Math.round(v + (cB[i] - v) * tt));
+        const P = ribbonPoints(rb, o, ri, energy);
+        ctx.beginPath(); let pen = false;
+        for (let i = 0; i <= SEG; i++) {
+          const z = P[i * 3 + 2], vis = front ? z > 0 : z <= 0, X = cx + P[i * 3] * R, Y = cy + P[i * 3 + 1] * R;
+          if (vis) { pen ? ctx.lineTo(X, Y) : ctx.moveTo(X, Y); pen = true; } else pen = false;
+        }
+        const a = (front ? .32 : .09) * core * (.7 + energy * .6) * (1 + voiceMix * (.4 + voiceLvl * .8)) * (1 - dim) * alpha * (STRANDS < 20 ? 1.4 : 1);
+        ctx.strokeStyle = `rgba(${c[0]},${c[1]},${c[2]},${a})`;
+        ctx.lineWidth = front ? .8 + core * 2.2 : .6 + core * 1.2; ctx.stroke();
+      }
+    });
     ctx.globalCompositeOperation = 'source-over';
+  }
+  function drawGlass(t, dt, cx, cy, R) {
+    const speaking = state === 'speaking', energy = Math.min(1, lvl * 1.6);
+    const spd = state === 'thinking' ? 3.6 : state === 'listening' ? 1 : speaking ? 1.1 : state === 'offline' ? .1 : .55;
+    orbT += dt * spd * (reduceMotion ? .3 : 1); voiceT += dt;
+    voiceMix += ((speaking ? 1 : 0) - voiceMix) * Math.min(1, dt * 2.5);
+    voiceLvl += (clamp01((lvl - .15) / .8) - voiceLvl) * Math.min(1, dt * 18);
+    const pRing = clamp01(orbDraw / .4), pFill = clamp01((orbDraw - .3) / .3), pRib = clamp01((orbDraw - .55) / .45);
+    if (orbDraw < .001) return;
+    const cA = col.map(Math.round), cB = col2.map(Math.round), live = 1 - dim;
+    const rgba = (c, a) => `rgba(${c[0]},${c[1]},${c[2]},${a})`, mixc = (p, q, k) => p.map((v, i) => Math.round(v + (q[i] - v) * k));
+    const WHITE = [255, 255, 255];
+    let g;
+    // outer glow
+    const gc = mixc(cA, cB, .35);
+    g = ctx.createRadialGradient(cx, cy + R * .06, R * .8, cx, cy + R * .06, R * 1.5);
+    g.addColorStop(0, rgba(gc, (.28 + energy * .3) * live * pFill)); g.addColorStop(1, rgba(gc, 0));
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(cx, cy, R * 1.5, 0, 6.283); ctx.fill();
+    // dark glass body with a tinted floor
+    ctx.globalAlpha = pFill;
+    g = ctx.createRadialGradient(cx - R * .2, cy - R * .25, R * .1, cx, cy, R);
+    g.addColorStop(0, '#0c1226'); g.addColorStop(1, '#03050d');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(cx, cy, R * (.6 + .4 * pFill), 0, 6.283); ctx.fill();
+    g = ctx.createRadialGradient(cx, cy + R * .75, 0, cx, cy + R * .75, R * .9);
+    g.addColorStop(0, rgba(cB, .28 * live)); g.addColorStop(1, rgba(cB, 0));
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(cx, cy, R, 0, 6.283); ctx.fill();
+    ctx.globalAlpha = 1;
+    // inside the glass
+    ctx.save(); ctx.beginPath(); ctx.arc(cx, cy, R * .985, 0, 6.283); ctx.clip();
+    drawRibbons(cx, cy, R, false, pRib, energy, cA, cB);
+    ctx.globalAlpha = live * pRib;
+    const ir = R * (.5 + energy * .05 + Math.sin(orbT * 1.3) * .008) * (.6 + .4 * pRib), ix = cx + R * .06, iy = cy + R * .04;
+    g = ctx.createRadialGradient(ix - ir * .3, iy - ir * .3, ir * .1, ix, iy, ir);
+    g.addColorStop(0, 'rgba(3,4,10,.55)'); g.addColorStop(.82, 'rgba(3,4,10,.7)'); g.addColorStop(1, rgba(cA, .22));
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(ix, iy, ir, 0, 6.283); ctx.fill();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.strokeStyle = ctx.createConicGradient ? (() => { const cg = ctx.createConicGradient(-orbT * .4, ix, iy);
+      cg.addColorStop(0, rgba(cA, .7)); cg.addColorStop(.3, rgba(cB, .15)); cg.addColorStop(.55, rgba(cB, .6)); cg.addColorStop(.8, rgba(cA, .1)); cg.addColorStop(1, rgba(cA, .7)); return cg; })() : rgba(cA, .5);
+    ctx.lineWidth = 1.6; ctx.beginPath(); ctx.arc(ix, iy, ir, 0, 6.283); ctx.stroke();
+    ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
+    drawRibbons(cx, cy, R, true, pRib, energy, cA, cB);
+    ctx.globalCompositeOperation = 'lighter';
+    for (const sp of SPARKS) {
+      const a = Math.max(0, Math.sin(t * sp.sp + sp.ph)) ** 3 * (.6 + energy * .6) * live * pRib;
+      if (a < .02) continue;
+      ctx.fillStyle = rgba(mixc(cA, WHITE, .5), a);
+      ctx.beginPath(); ctx.arc(cx + Math.cos(sp.ang) * sp.r * R, cy + Math.sin(sp.ang) * sp.r * R, sp.sz, 0, 6.283); ctx.fill();
+    }
+    ctx.restore();
+    // glass rim: inner edge glow, a ring that traces itself in from the top during startup, a thin bright edge
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.globalAlpha = pFill;
+    g = ctx.createRadialGradient(cx, cy, R * .72, cx, cy, R);
+    g.addColorStop(0, rgba(cA, 0)); g.addColorStop(.85, rgba(cA, (.12 + energy * .1) * live)); g.addColorStop(1, rgba(cB, (.35 + energy * .2) * (1 - dim * .7)));
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(cx, cy, R, 0, 6.283); ctx.fill();
+    ctx.globalAlpha = 1;
+    const a0 = -Math.PI / 2, a1 = a0 + 6.2832 * pRing;
+    ctx.strokeStyle = ctx.createConicGradient ? (() => { const rg = ctx.createConicGradient(orbT * .25, cx, cy);
+      rg.addColorStop(0, rgba(cA, .8)); rg.addColorStop(.25, rgba(cB, .3)); rg.addColorStop(.5, rgba(cA, .65)); rg.addColorStop(.75, rgba(cB, .85)); rg.addColorStop(1, rgba(cA, .8)); return rg; })() : rgba(cA, .7);
+    ctx.lineWidth = R * (.018 + energy * .012); ctx.lineCap = 'butt';
+    ctx.beginPath(); ctx.arc(cx, cy, R * .982, a0, a1); ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,255,255,.22)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.arc(cx, cy, R * .998, a0, a1); ctx.stroke();
+    if (pRing < 1) {   // bright drawing head
+      const hx = cx + Math.cos(a1) * R * .982, hy = cy + Math.sin(a1) * R * .982;
+      g = ctx.createRadialGradient(hx, hy, 0, hx, hy, R * .09);
+      g.addColorStop(0, 'rgba(255,255,255,.95)'); g.addColorStop(.3, rgba(cA, .8)); g.addColorStop(1, rgba(cA, 0));
+      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(hx, hy, R * .09, 0, 6.283); ctx.fill();
+    }
+    // reflections on the glass
+    ctx.globalAlpha = (1 - dim * .85) * pFill;
+    ctx.save(); ctx.translate(cx - R * .36, cy - R * .5); ctx.rotate(-.55); ctx.scale(1, .42);
+    g = ctx.createRadialGradient(0, 0, 0, 0, 0, R * .34);
+    g.addColorStop(0, 'rgba(255,255,255,.32)'); g.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, R * .34, 0, 6.283); ctx.fill(); ctx.restore();
+    ctx.strokeStyle = 'rgba(255,255,255,.35)'; ctx.lineWidth = R * .018; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.arc(cx, cy, R * .9, Math.PI * 1.08, Math.PI * 1.32); ctx.stroke();
+    ctx.strokeStyle = rgba(mixc(cB, WHITE, .4), .3); ctx.lineWidth = R * .012;
+    ctx.beginPath(); ctx.arc(cx, cy, R * .91, Math.PI * .12, Math.PI * .3); ctx.stroke();
+    ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
+    // offline: only the rim and a slowly breathing dot in the agent's own colour
+    if (dim > .01) {
+      const br = .55 + .45 * Math.sin(t * 1.1), [ar, ag, ab] = base;
+      ctx.globalCompositeOperation = 'lighter';
+      g = ctx.createRadialGradient(cx, cy, 0, cx, cy, R * .22);
+      g.addColorStop(0, `rgba(${ar},${ag},${ab},${.35 * dim * br * pFill})`); g.addColorStop(1, `rgba(${ar},${ag},${ab},0)`);
+      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(cx, cy, R * .22, 0, 6.283); ctx.fill();
+      ctx.globalCompositeOperation = 'source-over';
+      const d = mixc(base, WHITE, .15);
+      ctx.fillStyle = `rgba(${d[0]},${d[1]},${d[2]},${dim * (.75 + .25 * br) * pFill})`;
+      ctx.beginPath(); ctx.arc(cx, cy, Math.max(3, R * .035), 0, 6.283); ctx.fill();
+    }
   }
 
   // ---------- HUD decoration (aesthetic only; numbers shown are real) ----------
@@ -1754,7 +1922,7 @@ form.ask.chatask { margin-top: 2px; }
       const az = ((rotY * 180 / Math.PI) % 360 + 360) % 360;
       const items = [
         [-2.36, 'AZM', az.toFixed(1) + '°'],
-        [-0.79, 'NODES', String(N)],
+        [-0.79, 'STRANDS', String(N)],
         [2.36, 'FRAME', fps + ' fps'],
         [0.79, 'LINK', gateway.online && gateway.latencyMs != null ? gateway.latencyMs + ' ms' : 'no signal'],
       ];
@@ -1819,33 +1987,93 @@ form.ask.chatask { margin-top: 2px; }
     g.beginPath(); g.arc(xs.at(-1) - 2, ys.at(-1), 3, 0, 6.283); g.fillStyle = `rgb(${r},${gg},${b})`; g.fill();
   }
 
-  const blips = Array.from({ length: 6 }, () => ({ a: Math.random() * 6.283, d: 0.25 + Math.random() * 0.7, glow: 0 }));
-  let scopeSweep = 0;
+  // Scope: a spinning neural core. Two hemispheres and a cerebellum of nodes joined to their nearest
+  // neighbours; impulses run node to node and light each one they reach. Busier when listening or thinking.
+  const NEURONS = [];
+  (() => {
+    let tries = 0;
+    while (NEURONS.length < 230 && tries++ < 20000) {
+      const side = Math.random() < .5 ? -1 : 1;
+      let x = Math.random() * 2 - 1, y = Math.random() * 2 - 1, z = Math.random() * 2 - 1;
+      const rr = Math.hypot(x, y, z); if (rr > 1 || rr < .55) continue;          // nodes sit near the surface
+      x = side * (.5 + x * .46); y = y * .58; z = z * .78;
+      if (Math.abs(x) < .07) continue;                                           // the gap between hemispheres
+      if (y > .35 && z < -.2) continue;
+      NEURONS.push({ x, y, z, f: 0 });
+    }
+    for (let i = 0; i < 26; i++) { const a = Math.random() * 6.28, b2 = Math.random() * 3.14;
+      NEURONS.push({ x: Math.cos(a) * Math.sin(b2) * .38, y: .48 + Math.cos(b2) * .14, z: -.62 + Math.sin(a) * Math.sin(b2) * .22, f: 0 }); }
+  })();
+  const SYN = [], NEAR = NEURONS.map(() => []);
+  NEURONS.forEach((n, i) => {
+    NEURONS.map((m, j) => [j, (n.x - m.x) ** 2 + (n.y - m.y) ** 2 + (n.z - m.z) ** 2]).filter(e => e[0] !== i).sort((a, b) => a[1] - b[1]).slice(0, 3)
+      .forEach(([j]) => { if (!NEAR[i].includes(j)) { NEAR[i].push(j); NEAR[j].push(i); SYN.push([i, j]); } });
+  });
+  let impulses = [], brainRot = 0, synCount = 0, synRate = 0;
+  function fireImpulse() { const a = (Math.random() * NEURONS.length) | 0; impulses.push({ a, b: NEAR[a][(Math.random() * NEAR[a].length) | 0], p: 0, hops: 3 + ((Math.random() * 6) | 0) }); }
   function drawScope(t, dt) {
     const c = $('scope'); if (!c.offsetParent) return;
-    const g = c.getContext('2d'), w = c.clientWidth, h = c.clientHeight, x0 = w / 2, y0 = h / 2, rr = Math.min(w, h) / 2 - 4;
-    const live = 1 - dim, [r, gg, b] = col.map(Math.round), A = a => `rgba(${r},${gg},${b},${a * (0.3 + 0.7 * live)})`;
-    g.clearRect(0, 0, w, h); g.lineWidth = 1;
-    g.strokeStyle = A(0.22);
-    for (const f of [1, 0.66, 0.33]) { g.beginPath(); g.arc(x0, y0, rr * f, 0, 6.283); g.stroke(); }
-    g.beginPath(); g.moveTo(x0 - rr, y0); g.lineTo(x0 + rr, y0); g.moveTo(x0, y0 - rr); g.lineTo(x0, y0 + rr); g.stroke();
-    const prev = scopeSweep; scopeSweep = (scopeSweep + dt * 1.6 * live * (reduceMotion ? 0.2 : 1)) % 6.283;
-    if (g.createConicGradient && live > 0.05) {
-      const cg = g.createConicGradient(scopeSweep - 1.0, x0, y0);
-      cg.addColorStop(0, A(0)); cg.addColorStop(0.159, A(0.35)); cg.addColorStop(0.16, A(0)); cg.addColorStop(1, A(0));
-      g.fillStyle = cg; g.beginPath(); g.arc(x0, y0, rr, 0, 6.283); g.fill();
+    const g = c.getContext('2d'), w = c.clientWidth, h = c.clientHeight;
+    const act = { idle: .25, listening: .6, thinking: 1, speaking: .8, error: .15, offline: 0 }[state] ?? .3;
+    const live = (1 - dim) * clamp01(orbDraw * 1.5), mo = reduceMotion ? .2 : 1;
+    const [r, gg, b] = col.map(Math.round), [r2, g2, b2] = col2.map(Math.round);
+    const A = a => `rgba(${r},${gg},${b},${a})`, A2 = a => `rgba(${r2},${g2},${b2},${a})`;
+    brainRot += dt * (.25 + act * .9) * mo * (.15 + .85 * live);
+    let n = dt * (4 + act * 70) * live * mo; while (n > 0) { if (Math.random() < n) fireImpulse(); n--; }
+    if (impulses.length > 160) impulses.splice(0, impulses.length - 160);
+    g.clearRect(0, 0, w, h);
+    const x0 = w / 2, y0 = h / 2, sc = Math.min(w, h) * .4;
+    const cr = Math.cos(brainRot), sr = Math.sin(brainRot), ct = Math.cos(.32), st2 = Math.sin(.32);
+    const P = NEURONS.map(nd => {
+      const x = nd.x * cr + nd.z * sr, z = -nd.x * sr + nd.z * cr;
+      const y2 = nd.y * ct - z * st2, z2 = nd.y * st2 + z * ct, k = 1 / (1.9 - z2 * .5);
+      return [x0 + x * sc * k * 2.2, y0 + y2 * sc * k * 2.2, z2];
+    });
+    // HUD: tick ring turning one way, two arcs the other
+    g.save(); g.translate(x0, y0); g.lineWidth = 1;
+    g.strokeStyle = A2(.08 + .2 * live); g.beginPath(); g.arc(0, 0, sc * 1.32, 0, 6.283); g.stroke();
+    g.rotate(-brainRot * .6);
+    for (let i = 0; i < 72; i++) { const a = i / 72 * 6.283, l = i % 6 ? 3 : 7; g.beginPath(); g.moveTo(Math.cos(a) * sc * 1.38, Math.sin(a) * sc * 1.38); g.lineTo(Math.cos(a) * (sc * 1.38 + l), Math.sin(a) * (sc * 1.38 + l)); g.stroke(); }
+    g.rotate(brainRot * 1.6); g.strokeStyle = A(.1 + .6 * live); g.lineWidth = 2;
+    g.beginPath(); g.arc(0, 0, sc * 1.24, 0, .9); g.stroke(); g.beginPath(); g.arc(0, 0, sc * 1.24, 3.14, 3.6); g.stroke();
+    g.restore();
+    // synapses, then neurons (nearer ones brighter)
+    g.globalCompositeOperation = 'lighter'; g.lineWidth = .9;
+    for (const [i, j] of SYN) {
+      const d = (P[i][2] + P[j][2]) / 2;
+      g.strokeStyle = A2((.12 + .3 * (d + 1) / 2) * (.35 + .65 * live));
+      g.beginPath(); g.moveTo(P[i][0], P[i][1]); g.lineTo(P[j][0], P[j][1]); g.stroke();
     }
-    g.strokeStyle = A(0.8); g.beginPath(); g.moveTo(x0, y0); g.lineTo(x0 + Math.cos(scopeSweep) * rr, y0 + Math.sin(scopeSweep) * rr); g.stroke();
-    for (const bl of blips) {
-      const crossed = prev <= scopeSweep ? bl.a > prev && bl.a <= scopeSweep : bl.a > prev || bl.a <= scopeSweep;
-      if (crossed && live > 0.5) bl.glow = 1;
-      bl.glow *= 0.985;
-      if (bl.glow < 0.05 && Math.random() < 0.002) { bl.a = Math.random() * 6.283; bl.d = 0.25 + Math.random() * 0.7; }
-      if (bl.glow > 0.03) {
-        g.fillStyle = A(bl.glow); g.beginPath(); g.arc(x0 + Math.cos(bl.a) * rr * bl.d, y0 + Math.sin(bl.a) * rr * bl.d, 2.2, 0, 6.283); g.fill();
+    NEURONS.forEach((nd, i) => {
+      const p = P[i]; nd.f = Math.max(0, nd.f - dt * 2.5);
+      g.fillStyle = nd.f > .05 ? `rgba(${Math.round(r + (255 - r) * nd.f * .6)},${Math.round(gg + (255 - gg) * nd.f * .6)},${Math.round(b + (255 - b) * nd.f * .6)},${Math.min(1, (.25 + .45 * (p[2] + 1) / 2) * (.4 + .6 * live) + nd.f * .6)})` : A((.25 + .45 * (p[2] + 1) / 2) * (.4 + .6 * live));
+      g.beginPath(); g.arc(p[0], p[1], (.8 + .9 * (p[2] + 1) / 2) * (1 + nd.f * 1.6), 0, 6.283); g.fill();
+      if (nd.f > .3) { const rg = g.createRadialGradient(p[0], p[1], 0, p[0], p[1], 9); rg.addColorStop(0, A(nd.f * .5)); rg.addColorStop(1, A(0)); g.fillStyle = rg; g.beginPath(); g.arc(p[0], p[1], 9, 0, 6.283); g.fill(); }
+    });
+    // impulses: a bright head with a fading tail; each node reached lights up and passes it on
+    impulses = impulses.filter(im => {
+      im.p += dt * (2.2 + act * 3) * mo;
+      if (im.p >= 1) {
+        NEURONS[im.b].f = 1; synCount++;
+        if (--im.hops <= 0) return false;
+        const nx = NEAR[im.b].filter(j => j !== im.a); im.a = im.b; im.b = nx.length ? nx[(Math.random() * nx.length) | 0] : NEAR[im.b][0]; im.p = 0;
       }
-    }
-    $('scopeMode').textContent = live > 0.5 ? 'auto' : 'standby';
+      const a = P[im.a], bq = P[im.b], x = a[0] + (bq[0] - a[0]) * im.p, y = a[1] + (bq[1] - a[1]) * im.p;
+      const tq = Math.max(0, im.p - .45), tx = a[0] + (bq[0] - a[0]) * tq, ty = a[1] + (bq[1] - a[1]) * tq;
+      const lg = g.createLinearGradient(tx, ty, x, y); lg.addColorStop(0, A(0)); lg.addColorStop(1, 'rgba(255,255,255,.95)');
+      g.strokeStyle = lg; g.lineWidth = 1.6; g.beginPath(); g.moveTo(tx, ty); g.lineTo(x, y); g.stroke();
+      g.fillStyle = 'rgba(255,255,255,.95)'; g.beginPath(); g.arc(x, y, 1.6, 0, 6.283); g.fill();
+      return true;
+    });
+    g.globalCompositeOperation = 'source-over';
+    // readouts
+    synRate += (synCount / Math.max(dt, .001) - synRate) * Math.min(1, dt * 1.5); synCount = 0;
+    g.font = '9px "IBM Plex Mono", ui-monospace, monospace'; g.fillStyle = A(.5 + .4 * live);
+    g.textAlign = 'left'; g.fillText('SYN/s ' + String(Math.round(synRate * 12)).padStart(4, '0'), 4, 11);
+    g.fillText('NODES ' + NEURONS.length, 4, h - 5);
+    g.textAlign = 'right'; g.fillText('α ' + (8 + act * 5.5 + Math.sin(t * 1.4) * .4).toFixed(1) + ' Hz', w - 4, 11);
+    g.fillText('LOAD ' + String(Math.max(0, Math.round(act * live * 86 + Math.sin(t * 3.3) * 3 + 4 * live))).padStart(2, '0') + '%', w - 4, h - 5);
+    $('scopeMode').textContent = live > 0.5 ? 'neural · ' + (state === 'thinking' ? 'active' : state === 'idle' ? 'auto' : state) : 'standby';
   }
 
   let sparkTick = 0;
@@ -1960,6 +2188,8 @@ form.ask.chatask { margin-top: 2px; }
         noise({ dur: 0.06, vol: 0.35, freq: 1800, q: 0.7, at: 0.55 });
         tone({ f0: 90, f1: 40, dur: 0.25, type: 'sine', vol: 0.35, at: 0.55 });
       },
+      // a console panel switching on (or off)
+      tick(up = true) { tone({ f0: up ? 1320 : 990, f1: up ? 1760 : 660, dur: 0.05, type: 'square', vol: 0.045, cutoff0: 4000, q: 2 }); },
       running: () => !!ctx(),
     };
   })();
@@ -1987,150 +2217,179 @@ form.ask.chatask { margin-top: 2px; }
     setTimeout(() => { if (!poweredDown && state !== 'listening') speak(text, live.id); }, 450);
   }
 
-  // ---------- startup sequence ----------
-  // Plays the first time the app opens in a tab (reloads skip it). Every status in the log is a real check.
+  // ---------- startup sequence: K.I.B.I. ----------
+  // The boot screen loads each system 0000 → 1000 (red → green). The gateway, tools, roster, agents and voice rows
+  // are real checks. Then the console's panels power up one by one, the orb draws itself in the middle, and the
+  // live agent says "Startup sequence complete". Plays the first time the app opens in a tab (reloads skip it).
   function startCore() {
     boot = 0;   // the compass ring around the orb draws itself in again
     if (state === 'idle') { setState('idle', 'Initializing core'); setTimeout(() => state === 'idle' && setState('idle'), 2000); }
   }
   const SKIP = Symbol('skip');
-  function buildBootName(lead) {
-    const nameEl = $('bootName');
-    const SMALLW = /^(of|and|the|for|a|an|&|to|in|on)$/i;
-    const words = (lead?.title || '').replace(/,/g, '').split(/\s+/).filter(Boolean);
-    const want = String(lead?.label || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase();
-    nameEl.className = 'boot-name';
-    if (words.length && words.filter(w => !SMALLW.test(w)).map(w => w[0]).join('').toUpperCase() === want) {
-      nameEl.innerHTML = words.map(w => SMALLW.test(w)
-        ? `<span class="w"><span class="rest">${esc(w)}</span></span>`
-        : `<span class="w"><b>${esc(w[0])}</b><span class="rest">${esc(w.slice(1))}</span><span class="pd">.</span></span>`).join('');
-      nameEl.classList.toggle('long', words.join(' ').length > 34);
-    } else nameEl.textContent = lead ? acronym(lead.label) : '';
-  }
   let poweredDown = false, sleeping = false, wakeKey = null;
   let bootRun = 0;
+  // the console's panels, in power-up order (shutdown uses the reverse)
+  const panels = () => [document.querySelector('header'), document.querySelector('.roster'), ...document.querySelectorAll('.hud .box'), document.querySelector('.dock'), $('orb'), document.querySelector('.readout')].filter(Boolean);
+  function panelsOff() { for (const el of panels()) { el.classList.remove('pwr-on', 'pwr-down'); el.classList.add('pwr-off'); } }
+  function panelsShow() { for (const el of panels()) el.classList.remove('pwr-off', 'pwr-down', 'pwr-on'); }
+  async function panelsUp(run, onOrb) {
+    for (const el of panels()) {
+      if (run !== bootRun) return;
+      if (el.id === 'orb') onOrb?.();
+      el.classList.remove('pwr-off', 'pwr-down'); el.classList.add('pwr-on'); sfx.tick();
+      await wait(reduceMotion ? 20 : 190);
+    }
+    setTimeout(() => panels().forEach(el => el.classList.remove('pwr-on')), 700);
+  }
+  async function panelsDown(run) {
+    for (const el of panels().reverse()) {
+      if (run !== bootRun) return;
+      el.classList.remove('pwr-on'); el.classList.add('pwr-down'); sfx.tick(false);
+      await wait(reduceMotion ? 20 : 190);
+    }
+  }
+  const pad4 = n => String(Math.max(0, Math.min(1000, Math.round(n)))).padStart(4, '0');
+  function setTotal(p) { $('bootBar').style.clipPath = `inset(0 ${(100 - p * 100).toFixed(2)}% 0 0)`; $('bootPct').textContent = pad4(p * 1000) + '/1000'; }
+  async function typeHead(text, run) {
+    const h = $('bootHead'); h.textContent = '';
+    for (let i = 1; i <= text.length; i++) { if (run !== bootRun) return; h.textContent = text.slice(0, i); await wait(reduceMotion ? 0 : 20); }
+  }
+  // one row on the boot screen: verb, system, a gradient bar, a 0000/1000 counter and a status
+  function bootRow(verb, label) {
+    const row = document.createElement('div'); row.className = 'kr';
+    row.innerHTML = '<span class="lab"><small></small><span></span></span><span class="trk"><i></i></span><span class="num">0000/1000</span><b class="pending">…</b>';
+    row.querySelector('small').textContent = verb; row.querySelector('.lab span').textContent = label;
+    $('bootLog').append(row); return row;
+  }
+  function setRow(row, v, status, cls, color) {
+    row.querySelector('.trk i').style.clipPath = `inset(0 ${(100 - v * 100).toFixed(2)}% 0 0)`;
+    row.querySelector('.num').textContent = pad4(v * 1000) + '/1000';
+    if (status != null) { const b = row.querySelector('b'); b.textContent = status; b.className = cls || 'ok'; b.style.color = color || ''; }
+  }
+  // animate a row's bar between two levels; a slight stutter makes it read like a real load
+  function runRow(row, from, to, ms, isSkipped) {
+    return new Promise(res => {
+      const t0 = performance.now(), dur = reduceMotion ? 40 : ms;
+      (function tick() {
+        const p = clamp01((performance.now() - t0) / dur);
+        const e = p < .9 ? p * (.92 + .16 * Math.abs(Math.sin(p * 17))) : p;
+        setRow(row, from + (to - from) * clamp01(e));
+        if (p < 1 && !isSkipped()) requestAnimationFrame(tick); else { setRow(row, to); res(); }
+      })();
+    });
+  }
+  // The systems on the boot screen. Rows with a check report real status; the rest are the interface's own subsystems.
+  function bootSystems(ready) {
+    const list = [
+      ['POST', 'Memory lattice'],
+      ['INIT', 'Quantum entropy pool'],
+      ['LINK', 'OpenClaw gateway · wss', async () => { await Promise.race([ready, wait(4500)]); return gateway.online ? [`OK · ${gateway.latencyMs ?? '–'} ms`, 'ok'] : ['NO SIGNAL', 'bad']; }],
+      ['AUTH', 'Agent tools · device key', () => DEMO ? ['PREVIEW', 'warn'] : !linkInfo || linkInfo.state === 'off' ? ['HTTP ONLY', 'warn'] : linkInfo.state === 'online' ? ['FULL ACCESS', 'ok'] : linkInfo.state === 'pairing' ? ['AWAITING OK', 'warn'] : ['BASIC CHAT', 'warn']],
+      ['LOAD', 'Neural inference core'],
+      ['MAP', 'Vector embedding space'],
+      ['MOUNT', 'Agent roster', () => [`${agents.length} FOUND`, agents.length ? 'ok' : 'bad']],
+    ];
+    for (const a of agents.slice(0, 5)) list.push(['SYNC', acronym(a.label), () => a.online ? ['ONLINE', 'ok', agentColor(a.id)] : ['OFFLINE', 'bad']]);
+    if (agents.length > 5) list.push(['SYNC', `+ ${agents.length - 5} more agents`, () => [`${agents.slice(5).filter(a => a.online).length} ONLINE`, 'ok']]);
+    list.push(
+      ['CAL', 'Acoustic DSP · voice input', () => SR ? ['READY', 'ok'] : ['TEXT ONLY', 'warn']],
+      ['LOAD', 'Speech synthesis', () => { const nv = agents.filter(a => a.voice).length;
+        return engine === 'clone' && voiceInfo.ready && nv ? [`POCKET · ${nv} VOICE${nv > 1 ? 'S' : ''}`, 'ok'] : voiceInfo.enabled && !voiceInfo.ready ? ['LOADING · BROWSER', 'warn'] : ['BROWSER', 'ok']; }],
+      ['INIT', 'Holographic render pipeline'],
+      ['COMPILE', 'Orb shader · glass'],
+    );
+    return list;
+  }
   async function runBoot(ready) {
     const run = ++bootRun, el = $('boot');
-    let skipped = false;
+    let skipped = false, completed = false, finishing = false;
     if (wakeKey) { removeEventListener('keydown', wakeKey, { capture: true }); wakeKey = null; }
     poweredDown = false; sleeping = false;
-    el.classList.remove('drain', 'fading', 'off'); $('bootSleep').hidden = true;
+    el.classList.remove('fading', 'off'); $('bootSleep').hidden = true;
     el.hidden = false; el.classList.remove('out');
-    $('bootLog').textContent = ''; $('bootName').className = 'boot-name'; $('bootName').textContent = '';
-    $('bootState').textContent = 'Booting'; $('bootSkip').textContent = 'Tap or press any key to skip';
+    $('bootLog').textContent = ''; $('bootHead').textContent = ''; setTotal(0);
+    $('bootState').textContent = 'System load'; $('bootSkip').textContent = 'Tap or press any key to skip';
+    panelsOff(); orbAnim = null; orbDraw = 0; boot = 0;
     ensureAudio(); await wait(120);
     if (sfxOn && !sfx.running()) { if (!(await waitForPowerTap(el, run))) return; await wait(80); }
-    // restart the CSS ring animations
-    el.querySelectorAll('svg circle, .bb-co, .bb-sub').forEach(n => { n.style.animation = 'none'; void n.offsetWidth; n.style.animation = ''; });
-    let blips = 0;
-    const finish = () => {
-      if (run !== bootRun || el.classList.contains('out')) return;
-      const wasSkipped = !completed;
-      skipped = true; el.classList.add('out');
-      if (wasSkipped) sfx.complete();
-      announce('Startup complete.');
+    el.querySelectorAll('.kb > *').forEach(n => { n.style.animation = 'none'; void n.offsetWidth; n.style.animation = ''; });
+    // after the boot screen: panels power up one by one, the orb draws in, then the voice confirms
+    const finish = async () => {
+      if (run !== bootRun || finishing) return;
+      finishing = true; skipped = true;
+      removeEventListener('keydown', onKey, { capture: true }); el.onclick = null;
+      if (!completed) sfx.complete();
+      el.classList.add('out');
       setTimeout(() => { if (run === bootRun) el.hidden = true; }, 800);
       try { sessionStorage.setItem('orb.booted', '1'); } catch {}
-      startCore();
+      await wait(reduceMotion ? 50 : 420);
+      // when the orb's stage powers up, its rings trace in and the orb draws itself
+      let drawing = null;
+      await panelsUp(run, () => { startCore(); drawing = animateOrbDraw(1, 2600); });
+      if (run !== bootRun) return;
+      await (drawing || animateOrbDraw(1, 2600));
+      if (run !== bootRun) return;
+      const live = cur()?.online ? cur() : agents.find(a => a.online);
+      if (live) announce(`Startup sequence complete. ${live.label} online.`);
     };
-    let completed = false;
     const onKey = e => { if (el.hidden || el.classList.contains('out')) return; e.preventDefault(); e.stopImmediatePropagation(); finish(); };
     el.onclick = finish;
     addEventListener('keydown', onKey, { capture: true });
     sfx.powerOn(); sfx.startHum(true);
     const fast = reduceMotion ? 0.4 : 1;
     const step = async ms => { if (!skipped) await wait(ms * fast); if (skipped || run !== bootRun) throw SKIP; };
-    const progress = p => { $('bootBar').style.width = p + '%'; $('bootPct').textContent = Math.round(p) + '%'; };
-    const line = (label, head) => {
-      const row = document.createElement('div'); row.className = 'bl' + (head ? ' head' : '');
-      row.innerHTML = '<span></span>' + (head ? '' : '<i></i><b class="pending">…</b>');
-      row.firstChild.textContent = label; $('bootLog').append(row);
-      return (status, cls = 'ok', color) => { const b = row.querySelector('b'); b.textContent = status; b.className = cls; if (color) b.style.color = color; sfx.blip(blips++, true, cls === 'bad'); };
-    };
     try {
-      progress(0);
-      await step(900);
-      line('F&K Core · The Model Shop', true);
-      let set = line('Power systems'); await step(380); set('OK'); progress(10);
-      set = line('Secure link to gateway');
-      await Promise.race([ready, wait(4500)]); await step(250);
-      set(gateway.online ? `OK · ${gateway.latencyMs ?? '–'} ms` : 'NO SIGNAL', gateway.online ? 'ok' : 'bad'); progress(24);
-      if (!DEMO && linkInfo && linkInfo.state !== 'off') {
-        set = line('Agent tools'); await step(260);
-        if (linkInfo.state === 'online') set('FULL ACCESS');
-        else if (linkInfo.state === 'pairing') set('AWAITING APPROVAL', 'warn');
-        else set('BASIC CHAT', 'warn');
+      await step(700);
+      await typeHead('INITIALIZING ALL SYSTEMS', run);
+      let systems = bootSystems(ready), i = 0, blips = 0;
+      while (i < systems.length) {
+        const [verb, label, check] = systems[i];
+        const row = bootRow(verb, label);
+        const loading = runRow(row, 0, .62, 230 + Math.random() * 120, () => skipped);
+        const result = check ? await check() : ['OK', 'ok'];
+        await loading; if (skipped || run !== bootRun) throw SKIP;
+        const [status, cls, color] = result;
+        if (cls === 'bad') { await runRow(row, .62, .42 + Math.random() * .1, 160, () => skipped); setRow(row, Number(row.querySelector('.num').textContent.slice(0, 4)) / 1000, status, cls); }
+        else { await runRow(row, .62, 1, 140 + Math.random() * 120, () => skipped); setRow(row, 1, status, cls, color); }
+        sfx.blip(Math.min(9, blips++), true, cls === 'bad');
+        // once the gateway answers, the roster rows can be filled in with the real agents
+        if (label.startsWith('OpenClaw gateway')) systems = [...systems.slice(0, i + 1), ...bootSystems(ready).slice(i + 1)];
+        i++; setTotal(i / systems.length);
+        await step(40);
       }
-      progress(28);
-
-      // the flagship agent's full name, ready to collapse into its acronym
-      const lead = agents.find(a => a.id === agent) || agents[0];
-      const nameEl = $('bootName');
-      buildBootName(lead);
-      nameEl.classList.add('show');
-
-      set = line('Agent roster'); await step(320); set(`${agents.length} found`); progress(38);
-      const shown = agents.slice(0, 5);
-      for (const [i, a] of shown.entries()) {
-        set = line(acronym(a.label)); await step(230);
-        set(a.online ? 'ONLINE' : 'OFFLINE', a.online ? 'ok' : 'bad', a.online ? agentColor(a.id) : null);
-        progress(38 + (i + 1) / shown.length * 34);
-      }
-      if (agents.length > shown.length) line(`+ ${agents.length - shown.length} more`, true);
-      set = line('Voice input'); await step(260); set(SR ? 'READY' : 'TEXT ONLY', SR ? 'ok' : 'warn'); progress(78);
-      set = line('Voice synthesis'); await step(260);
-      const nv = agents.filter(a => a.voice).length;
-      if (voiceInfo.ready && nv) set(`POCKET TTS · ${nv} voice${nv > 1 ? 's' : ''}`);
-      else if (voiceInfo.enabled && !voiceInfo.ready) set('LOADING · BROWSER', 'warn');
-      else set('BROWSER');
-      progress(84);
-      set = line('Orb calibration'); await step(350);
-      nameEl.classList.add('collapse'); sfx.lockOn();
-      await step(950); set('OK'); progress(100);
       completed = true; sfx.complete();
-      $('bootState').textContent = lead?.online ? `${acronym(lead.label)} online` : 'System ready';
-      await step(900);
+      $('bootState').textContent = 'All systems nominal';
+      await typeHead('ALL SYSTEMS NOMINAL', run);
+      await step(700);
       finish();
     } catch (e) {
       if (e !== SKIP) { console.error('[orb] startup sequence:', e); finish(); }
     } finally {
-      removeEventListener('keydown', onKey, { capture: true });
+      if (!finishing) removeEventListener('keydown', onKey, { capture: true });
     }
   }
   $('replayBoot').addEventListener('click', () => { $('setSheet').hidden = true; runBoot(Promise.resolve()); });
 
-  // ---------- power-down sequence ----------
-  // The startup sequence in reverse: voice closes, agents go to standby, the name expands back out,
-  // the core ring drains, and the screen collapses to a line and a dot. Tap or any key powers back up.
-  // Shutting down signs you out on your server (the preview has no sign-in, so it just powers down).
+  // ---------- shutdown sequence: the startup in exact reverse ----------
+  // "Shutting down all systems" → the orb un-draws → the panels power off last-to-first → the boot screen comes back
+  // with every system loaded and drains them bottom-to-top, 1000 → 0000, to OFF → the screen collapses like an old CRT.
+  // Shutting down signs you out on your server (the preview has no sign-in, so it just powers down). Tap or any key skips.
   async function powerDown({ signOut = !!window.__ORB_SERVER__ } = {}) {
     if (poweredDown && !signOut) return;
     poweredDown = true;
-    const run = ++bootRun, el = $('boot'), nameEl = $('bootName');
+    const run = ++bootRun, el = $('boot');
     handsFree = false; $('handsFree').setAttribute('aria-pressed', 'false');
     stopAll();
     document.querySelectorAll('.sheet').forEach(s => s.hidden = true);
-    caption(`<span class="you">${signOut ? 'Signing out.' : 'Powering down the interface.'}</span>`);
-    ensureAudio(); sfx.powerDown(); sfx.startHum(false);
-    let blips = 0;
-
-    // set the overlay up at "fully booted": 100%, ring drawn, acronym showing
-    el.classList.remove('drain', 'fading', 'off'); $('bootSleep').hidden = true;
-    el.classList.add('out'); el.hidden = false;
-    $('bootLog').textContent = '';
-    el.querySelectorAll('svg circle, .bb-co, .bb-sub').forEach(n => { n.style.animation = 'none'; void n.offsetWidth; n.style.animation = ''; });
-    el.querySelector('.r-draw').style.animation = 'none'; el.querySelector('.r-draw').style.strokeDashoffset = '0';
-    buildBootName(cur() || agents[0]);
-    nameEl.style.transition = 'none'; nameEl.classList.add('show', 'collapse'); void nameEl.offsetWidth; nameEl.style.transition = '';
-    $('bootBar').style.width = '100%'; $('bootPct').textContent = '100%';
-    $('bootState').textContent = signOut ? 'Sign-out requested' : 'Shutdown requested'; $('bootSkip').textContent = 'Tap or press any key to skip';
-    requestAnimationFrame(() => requestAnimationFrame(() => el.classList.remove('out')));
-
+    caption(`<span class="you">${signOut ? 'Shutting down all systems and signing out.' : 'Shutting down all systems.'}</span>`);
+    ensureAudio(); sfx.powerDown();
     let skipped = false;
     const goDark = () => {
       if (run !== bootRun || sleeping) return;
       skipped = true; sleeping = true;
-      el.classList.add('drain', 'fading', 'off'); sfx.stopHum(0.3); sfx.crtOff();
+      removeEventListener('keydown', onKey, { capture: true });
+      el.hidden = false; el.classList.remove('out');
+      el.classList.add('fading', 'off'); sfx.stopHum(0.3); sfx.crtOff();
       if (signOut) {
         try { sessionStorage.removeItem('orb.booted'); } catch {}   // the next sign-in gets the full startup
         setTimeout(() => { location.href = window.__ORB_SERVER__ ? '/logout' : location.href; }, 950); return;
@@ -2141,7 +2400,6 @@ form.ask.chatask { margin-top: 2px; }
         const wake = e => {
           if (e) { e.preventDefault(); e.stopImmediatePropagation(); }
           removeEventListener('keydown', wake, { capture: true }); wakeKey = null;
-          el.querySelector('.r-draw').style.strokeDashoffset = '';
           caption(`<span class="you">Interface online. Tap the orb to talk to ${esc(currentLabel())}.</span>`);
           runBoot(poll(true));
         };
@@ -2151,48 +2409,61 @@ form.ask.chatask { margin-top: 2px; }
       }, 900);
     };
     const onKey = e => { if (sleeping) return; e.preventDefault(); e.stopImmediatePropagation(); goDark(); };
-    el.onclick = goDark;
     addEventListener('keydown', onKey, { capture: true });
-
     const fast = reduceMotion ? 0.4 : 1;
     const step = async ms => { if (!skipped) await wait(ms * fast); if (skipped || run !== bootRun) throw SKIP; };
-    const progress = p => { $('bootBar').style.width = p + '%'; $('bootPct').textContent = Math.round(p) + '%'; };
-    const line = (label, head) => {
-      const row = document.createElement('div'); row.className = 'bl' + (head ? ' head' : '');
-      row.innerHTML = '<span></span>' + (head ? '' : '<i></i><b class="pending">…</b>');
-      row.firstChild.textContent = label; $('bootLog').append(row);
-      return (status, cls = 'ok', color) => { const b = row.querySelector('b'); b.textContent = status; b.className = cls; if (color) b.style.color = color; sfx.blip(9 - Math.min(9, blips++), false, cls === 'bad'); };
-    };
     try {
-      await step(900);
-      line(signOut ? 'F&K Core · Sign-out sequence' : 'F&K Core · Power-down sequence', true);
-      $('bootState').textContent = signOut ? 'Signing out' : 'Shutting down';
-      let set = line('Voice channel'); await step(350); set('CLOSED'); progress(90);
-      set = line('Conversation sessions'); await step(380); set('PRESERVED'); progress(80);
-      const shown = agents.slice(0, 5);
-      for (const [i, a] of shown.entries()) {
-        set = line(acronym(a.label)); await step(230);
-        set(a.online ? 'STANDBY' : 'OFFLINE', a.online ? 'ok' : 'bad', a.online ? agentColor(a.id) : null);
-        progress(80 - (i + 1) / shown.length * 35);
-      }
-      if (agents.length > shown.length) line(`+ ${agents.length - shown.length} more on standby`, true);
-      set = line('Gateway link'); await step(320); set('RELEASED'); progress(30);
-      if (signOut) { set = line('Session credentials'); await step(300); set('CLEARED'); }
-      set = line('Orb core');
-      nameEl.classList.remove('collapse');                 // K.I.R.A. expands back to its full name
-      el.classList.add('drain');                           // and the core ring drains away
-      sfx.drain(1.4);
-      for (let p = 30; p >= 0; p -= 2) { progress(p); await step(75); }
-      set('POWERED DOWN', 'ok', 'var(--dim)');
-      $('bootState').textContent = signOut ? 'Signed out' : 'Interface offline';
+      // 1. the voice, while the console is still up
+      const live = cur()?.online ? cur() : agents.find(a => a.online);
+      if (live) speak('Shutting down all systems.', live.id);
+      await step(1600);
+      // 2. the orb un-draws, 3. the panels power off in reverse
+      await Promise.race([animateOrbDraw(0, 2000), new Promise(r => { const iv = setInterval(() => { if (skipped) { clearInterval(iv); r(); } }, 50); setTimeout(() => clearInterval(iv), 2100); })]);
+      if (skipped || run !== bootRun) throw SKIP;
+      await panelsDown(run);
+      await step(250);
+      // 4. the boot screen returns with every system loaded, then drains bottom to top
+      const systems = bootSystems(Promise.resolve());
+      $('bootLog').textContent = ''; $('bootHead').textContent = '';
+      const rows = systems.map(([verb, label, check]) => {
+        const row = bootRow(verb, label); row.style.animation = 'none';
+        let status = 'OK', cls = 'ok', color;
+        if (label.startsWith('OpenClaw gateway')) [status, cls] = gateway.online ? [`OK · ${gateway.latencyMs ?? '–'} ms`, 'ok'] : ['NO SIGNAL', 'bad'];
+        else if (check) { try { [status, cls, color] = check(); } catch {} }
+        setRow(row, cls === 'bad' ? .45 : 1, status, cls, color); return row;
+      });
+      setTotal(1); $('bootState').textContent = signOut ? 'System unload · sign-out' : 'System unload';
+      $('bootSkip').textContent = 'Tap or press any key to skip';
+      el.querySelectorAll('.kb > *').forEach(n => { n.style.animation = 'none'; n.style.opacity = '1'; });
+      el.classList.remove('fading', 'off'); $('bootSleep').hidden = true;
+      el.classList.add('out'); el.hidden = false; el.onclick = goDark;
+      requestAnimationFrame(() => requestAnimationFrame(() => el.classList.remove('out')));
+      sfx.startHum(false);
       await step(500);
-      nameEl.classList.remove('show');
+      await typeHead('SHUTTING DOWN ALL SYSTEMS', run);
+      let blips = 0;
+      for (let i = rows.length - 1; i >= 0; i--) {
+        const row = rows[i], from = Number(row.querySelector('.num').textContent.slice(0, 4)) / 1000;
+        const b = row.querySelector('b'); b.textContent = '…'; b.className = 'pending'; b.style.color = '';
+        await runRow(row, from, 0, 230 + Math.random() * 150, () => skipped);
+        if (skipped || run !== bootRun) throw SKIP;
+        setRow(row, 0, 'OFF', 'off');
+        sfx.blip(9 - Math.min(9, blips++), false);
+        setTotal(i / rows.length);
+        if (i === 2) sfx.drain(1.2);
+        await step(40);
+      }
+      $('bootState').textContent = signOut ? 'Signed out' : 'All systems offline';
+      await typeHead(signOut ? 'ALL SYSTEMS OFFLINE · SIGNED OUT' : 'ALL SYSTEMS OFFLINE', run);
+      await step(800);
       el.classList.add('fading');
-      await step(1100);
+      await step(900);
       goDark();
     } catch (e) {
-      if (e !== SKIP) { console.error('[orb] power-down sequence:', e); goDark(); }
+      if (e !== SKIP) { console.error('[orb] shutdown sequence:', e); goDark(); }
+      else if (skipped) goDark();
     } finally {
+      el.querySelectorAll('.kb > *').forEach(n => { n.style.animation = ''; n.style.opacity = ''; });
       removeEventListener('keydown', onKey, { capture: true });
     }
   }

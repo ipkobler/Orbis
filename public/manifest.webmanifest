@@ -1,9 +1,9 @@
 {
-  "name": "Kira",
-  "short_name": "Kira",
+  "name": "K.I.B.I. · Kobler Interactive Bot Interface",
+  "short_name": "K.I.B.I.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#061227",
-  "theme_color": "#061227",
+  "background_color": "#13234d",
+  "theme_color": "#13234d",
   "icons": [{ "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }]
 }
