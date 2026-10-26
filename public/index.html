@@ -1232,23 +1232,55 @@ form.ask.chatask { margin-top: 2px; }
     let sum = 0; for (const b of ttsBuf) { const v = (b - 128) / 128; sum += v * v; }
     return Math.min(1, Math.sqrt(sum / ttsBuf.length) * 3.2);
   }
+  // Cloned voice: the reply is cut into short pieces and the voice service is asked for at most two at a time
+  // (it makes one at a time on the VPS CPU), so the next piece is ready as the current one ends. Each piece's
+  // deadline starts when it's actually requested, and a late or failed piece is retried once before the
+  // browser voice ever steps in. Before, every sentence was requested at once and the later ones timed out
+  // while waiting their turn, which is why long replies switched to the browser voice part-way through.
+  const TTS_AHEAD = 2;
+  let ttsInflight = 0;
+  function splitSpeech(t, max = 220) {
+    const out = []; let rest = t.trim();
+    while (rest.length > max) {
+      const head = rest.slice(0, max);
+      let cut = Math.max(head.lastIndexOf('. '), head.lastIndexOf('! '), head.lastIndexOf('? '));
+      if (cut < max * 0.4) cut = Math.max(head.lastIndexOf(', '), head.lastIndexOf('; '), head.lastIndexOf(': '));
+      if (cut < max * 0.4) cut = head.lastIndexOf(' ');
+      if (cut < 20) cut = max - 1;
+      out.push(rest.slice(0, cut + 1).trim()); rest = rest.slice(cut + 1).trim();
+    }
+    if (rest) out.push(rest);
+    return out;
+  }
+  function fetchVoice(item) {
+    if (item.audio) return;
+    ttsInflight++;
+    const ctl = item.ctl = new AbortController();
+    // Pocket TTS makes speech about twice as fast as it's spoken: allow a generous margin for this piece alone
+    const timer = setTimeout(() => ctl.abort(), 9000 + item.text.length * 90);
+    item.audio = fetch('/api/tts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ agent: item.who, text: item.text }), signal: ctl.signal })
+      .then(r => (r.ok ? r.blob() : null)).catch(() => null)
+      .finally(() => { clearTimeout(timer); ttsInflight--; pumpVoice(); });
+  }
+  function pumpVoice() {
+    for (const it of ttsQueue) { if (ttsInflight >= TTS_AHEAD) break; if (!it.audio) fetchVoice(it); }
+  }
   function queueAgentVoice(t, who = agent) {
     ensureAudio();
-    const ctl = new AbortController();
-    // Give the voice service time proportional to the sentence (it runs on the VPS CPU); if it's late, the browser voice says it.
-    const limit = Math.min(60000, 15000 + t.length * 120);
-    const timer = setTimeout(() => ctl.abort(), limit);
-    const item = { text: t, ctl, audio: fetch('/api/tts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ agent: who, text: t }), signal: ctl.signal })
-      .then(r => (r.ok ? r.blob() : null)).catch(() => null).finally(() => clearTimeout(timer)) };
-    ttsQueue.push(item); speakQueue++;
+    for (const piece of splitSpeech(t)) { ttsQueue.push({ text: piece, who, ctl: null, audio: null, tries: 0 }); speakQueue++; }
+    pumpVoice();
     if (!ttsPlaying) playNextVoice();
   }
   async function playNextVoice() {
     const item = ttsQueue.shift();
     if (!item) return;
     ttsPlaying = { el: null, url: null };
-    const blob = await item.audio;
+    if (!item.audio) fetchVoice(item);
+    let blob = await item.audio;
     if (ttsPlaying === null) return;                       // interrupted while waiting
+    if (!blob && item.tries < 1) { item.tries++; item.audio = null; fetchVoice(item); blob = await item.audio; }   // late or failed: one more try
+    if (ttsPlaying === null) return;
+    pumpVoice();
     const done = () => {
       if (ttsPlaying?.url) URL.revokeObjectURL(ttsPlaying.url);
       ttsPlaying = null; speakQueue--;
@@ -1272,7 +1304,7 @@ form.ask.chatask { margin-top: 2px; }
     renderStats();
   }
   function stopAgentVoice() {
-    for (const it of ttsQueue.splice(0)) it.ctl.abort();
+    for (const it of ttsQueue.splice(0)) it.ctl?.abort();
     if (ttsPlaying?.el) { ttsPlaying.el.onended = ttsPlaying.el.onerror = null; ttsPlaying.el.pause(); }
     if (ttsPlaying?.url) URL.revokeObjectURL(ttsPlaying.url);
     ttsPlaying = null;
@@ -1418,6 +1450,8 @@ form.ask.chatask { margin-top: 2px; }
   }
   function speakBrowser(t, who = agent) {
     if (!t || !synth || !speakOn) return;
+    const parts = splitSpeech(t, 200);
+    if (parts.length > 1) { for (const part of parts) speakBrowser(part, who); return; }   // Chrome stops very long utterances part-way
     const u = new SpeechSynthesisUtterance(t);
     const vn = resolvedVoices[who] || autoVoices()[who]; const v = voices.find(x => x.name === vn); if (v) u.voice = v;
     u.rate = rate;
@@ -1628,8 +1662,10 @@ form.ask.chatask { margin-top: 2px; }
       // (up to a comma/semicolon/dash once there are a few words), so the voice starts in about a second.
       if (cut <= spoken && spoken === 0) cut = firstPhraseEnd(buf);
       // after the opening, send sentences in groups of about 80+ characters: each voice request starts its
-      // intonation fresh, so tiny fragments sound choppy (the rest is flushed when the reply ends)
-      if (spoken > 0 && cut - spoken < 80) cut = spoken;
+      // intonation fresh, so tiny fragments sound choppy (the rest is flushed when the reply ends).
+      // If the voice has gone quiet waiting for text, send whatever full sentence there is straight away.
+      const voiceBusy = ttsPlaying || ttsQueue.length || synth?.speaking;
+      if (spoken > 0 && cut - spoken < 80 && voiceBusy) cut = spoken;
       if (cut > spoken && !inCodeFence(buf.slice(0, cut))) { speak(buf.slice(spoken, cut)); spoken = cut; }
     };
     // tool activity and anything the agent makes (images, files) show up in the chat window
@@ -1692,9 +1728,13 @@ form.ask.chatask { margin-top: 2px; }
   }
   function lastSentenceEnd(s, from) { const re = /[.!?…](\s|$)|\n/g; re.lastIndex = from; let m, end = from; while ((m = re.exec(s))) end = m.index + m[0].length; return end; }
   const inCodeFence = s => ((s.match(/```/g) || []).length % 2) === 1;
+  // The opening piece is kept short so the voice starts quickly: the first phrase (up to a comma), or, if
+  // there's no break yet, the first few words once there are about 60 characters.
   function firstPhraseEnd(s) {
-    const m = /^[\s\S]{24,}?[,;:\u2013\u2014](\s)/.exec(s);
-    return m && m[0].length <= 140 ? m[0].length : 0;
+    const m = /^[\s\S]{18,}?[,;:\u2013\u2014](\s)/.exec(s);
+    if (m && m[0].length <= 110) return m[0].length;
+    if (s.length >= 72 && !/```/.test(s)) { const sp = s.lastIndexOf(' ', 60); if (sp > 24) return sp + 1; }
+    return 0;
   }
 
   const toolLabel = t => {
