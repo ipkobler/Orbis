@@ -827,7 +827,7 @@ function loginPage(error = '', email = '') {
 <title>Sign in · K.I.B.I.</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600&family=IBM+Plex+Sans:wght@400;500&display=swap">
 <style>
-:root{--void:#06112b;--hi:#0f2350;--lo:#020814;--panel:#0b1a38;--line:#1b3058;--ink:#e2ecf4;--dim:#8ea3c6;--arc:#ff7ac8;--alert:#ff6b6b;color-scheme:dark}
+:root{--void:#06112b;--hi:#0f2350;--lo:#020814;--panel:#0b1a38;--line:#1b3058;--ink:#e2ecf4;--dim:#8ea3c6;--arc:#ff3b4d;--alert:#ff8a8a;color-scheme:dark}
 *{box-sizing:border-box}html,body{height:100%;margin:0}
 body{display:grid;place-items:center;padding:24px max(16px,env(safe-area-inset-right)) 24px max(16px,env(safe-area-inset-left));
  background:radial-gradient(ellipse 70% 60% at 50% 40%,var(--hi),var(--void) 60%,var(--lo));color:var(--ink);font:15px/1.5 "IBM Plex Sans","Segoe UI",system-ui,sans-serif}
@@ -836,14 +836,14 @@ body{display:grid;place-items:center;padding:24px max(16px,env(safe-area-inset-r
 .brand b{font:600 15px/1 "Chakra Petch","Segoe UI",sans-serif;letter-spacing:.5em;padding-left:.5em}
 .brand span{font:500 10px/1 "Chakra Petch","Segoe UI",sans-serif;letter-spacing:.6em;padding-left:.6em;color:var(--dim)}
 .ring{width:84px;height:84px;margin:4px auto 0;border-radius:50%;border:1px solid var(--arc);box-shadow:0 0 24px -6px var(--arc),inset 0 0 18px -8px var(--arc);
- background:radial-gradient(circle,rgba(255,122,200,.35),transparent 62%);animation:b 4s ease-in-out infinite}
+ background:radial-gradient(circle,rgba(255,59,77,.32),transparent 62%);animation:b 4s ease-in-out infinite}
 @keyframes b{50%{box-shadow:0 0 34px -4px var(--arc),inset 0 0 24px -6px var(--arc)}}
 @media (prefers-reduced-motion:reduce){.ring{animation:none}}
-form{display:grid;gap:14px;background:rgba(11,26,51,.85);border:1px solid var(--line);border-radius:14px;padding:22px}
+form{display:grid;gap:14px;background:rgba(11,26,56,.85);border:1px solid var(--line);border-radius:14px;padding:22px}
 label{display:grid;gap:6px;font:500 11px/1 "Chakra Petch","Segoe UI",sans-serif;letter-spacing:.18em;text-transform:uppercase;color:var(--dim)}
 input{font:15px "IBM Plex Sans",system-ui,sans-serif;color:var(--ink);background:var(--void);border:1px solid var(--line);border-radius:10px;padding:12px 14px;text-transform:none;letter-spacing:0}
 input:focus{outline:none;border-color:var(--arc)}
-button{font:600 13px/1 "Chakra Petch","Segoe UI",sans-serif;letter-spacing:.2em;text-transform:uppercase;color:var(--void);background:var(--arc);border:0;border-radius:10px;padding:14px;cursor:pointer}
+button{font:600 13px/1 "Chakra Petch","Segoe UI",sans-serif;letter-spacing:.2em;text-transform:uppercase;color:#fff;background:var(--arc);border:0;border-radius:10px;padding:14px;cursor:pointer}
 button:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
 .err{color:var(--alert);font-size:14px;margin:0;text-align:center}
 .foot{text-align:center;color:var(--dim);font-size:12px;letter-spacing:.12em;text-transform:uppercase}
@@ -855,7 +855,7 @@ ${error ? `<p class="err" role="alert">${esc(error)}</p>` : ''}
 <label>Password<input type="password" name="password" autocomplete="current-password" required></label>
 <button type="submit">Sign in</button>
 </form>
-<div class="foot">K.I.R.A. · Agent interface</div>
+<div class="foot">K.I.B.I. · Kobler Interactive Bot Interface</div>
 </main></body></html>`;
 }
 async function handleLogin(req, res) {
