@@ -220,7 +220,7 @@ const SESSION_RE = /^[a-zA-Z0-9-]{8,64}$/;
 const SKELETON = `<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#13234d">
+<meta name="theme-color" content="#0c1a3a">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <link rel="manifest" href="/manifest.webmanifest">
@@ -809,11 +809,11 @@ const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;',
 function loginPage(error = '', email = '') {
   return `<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#13234d"><link rel="manifest" href="/manifest.webmanifest"><link rel="icon" href="/icon.svg">
+<meta name="theme-color" content="#0c1a3a"><link rel="manifest" href="/manifest.webmanifest"><link rel="icon" href="/icon.svg">
 <title>Sign in · K.I.B.I.</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600&family=IBM+Plex+Sans:wght@400;500&display=swap">
 <style>
-:root{--void:#13234d;--hi:#20387a;--lo:#0b1736;--panel:#182b5a;--line:#2b4580;--ink:#e2ecf4;--dim:#8ea3c6;--arc:#ff7ac8;--alert:#ff6b6b;color-scheme:dark}
+:root{--void:#0c1a3a;--hi:#172d62;--lo:#060f25;--panel:#112347;--line:#233b6b;--ink:#e2ecf4;--dim:#8ea3c6;--arc:#ff7ac8;--alert:#ff6b6b;color-scheme:dark}
 *{box-sizing:border-box}html,body{height:100%;margin:0}
 body{display:grid;place-items:center;padding:24px max(16px,env(safe-area-inset-right)) 24px max(16px,env(safe-area-inset-left));
  background:radial-gradient(ellipse 70% 60% at 50% 40%,var(--hi),var(--void) 60%,var(--lo));color:var(--ink);font:15px/1.5 "IBM Plex Sans","Segoe UI",system-ui,sans-serif}

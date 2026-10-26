@@ -3,7 +3,7 @@
   "short_name": "K.I.B.I.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#13234d",
-  "theme_color": "#13234d",
+  "background_color": "#0c1a3a",
+  "theme_color": "#0c1a3a",
   "icons": [{ "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }]
 }
