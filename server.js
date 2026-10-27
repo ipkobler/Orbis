@@ -9,6 +9,7 @@ import crypto from 'node:crypto';
 import { GatewayLink } from './gateway.js';
 import { NotificationCenter } from './notification-center.js';
 import { CommandRegistry } from './command-palette.js';
+import { VoiceState } from './voice-state.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC = path.join(__dirname, 'public');
@@ -20,6 +21,7 @@ const DEFAULT_AGENT = process.env.DEFAULT_AGENT || 'main';
 const commandAudit = [];
 const commands = new CommandRegistry({ authorize: (actor, command, action) => action !== 'execute' || !command.roles || command.roles.includes(actor), audit: event => commandAudit.push(event) });
 commands.register({ id: 'health.snapshot', title: 'View health', description: 'Show current gateway health', roles: ['operator'], handler: async () => await agentStatus(false) });
+const voiceState = new VoiceState();
 // Optional allowlist, e.g. "main,forge". Blank = every agent the gateway lists.
 const ALLOW = (process.env.AGENTS || '').split(',').map(s => s.trim()).filter(Boolean);
 // Optional display names, e.g. "main=Kira,forge=Forge".
@@ -938,6 +940,8 @@ http.createServer(async (req, res) => {
     if (pathname === '/api/media' && req.method === 'GET') return await handleMedia(req, res, new URL(req.url, 'http://x'));
     if (pathname === '/api/notifications') return await handleNotifications(req, res, new URL(req.url, 'http://x'));
     if (pathname === '/api/commands') return await handleCommands(req, res, new URL(req.url, 'http://x'));
+    if (pathname === '/api/voice/state' && req.method === 'GET') return send(res, 200, voiceState.snapshot());
+    if (pathname === '/api/voice/state' && req.method === 'PATCH') { let body; try { body = JSON.parse(await readBody(req, 4096)); } catch { return send(res, 400, { error: 'Bad request body.' }); } try { return send(res, 200, voiceState.transition(String(body.action || ''))); } catch (error) { return send(res, 400, { error: error.message }); } }
     if (req.method === 'GET') return await serveStatic(req, res, pathname);
     send(res, 405, { error: 'Method not allowed.' });
   } catch (e) {
