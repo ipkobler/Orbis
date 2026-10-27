@@ -1,0 +1,3 @@
+import test from 'node:test';import assert from 'node:assert/strict';import{VoiceState}from '../voice-state.js';
+test('voice state is session-scoped and text remains available',()=>{const v=new VoiceState();assert.equal(v.snapshot().textAvailable,true);assert.equal(v.transition('disable').state,'silent');assert.equal(v.transition('enable').state,'enabled');assert.equal(v.transition('speak').speechActive,true);assert.equal(v.transition('stop').speechActive,false);});
+test('unavailable voice still exposes text',()=>{const v=new VoiceState();assert.equal(v.transition('unavailable').textAvailable,true);});

@@ -1,0 +1,3 @@
+import crypto from 'node:crypto';
+export const VOICE_STATES=['enabled','silent','unavailable','restoring','speaking'];
+export class VoiceState{constructor({state='enabled'}={}){this.state=state;this.sessionId=crypto.randomUUID();this.updatedAt=new Date().toISOString();}transition(action){const map={enable:'enabled',disable:'silent',restore:'restoring',ready:'enabled',speak:'speaking',stop:'enabled',unavailable:'unavailable'};if(!map[action])throw Error('invalid voice action');this.state=map[action];this.updatedAt=new Date().toISOString();return this.snapshot();}snapshot(){return{state:this.state,sessionId:this.sessionId,updatedAt:this.updatedAt,textAvailable:true,speechActive:this.state==='speaking'};}}

@@ -2,14 +2,14 @@
   "events": [
     {
       "version": 1,
-      "id": "8f2563b7-d1db-4d17-a8e1-6ed8c4eb8c54",
+      "id": "0bb085bd-f7b3-4974-8684-85c0996e860f",
       "type": "approval.requested",
       "actor": {
         "id": "system",
         "role": "system"
       },
       "createdAt": "2026-01-01T00:00:00.000Z",
-      "correlationId": "bbb77469-ac2c-41e8-ba68-73f131ea8e9a",
+      "correlationId": "d49ea981-4988-4721-a077-ab2832bf5f3c",
       "idempotencyKey": "k1",
       "payload": {
         "actionUrl": "/approve/1"
@@ -26,12 +26,12 @@
     }
   ],
   "read": [
-    "8f2563b7-d1db-4d17-a8e1-6ed8c4eb8c54"
+    "0bb085bd-f7b3-4974-8684-85c0996e860f"
   ],
   "archived": [
-    "8f2563b7-d1db-4d17-a8e1-6ed8c4eb8c54"
+    "0bb085bd-f7b3-4974-8684-85c0996e860f"
   ],
   "acknowledged": [
-    "8f2563b7-d1db-4d17-a8e1-6ed8c4eb8c54"
+    "0bb085bd-f7b3-4974-8684-85c0996e860f"
   ]
 }

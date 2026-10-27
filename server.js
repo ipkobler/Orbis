@@ -14,12 +14,20 @@ import { Liveness, defaultConfig as livenessConfig, NOT_REACHABLE } from './live
 import { KeyStore, Verifier, tokenFor, MAX_BODY as HEARTBEAT_MAX_BODY } from './heartbeat.js';
 import { Alerts } from './alerts.js';
 import { HealthRegistry } from './health.js';
+import { NotificationCenter } from './notification-center.js';
+import { CommandRegistry } from './command-palette.js';
+import { VoiceState } from './voice-state.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC = path.join(__dirname, 'public');
 
 const PORT = Number(process.env.PORT || 8080);
 const healthRegistry = new HealthRegistry({ timeoutMs: Number(process.env.HEALTH_TIMEOUT_MS || 3000) });
+const notifications = new NotificationCenter();
+const commands = new CommandRegistry();
+const voiceState = new VoiceState();
+commands.register({id:'health.snapshot',title:'View health',handler:async()=>await healthRegistry.snapshot()});
+commands.register({id:'inbox.list',title:'List inbox',handler:async()=>inboxStore.list({actor:'operator'})});
 const inboxStore = new InboxStore(path.join(process.env.STATE_DIR || '/state', 'inbox.json'));
 healthRegistry.register('process', () => ({ status: 'ok', evidence: { pid: process.pid, uptimeS: Math.round(process.uptime()) } }));
 healthRegistry.register('gateway-transport', () => ({ status: link?.ready ? 'ok' : 'degraded', evidence: { transport: link?.ready ? 'websocket' : 'http' } }));
@@ -981,6 +989,8 @@ async function handleLogin(req, res) {
 }
 const PUBLIC_PATHS = new Set(['/healthz', '/login', '/manifest.webmanifest', '/icon.svg']);
 
+async function handleNotifications(req,res,url){if(req.method==='GET')return send(res,200,{events:notifications.list({severity:url.searchParams.get('severity')||undefined,unreadOnly:url.searchParams.get('unread')==='true',limit:100}),unread:notifications.list({unreadOnly:true,limit:100}).length});let body;try{body=JSON.parse(await readBody(req,64*1024));}catch{return send(res,400,{error:'Bad request body.'});}if(req.method==='POST')return send(res,201,notifications.enqueue(body));if(req.method==='PATCH'){if(body.action==='read')return send(res,200,{ok:notifications.markRead(String(body.id))});if(body.action==='deliver')return send(res,200,await notifications.deliver(String(body.id)));return send(res,400,{error:'Unknown action.'});}return send(res,405,{error:'Method not allowed.'});}
+async function handleCommands(req,res,url){if(req.method==='GET')return send(res,200,{commands:commands.search(url.searchParams.get('q')||'','operator')});let body;try{body=JSON.parse(await readBody(req,64*1024));}catch{return send(res,400,{error:'Bad request body.'});}try{return send(res,200,await commands.execute(String(body.id||''),body.params||{},{actor:'operator',confirm:body.confirm===true,requestId:body.requestId}));}catch(e){return send(res,e.message==='unauthorized'?403:404,{error:e.message});}}
 async function handlePreview(req,res,url){const input=url.searchParams.get('url')||'';const checked=validatePreview(input);if(!checked.ok)return send(res,400,{ok:false,error:checked.reason});const metadata=safeMetadata({'content-type':url.searchParams.get('mime')||''});return send(res,200,{ok:true,url:checked.url,kind:checked.kind,state:'loading',metadata,safe:true});}
 async function handleInbox(req,res,url){const actor=url.searchParams.get('actor')||'*';if(req.method==='GET'){const after=url.searchParams.get('after');const events=inboxStore.list({actor,unreadOnly:url.searchParams.get('unread')==='true',includeArchived:url.searchParams.get('archived')==='true',query:url.searchParams.get('q')||'',limit:Math.min(200,Number(url.searchParams.get('limit')||100))});return send(res,200,{events:after?replay(events,{after,actor}):events,unread:inboxStore.unreadCount(actor)});}let body;try{body=JSON.parse(await readBody(req,64*1024));}catch{return send(res,400,{error:'Bad request body.'});}if(req.method==='POST'){return send(res,201,inboxStore.ingest(body));}if(req.method==='PATCH'){const id=String(body.id||'');if(!id)return send(res,400,{error:'Missing id.'});if(body.action==='acknowledge')inboxStore.acknowledge(id);else if(body.action==='archive')inboxStore.archive(id);else if(body.action==='read')inboxStore.markRead(id);else return send(res,400,{error:'Unknown action.'});return send(res,200,{ok:true,id,action:body.action});}return send(res,405,{error:'Method not allowed.'});}
 
@@ -1003,6 +1013,10 @@ http.createServer(async (req, res) => {
     if (pathname === '/metrics' && req.method === 'GET') return send(res, 200, metricsText(), 'text/plain; version=0.0.4');
     if (pathname === '/api/liveness' && req.method === 'GET') return send(res, 200, livenessReport());
     if (pathname === '/api/health' && req.method === 'GET') return send(res, 200, await healthRegistry.snapshot());
+    if (pathname === '/api/notifications') return await handleNotifications(req, res, new URL(req.url, 'http://x'));
+    if (pathname === '/api/commands') return await handleCommands(req, res, new URL(req.url, 'http://x'));
+    if (pathname === '/api/voice/state' && req.method === 'GET') return send(res, 200, voiceState.snapshot());
+    if (pathname === '/api/voice/state' && req.method === 'PATCH') { let body; try { body=JSON.parse(await readBody(req,4096)); } catch { return send(res,400,{error:'Bad request body.'}); } return send(res,200,voiceState.transition(body.action)); }
     if (pathname === '/api/preview' && req.method === 'GET') return await handlePreview(req, res, new URL(req.url, 'http://x'));
     if (pathname === '/api/inbox') return await handleInbox(req, res, new URL(req.url, 'http://x'));
     if (pathname === '/api/heartbeat/keys') return await handleHeartbeatKeys(req, res, new URL(req.url, 'http://x'));
