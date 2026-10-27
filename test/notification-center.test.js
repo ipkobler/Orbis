@@ -29,5 +29,5 @@ test('routes channels, preserves action links, and protects critical alerts from
   assert.equal((await center.deliver(normal.id)).status, 'suppressed');
   const critical = center.enqueue({ actor: 'main', severity: 'error', channels: ['browser'], action: { href: '/approve/1' }, source: { href: '/runs/1' }, message: 'approve' }).event;
   assert.equal((await center.deliver(critical.id)).status, 'delivered'); assert.equal(delivered[0].action.href, '/approve/1');
-  assert.equal(center.setActionState(critical.id, 'completed'), true); assert.equal(center.list()[0].actionState, 'completed');
+  assert.equal(center.setActionState(critical.id, 'completed'), true); assert.equal(center.list().find(event => event.id === critical.id).actionState, 'completed');
 });
