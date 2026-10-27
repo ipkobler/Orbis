@@ -5,7 +5,7 @@ GET  /v1/voices         -> {"voices": ["forge", "ledger", "main"]}
 GET  /health            -> {"ready": bool, ...}
 
 A voice is a reference clip in /voices named after the agent id: main.mp3, forge.wav, ledger.wav …
-(.wav .mp3 .m4a .flac .ogg). Clips are converted to clean mono WAV and trimmed to 10 seconds, and each
+(.wav or .mp3). Clips are converted to clean mono WAV and must be 10–15 seconds long, and each
 voice is analysed once and kept in memory. BUILTIN_VOICES can give agents without a clip one of Pocket
 TTS's built-in voices, e.g. "scout=alba,dana=jane".
 """
@@ -21,11 +21,13 @@ VOICES_DIR = Path(os.getenv("VOICES_DIR", "/voices"))
 THREADS = int(os.getenv("TORCH_THREADS", "2") or 2)
 MAX_CHARS = int(os.getenv("MAX_CHARS", "600"))
 # Pocket TTS attends to the whole reference clip while speaking, so longer clips make every sentence slower.
-# About 10 seconds clones well; anything longer is trimmed.
-CLIP_SECONDS = float(os.getenv("CLIP_SECONDS", "10"))
+# Ten to fifteen seconds is the accepted reference range.
+MIN_CLIP_SECONDS = float(os.getenv("MIN_CLIP_SECONDS", "10"))
+MAX_CLIP_SECONDS = float(os.getenv("MAX_CLIP_SECONDS", "15"))
+MAX_CLIP_BYTES = int(os.getenv("MAX_CLIP_BYTES", str(10 * 1024 * 1024)))
 BUILTIN = dict(p.split("=", 1) for p in os.getenv("BUILTIN_VOICES", "").replace(" ", "").split(",") if "=" in p)
 VOICE_RE = re.compile(r"^[A-Za-z0-9._-]{1,64}$")
-AUDIO_EXT = (".wav", ".mp3", ".flac", ".ogg", ".m4a")
+AUDIO_EXT = (".wav", ".mp3")
 TMP = Path(tempfile.gettempdir()) / "voice-prompts"
 
 app = FastAPI(title="Kira Orb voice (Pocket TTS)")
@@ -88,17 +90,21 @@ def list_voices() -> list[str]:
 
 
 def prepared_wav(src: Path) -> Path:
-    """Any supported format -> 24 kHz mono 16-bit WAV, trimmed, with leading silence removed."""
+    """Validate and convert an accepted clip to 24 kHz mono 16-bit WAV."""
+    if src.suffix.lower() not in AUDIO_EXT:
+        raise HTTPException(415, "Voice clips must be .wav or .mp3.")
+    if src.stat().st_size > MAX_CLIP_BYTES:
+        raise HTTPException(413, f"Voice clip exceeds the {MAX_CLIP_BYTES // (1024 * 1024)} MB limit.")
     out = TMP / f"{src.stem}.wav"
-    cmd = ["ffmpeg", "-v", "error", "-y", "-i", str(src), "-t", str(CLIP_SECONDS),
+    cmd = ["ffmpeg", "-v", "error", "-y", "-i", str(src),
            "-af", "silenceremove=start_periods=1:start_threshold=-45dB", "-ac", "1", "-ar", "24000", "-sample_fmt", "s16", str(out)]
     r = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
     if r.returncode != 0 or not out.exists():
         raise HTTPException(422, f"Couldn't read voice clip '{src.name}': {r.stderr.strip()[:200]}")
     with wave.open(str(out)) as w:
         secs = w.getnframes() / w.getframerate()
-    if secs < 2.0:
-        raise HTTPException(422, f"Voice clip '{src.name}' has only {secs:.1f}s of speech; use at least 5 seconds.")
+    if secs < MIN_CLIP_SECONDS or secs > MAX_CLIP_SECONDS:
+        raise HTTPException(422, f"Voice clip '{src.name}' must be {MIN_CLIP_SECONDS:.0f}–{MAX_CLIP_SECONDS:.0f} seconds; found {secs:.1f}s.")
     return out
 
 
