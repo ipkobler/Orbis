@@ -7,6 +7,9 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import crypto from 'node:crypto';
 import { GatewayLink } from './gateway.js';
+import { Liveness, defaultConfig as livenessConfig, NOT_REACHABLE } from './liveness.js';
+import { KeyStore, Verifier, tokenFor, MAX_BODY as HEARTBEAT_MAX_BODY } from './heartbeat.js';
+import { Alerts } from './alerts.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC = path.join(__dirname, 'public');
@@ -184,6 +187,93 @@ async function handleConversation(req, res) {
   conversations[agent] = id; saveConversations(); statusAt = 0;
   send(res, 200, { id });
 }
+// ---- heartbeat monitoring: identity, liveness engine, alerts, metrics (docs/heartbeat.md) -------------------
+const LIVE_CFG = livenessConfig(process.env);
+const LIVE_FILE = path.join(STATE_DIR, 'liveness.json');
+const PROBE_INTERVAL_S = Math.max(10, Number(process.env.PROBE_INTERVAL_S) || 30);
+const METRICS_TOKEN = process.env.METRICS_TOKEN || '';
+let livenessSaved = null;
+try { livenessSaved = JSON.parse(await readFile(LIVE_FILE, 'utf8')); } catch { /* first start */ }
+const heartbeatKeys = await new KeyStore({ file: path.join(STATE_DIR, 'heartbeat-keys.json'), overlapS: Number(process.env.KEY_OVERLAP_S) || 600 }).load();
+const verifier = new Verifier({ keys: heartbeatKeys, maxSkewS: Number(process.env.MAX_SKEW_S) || 60 });
+const liveness = new Liveness({ now: () => performance.now(), config: LIVE_CFG, saved: livenessSaved });
+// alerts name agents the way the orb shows them (K.I.R.K.); only called once the server is running
+const spokenName = id => { const l = String(prettyName(id)).replace(/[^A-Za-z0-9]/g, '').toUpperCase(); return l ? l.split('').join('.') + '.' : id; };
+const alerts = new Alerts({ label: spokenName, owner: process.env.HEARTBEAT_ALERT_OWNER || 'operator',
+  webhook: process.env.HEARTBEAT_WEBHOOK_URL || '', alertedThrough: Number(livenessSaved?.alertedThrough) || 0 }).attach(liveness);
+const transitionCounts = new Map();     // `${agent}|${from}|${to}` -> n
+let liveSave = null;
+function saveLiveness() {
+  if (liveSave) return;
+  liveSave = setTimeout(async () => {
+    liveSave = null;
+    try { await mkdir(STATE_DIR, { recursive: true }); await writeFile(LIVE_FILE + '.tmp', JSON.stringify({ ...liveness.toJSON(), alertedThrough: alerts.alertedThrough })); await rename(LIVE_FILE + '.tmp', LIVE_FILE); }
+    catch (e) { console.warn('[kira-orb] could not save liveness state:', e.message); }
+  }, 300);
+}
+liveness.on('transition', tr => {
+  const k = `${tr.agent}|${tr.from}|${tr.to}`; transitionCounts.set(k, (transitionCounts.get(k) || 0) + 1);
+  console.log(`[kira-orb] liveness ${tr.agent}: ${tr.from} → ${tr.to} (${tr.reason})`);
+  statusAt = 0; saveLiveness();
+});
+for (const id of heartbeatKeys.agentsWithKeys()) liveness.setPush(id, true);
+setInterval(() => liveness.evaluate(), LIVE_CFG.tickS * 1000).unref();
+// the gateway probe runs on its own schedule, whether or not anyone has the orb open
+let probeLatencyMs = null;
+setInterval(() => { agentStatus(true).catch(() => {}); }, PROBE_INTERVAL_S * 1000).unref();
+
+async function handleHeartbeat(req, res) {
+  let raw; try { raw = await readBody(req, HEARTBEAT_MAX_BODY, true); } catch { verifier.verify('', ''); return send(res, 400, { error: 'bad_request' }); }
+  const v = verifier.verify(req.headers.authorization, raw);
+  if (!v.ok) return send(res, v.status, { error: v.reason });
+  const state = liveness.beat(v.agent, { status: v.status, progress: v.progress, skewS: v.skewS });
+  send(res, 200, { ok: true, state, interval: LIVE_CFG.intervalS });
+}
+async function handleHeartbeatKeys(req, res, url) {
+  if (req.method === 'GET') return send(res, 200, { keys: heartbeatKeys.list() });
+  if (req.method === 'DELETE') {
+    const agent = url.searchParams.get('agent') || '';
+    if (!AGENT_RE.test(agent)) return send(res, 400, { error: 'Bad agent.' });
+    const n = heartbeatKeys.revoke(agent); liveness.setPush(agent, false); statusAt = 0;
+    return send(res, 200, { revoked: n });
+  }
+  let j; try { j = JSON.parse(await readBody(req, 1024)); } catch { return send(res, 400, { error: 'Bad request body.' }); }
+  const agent = String(j.agent || '');
+  if (!AGENT_RE.test(agent)) return send(res, 400, { error: 'Bad agent.' });
+  const key = heartbeatKeys.issue(agent); liveness.setPush(agent, true); statusAt = 0;
+  console.log(`[kira-orb] heartbeat key ${key.kid} issued for ${agent}`);
+  send(res, 200, { agent, kid: key.kid, token: tokenFor(key), interval: LIVE_CFG.intervalS });   // the only time the secret is ever returned
+}
+function livenessReport() {
+  return { config: LIVE_CFG, agents: liveness.snapshot(), transitions: liveness.history.slice(-50), alerts: alerts.recent.slice(-50),
+    keys: heartbeatKeys.list(), rejected: Object.fromEntries(verifier.rejected) };
+}
+function metricsText() {
+  const L = [], esc = v => String(v).replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+  const help = (n, t, h) => L.push(`# HELP ${n} ${h}`, `# TYPE ${n} ${t}`);
+  const snap = liveness.snapshot();
+  help('orb_liveness_state', 'gauge', '1 for the agent\'s current liveness state');
+  for (const a of snap) for (const st of ['UNKNOWN', 'HEALTHY', 'LATE', 'DEGRADED', 'STALLED', 'DOWN']) L.push(`orb_liveness_state{agent="${esc(a.agent)}",state="${st}"} ${a.state === st ? 1 : 0}`);
+  help('orb_liveness_heartbeat_age_seconds', 'gauge', 'seconds since the last accepted heartbeat');
+  for (const a of snap) if (a.heartbeatAgeS != null) L.push(`orb_liveness_heartbeat_age_seconds{agent="${esc(a.agent)}"} ${a.heartbeatAgeS}`);
+  help('orb_liveness_transitions_total', 'counter', 'liveness transitions since the orb started');
+  for (const [k, n] of transitionCounts) { const [a, f, t] = k.split('|'); L.push(`orb_liveness_transitions_total{agent="${esc(a)}",from="${f}",to="${t}"} ${n}`); }
+  help('orb_heartbeats_accepted_total', 'counter', 'accepted heartbeats');
+  for (const a of snap) L.push(`orb_heartbeats_accepted_total{agent="${esc(a.agent)}"} ${a.beats}`);
+  help('orb_heartbeats_rejected_total', 'counter', 'rejected heartbeats by reason');
+  for (const [r, n] of verifier.rejected) L.push(`orb_heartbeats_rejected_total{reason="${esc(r)}"} ${n}`);
+  help('orb_heartbeat_clock_skew_seconds', 'gauge', 'server wall clock minus the sender timestamp on the last accepted beat');
+  for (const a of snap) if (a.skewS != null) L.push(`orb_heartbeat_clock_skew_seconds{agent="${esc(a.agent)}"} ${a.skewS}`);
+  help('orb_probe_ok', 'gauge', '1 if the last gateway probe listed the agent');
+  for (const a of snap) if (a.probe != null) L.push(`orb_probe_ok{agent="${esc(a.agent)}"} ${a.probe ? 1 : 0}`);
+  help('orb_probe_latency_ms', 'gauge', 'latency of the last gateway probe');
+  if (probeLatencyMs != null) L.push(`orb_probe_latency_ms ${probeLatencyMs}`);
+  help('orb_alerts_total', 'counter', 'alerts by severity, sink and result');
+  for (const [k, n] of alerts.counts) { const [sev, sink, result] = k.split('|'); L.push(`orb_alerts_total{severity="${sev}",sink="${sink}",result="${result}"} ${n}`); }
+  return L.join('\n') + '\n';
+}
+const bearerOk = req => !!METRICS_TOKEN && (req.headers.authorization || '') === `Bearer ${METRICS_TOKEN}`;
+
 // Media the gateway serves (generated images, files): the browser fetches them through /api/media.
 const MEDIA_RE = /^\/(?:api\/chat\/media\/|__openclaw__\/assistant-media)/;
 const mediaUrl = u => (typeof u === 'string' && MEDIA_RE.test(u)) ? `/api/media?u=${encodeURIComponent(u)}` : (typeof u === 'string' && /^https:\/\//.test(u) ? u : null);
@@ -312,6 +402,8 @@ async function agentStatus(force = false) {
   if (ALLOW.length) ids = ids.filter(id => ALLOW.includes(id));
   ids.sort((a, b) => (a === DEFAULT_AGENT ? -1 : b === DEFAULT_AGENT ? 1 : a.localeCompare(b)));
 
+  probeLatencyMs = latencyMs;
+  for (const id of ids) liveness.probe(id, !!gatewayIds && gatewayIds.includes(id));
   const [souls, voice] = await Promise.all([soulTitles(ids), voiceStatus(force)]);
   const agents = ids.map(id => {
     let online = true, reason = null;
@@ -319,10 +411,12 @@ async function agentStatus(force = false) {
     else if (!gatewayIds.includes(id)) { online = false; reason = 'Not found in OpenClaw'; }
     // a failed request greys the agent out for a minute only, so one model hiccup can't lock the orb out
     else if (failures.has(id) && Date.now() - failures.get(id).at < 60000) { online = false; reason = failures.get(id).reason; }
-    return { id, label: prettyName(id), title: souls[id] || TITLES[id] || null, color: pickedColors[id]?.color || COLORS[id] || null, accent: pickedColors[id]?.accent || null, online, reason,
+    const lv = liveness.snapshot().find(x => x.agent === id) || { state: 'UNKNOWN', mode: 'probe', heartbeatAgeS: null };
+    if (online && NOT_REACHABLE.has(lv.state)) { online = false; reason = lv.state === 'STALLED' ? (lv.heartbeatAgeS == null ? 'Stalled: no heartbeat yet' : `Stalled: no heartbeat for ${lv.heartbeatAgeS} s`) : 'Offline: missed heartbeats'; }
+    return { id, liveness: { state: lv.state, mode: lv.mode, heartbeatAgeS: lv.heartbeatAgeS }, label: prettyName(id), title: souls[id] || TITLES[id] || null, color: pickedColors[id]?.color || COLORS[id] || null, accent: pickedColors[id]?.accent || null, online, reason,
       voice: voice.ready && voice.voices.includes(id) };
   });
-  statusCache = { gateway: { online: !!gatewayIds, latencyMs, error: gatewayError }, link: linkStatus(), conversations, voice, user: { icon: userProfile.icon || null }, agents, default: DEFAULT_AGENT, checkedAt: new Date().toISOString() };
+  statusCache = { gateway: { online: !!gatewayIds, latencyMs, error: gatewayError }, link: linkStatus(), conversations, voice, user: { icon: userProfile.icon || null }, alerts: alerts.recent.slice(-20), agents, default: DEFAULT_AGENT, checkedAt: new Date().toISOString() };
   statusAt = Date.now();
   return statusCache;
 }
@@ -883,6 +977,9 @@ http.createServer(async (req, res) => {
   const { pathname } = new URL(req.url, 'http://x');
   try {
     if (pathname === '/healthz') return send(res, 200, { ok: true });
+    // agents' heartbeats authenticate with their own signed keys, not the sign-in cookie
+    if (pathname === '/api/heartbeat' && req.method === 'POST') return await handleHeartbeat(req, res);
+    if (pathname === '/metrics' && bearerOk(req)) return send(res, 200, metricsText(), 'text/plain; version=0.0.4');
     if (AUTH_ON) {
       if (pathname === '/login' && req.method === 'POST') return await handleLogin(req, res);
       if (pathname === '/login') { res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', ...SECURITY_HEADERS }); return res.end(loginPage()); }
@@ -892,6 +989,9 @@ http.createServer(async (req, res) => {
         res.writeHead(303, { Location: '/login' }); return res.end();
       }
     }
+    if (pathname === '/metrics' && req.method === 'GET') return send(res, 200, metricsText(), 'text/plain; version=0.0.4');
+    if (pathname === '/api/liveness' && req.method === 'GET') return send(res, 200, livenessReport());
+    if (pathname === '/api/heartbeat/keys') return await handleHeartbeatKeys(req, res, new URL(req.url, 'http://x'));
     if (pathname === '/api/agents' && req.method === 'GET') return send(res, 200, await agentStatus(new URL(req.url, 'http://x').searchParams.has('refresh')));
     if (pathname === '/api/chat' && req.method === 'POST') return await handleChat(req, res);
     if (pathname === '/api/tts' && req.method === 'POST') return await handleTts(req, res);

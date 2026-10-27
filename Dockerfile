@@ -1,6 +1,7 @@
 FROM node:22-alpine
 WORKDIR /app
-COPY package.json server.js gateway.js ./
+COPY package.json server.js gateway.js liveness.js heartbeat.js alerts.js ./
+COPY tools ./tools
 COPY public ./public
 # /state keeps the orb's device key (its approval in OpenClaw) and the shared conversation list
 RUN mkdir -p /state && chown node:node /state

@@ -175,6 +175,8 @@ header { grid-area: head; display: flex; align-items: center; gap: 10px; flex-wr
 .agent:hover { background: color-mix(in srgb, var(--panel) 70%, transparent); }
 .agent[aria-current="true"] { background: var(--panel); border-color: color-mix(in srgb, var(--c) 45%, var(--line)); }
 .agent .dot { grid-row: span 2; width: 10px; height: 10px; border-radius: 50%; background: var(--off); }
+.agent.on.warn .dot { box-shadow: 0 0 0 3px color-mix(in srgb, var(--amber) 45%, transparent), 0 0 12px var(--amber); }
+.agent.on.warn .st { color: var(--amber) !important; }
 .agent.on .dot { background: var(--c); box-shadow: 0 0 0 3px color-mix(in srgb, var(--c) 18%, transparent), 0 0 12px var(--c); }
 .agent.on.busy .dot { animation: beat 1s ease-in-out infinite; }
 .agent .nm { font: 600 15px/1.1 var(--f-display); letter-spacing: .12em; }
@@ -347,6 +349,25 @@ form.ask.chatask { margin-top: 2px; }
 .acrow input[type=color] { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; border: 0; padding: 0; }
 .acrow button { border: 1px solid var(--line); background: var(--panel); color: var(--dim); border-radius: 8px; padding: 6px 9px; cursor: pointer; font: 12px var(--f-body); }
 .avrow button { border: 1px solid var(--line); background: var(--panel); color: var(--ink); border-radius: 8px; padding: 6px 9px; cursor: pointer; font: 12px var(--f-body); }
+
+/* ---------- liveness alerts ---------- */
+.toasts { position: fixed; top: 64px; left: 50%; transform: translateX(-50%); z-index: 45; display: grid; gap: 8px; width: min(460px, calc(100% - 32px)); pointer-events: none; }
+.toast { pointer-events: auto; display: flex; gap: 10px; align-items: flex-start; padding: 11px 14px; border-radius: 12px; background: color-mix(in srgb, var(--panel) 94%, transparent);
+  border: 1px solid var(--line); box-shadow: 0 14px 40px -16px #000; font-size: 14px; animation: rise .3s ease both; cursor: pointer; }
+.toast i { width: 9px; height: 9px; border-radius: 50%; margin-top: 5px; flex: none; }
+.toast.critical { border-color: color-mix(in srgb, var(--alert) 60%, var(--line)); } .toast.critical i { background: var(--alert); box-shadow: 0 0 10px var(--alert); }
+.toast.warning { border-color: color-mix(in srgb, var(--amber) 60%, var(--line)); } .toast.warning i { background: var(--amber); box-shadow: 0 0 10px var(--amber); }
+.toast.resolved { border-color: color-mix(in srgb, #3ee08f 50%, var(--line)); } .toast.resolved i { background: #3ee08f; box-shadow: 0 0 10px #3ee08f; }
+.toast small { display: block; color: var(--dim); font: 11px/1.4 var(--f-mono); margin-top: 2px; }
+.hbrow { display: grid; grid-template-columns: 9px minmax(0, 1fr) auto; align-items: center; gap: 4px 10px; padding: 8px 0; border-top: 1px solid var(--line); }
+.hbrow i { width: 8px; height: 8px; border-radius: 50%; }
+.hbrow b { font: 600 12px/1.2 var(--f-display); letter-spacing: .1em; }
+.hbrow small { grid-column: 2 / -1; color: var(--dim); font: 11px/1.4 var(--f-mono); }
+.hbrow .hbacts { display: flex; gap: 6px; }
+.hbrow .hbacts button { border: 1px solid var(--line); background: var(--panel); color: var(--ink); border-radius: 8px; padding: 5px 8px; cursor: pointer; font: 11px var(--f-body); }
+.hbtoken { grid-column: 1 / -1; display: grid; gap: 6px; padding: 10px; border: 1px dashed var(--amber); border-radius: 10px; background: color-mix(in srgb, var(--amber) 7%, transparent); font-size: 12px; }
+.hbtoken code { font: 11px/1.45 var(--f-mono); overflow-wrap: anywhere; background: var(--void); border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; user-select: all; }
+.lv-HEALTHY { background: #3ee08f; } .lv-LATE, .lv-DEGRADED { background: var(--amber); } .lv-STALLED, .lv-DOWN { background: var(--alert); } .lv-UNKNOWN { background: var(--off); }
 
 /* ---------- chat icons and Chat Mode (full screen, like ChatGPT) ---------- */
 .chat-orb { width: 22px; height: 22px; flex: none; border-radius: 50%; }
@@ -530,6 +551,8 @@ form.ask.chatask { margin-top: 2px; }
     <div class="field"><label for="engine">Agent voices</label><select id="engine"><option value="clone">Cloned agent voices (Pocket TTS)</option><option value="browser">Browser voice</option></select></div>
     <p class="note" id="voiceNote"></p>
     <div class="field"><span class="label">Browser voice for each agent</span><div id="agentVoices" class="avlist"></div></div>
+    <div class="field"><span class="label">Heartbeat monitoring</span><div id="hbList"></div>
+      <p class="note">Agents with a key send signed heartbeats; the orb also checks each agent through the gateway. A stalled or disconnected agent is flagged within about 1½ minutes and you get one alert per change. Setup: <code>docs/heartbeat.md</code>.</p></div>
     <div class="field"><span class="label">Your chat icon</span>
       <div class="uirow"><span class="you-av big" id="userIconPreview"></span>
         <button class="btn" id="userIconPick" type="button">Choose picture</button><button class="btn" id="userIconClear" type="button">Remove</button>
@@ -550,6 +573,7 @@ form.ask.chatask { margin-top: 2px; }
 </div>
 
 <div class="drop" id="drop" hidden>Drop files for the agent</div>
+<div class="toasts" id="toasts" aria-live="assertive"></div>
 
 <div class="boot" id="boot" role="status" aria-label="K.I.B.I. startup">
   <canvas class="boot-fx" id="bootFx" aria-hidden="true"></canvas>
@@ -669,7 +693,10 @@ form.ask.chatask { margin-top: 2px; }
       b.classList.toggle('busy', me && ['listening', 'thinking', 'speaking'].includes(state));
       b.setAttribute('aria-current', me ? 'true' : 'false');
       b.querySelector('.nm').textContent = acronym(a.label);
-      b.querySelector('.st').textContent = !a.online ? (a.reason || 'Offline') : me && state !== 'idle' && state !== 'offline' ? STATES[state] : 'Online';
+      const lv = a.liveness?.state, warnLv = a.online && (lv === 'LATE' || lv === 'DEGRADED');
+      b.classList.toggle('warn', !!warnLv);
+      b.querySelector('.st').textContent = !a.online ? (a.reason || 'Offline') : me && state !== 'idle' && state !== 'offline' ? STATES[state]
+        : warnLv ? (lv === 'LATE' ? `Late · ${a.liveness.heartbeatAgeS ?? '–'} s` : 'Degraded') : 'Online';
       b.title = `${acronym(a.label)}: ${a.online ? 'online' : 'offline' + (a.reason ? ' (' + a.reason + ')' : '')}`;
     });
     const on = agents.filter(a => a.online).length;
@@ -722,16 +749,18 @@ form.ask.chatask { margin-top: 2px; }
       if (j.conversations) syncConversations(j.conversations);
       if (!wasLinked && linkInfo?.state === 'online') historyLoaded[agent] = null;   // full link just came up: fetch the conversation
       if (j.default) store.set('home', j.default);
+      if (Array.isArray(j.alerts)) showAlerts(j.alerts);
       if (!agent || !agents.some(a => a.id === agent)) agent = j.default || agents[0]?.id;
     } catch {
       if (!agents.length) { DEMO = true; $('demoTag').hidden = false; const saved = store.get('colors', {}); agents = DEMO_AGENTS.map(a => ({ ...a, ...(saved[a.id] || {}) })); gateway = { online: true, latencyMs: 38 }; if (!agents.some(a => a.id === agent)) agent = 'main'; }
       else { gateway = { online: false, error: 'Orb server unreachable' }; agents = agents.map(a => ({ ...a, online: false, reason: 'Orb server unreachable' })); }
     }
-    nameplate(); applyColor(); renderGateway(); syncOnline(false); renderVoiceNote(); renderLinkNote();
+    nameplate(); applyColor(); renderGateway(); syncOnline(false); renderRoster(); renderVoiceNote(); renderLinkNote();   // the roster refreshes even while the selected agent is offline
     if (linkInfo?.state === 'online') loadHistory();
     watchSession();
     const sig = agents.map(a => a.id + a.label + (a.color || '') + (a.accent || '')).join();
     if (sig !== lastVoiceAgents) { lastVoiceAgents = sig; renderAgentVoices(); renderAgentColors(); }
+    if (!$('setSheet').hidden) renderHb();
     if (!$('logSheet').hidden) renderChatAgents();
   }
   setInterval(() => { if (document.visibilityState === 'visible' && !poweredDown) poll(); }, 15000);
@@ -1120,6 +1149,66 @@ form.ask.chatask { margin-top: 2px; }
     return out;
   }
   let resolvedVoices = {};
+  // ---------- liveness alerts ----------
+  // The server decides liveness and raises one alert per state change; the orb just shows each alert once per device.
+  let alertSeen = store.get('alertSeen', null);
+  function showAlerts(list) {
+    const newest = list.reduce((m, a) => Math.max(m, a.transition || 0), 0);
+    if (alertSeen == null || newest < alertSeen) { alertSeen = newest; store.set('alertSeen', alertSeen); return; }   // first load / server state reset: don't replay old ones
+    for (const a of list) {
+      if (!(a.transition > alertSeen)) continue;
+      const t = document.createElement('div'); t.className = 'toast ' + a.severity; t.setAttribute('role', 'status');
+      t.innerHTML = '<i></i><div><span></span><small></small></div>';
+      t.querySelector('span').textContent = a.message;
+      t.querySelector('small').textContent = `${a.from} → ${a.to} · ${new Date(a.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} · ${a.owner}`;
+      t.addEventListener('click', () => t.remove());
+      $('toasts').append(t); setTimeout(() => t.remove(), a.severity === 'critical' ? 20000 : 9000);
+      while ($('toasts').children.length > 4) $('toasts').firstChild.remove();
+    }
+    alertSeen = newest; store.set('alertSeen', alertSeen);
+  }
+  // ---------- heartbeat keys (Settings) ----------
+  let hbKeys = [], hbFresh = null;     // hbFresh: { agent, token } shown once right after it's made
+  const LV_TEXT = { HEALTHY: 'Healthy', LATE: 'Late', DEGRADED: 'Degraded', STALLED: 'Stalled', DOWN: 'Offline', UNKNOWN: 'Checking' };
+  async function loadHbKeys() { if (DEMO) return; try { const r = await fetch('/api/heartbeat/keys'); if (r.ok) hbKeys = (await r.json()).keys || []; } catch {} renderHb(); }
+  async function hbAction(agentId, method) {
+    if (method === 'DELETE' && !confirm(`Revoke the heartbeat key for ${acronym(agents.find(a => a.id === agentId)?.label || agentId)}? It goes back to gateway checks only.`)) return;
+    try {
+      const r = method === 'DELETE' ? await fetch('/api/heartbeat/keys?agent=' + encodeURIComponent(agentId), { method })
+        : await fetch('/api/heartbeat/keys', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ agent: agentId }) });
+      const j = await r.json(); if (!r.ok) throw new Error(j.error || r.status);
+      hbFresh = method === 'DELETE' ? null : { agent: agentId, token: j.token };
+    } catch (e) { caption(`<span class="err">Heartbeat key: ${esc(e.message)}</span>`); }
+    await loadHbKeys(); poll(true);
+  }
+  function renderHb() {
+    const box = $('hbList'); if (!box) return;
+    box.textContent = '';
+    if (DEMO) { box.innerHTML = '<p class="note">Available on your server.</p>'; return; }
+    const keyed = new Set(hbKeys.filter(k => !k.expires).map(k => k.agent));
+    for (const a of agents) {
+      const lv = a.liveness || { state: 'UNKNOWN', mode: 'probe' };
+      const row = document.createElement('div'); row.className = 'hbrow';
+      row.innerHTML = '<i></i><b></b><span class="hbacts"></span><small></small>';
+      row.querySelector('i').className = 'lv-' + lv.state;
+      row.querySelector('b').textContent = acronym(a.label);
+      row.querySelector('small').textContent = `${LV_TEXT[lv.state] || lv.state} · ${keyed.has(a.id) ? 'heartbeats + gateway' : 'gateway checks only'}${lv.heartbeatAgeS != null ? ` · last beat ${lv.heartbeatAgeS} s ago` : ''}`;
+      const acts = row.querySelector('.hbacts');
+      const btn = (label, fn) => { const x = document.createElement('button'); x.type = 'button'; x.textContent = label; x.addEventListener('click', fn); acts.append(x); };
+      if (keyed.has(a.id)) { btn('Rotate key', () => hbAction(a.id, 'POST')); btn('Revoke', () => hbAction(a.id, 'DELETE')); }
+      else btn('Create key', () => hbAction(a.id, 'POST'));
+      if (hbFresh?.agent === a.id) {
+        const tk = document.createElement('div'); tk.className = 'hbtoken';
+        tk.innerHTML = '<span><b>Copy this key now.</b> It won\'t be shown again.</span><code></code><span>Then run the sender next to the agent:</span><code></code>';
+        const codes = tk.querySelectorAll('code');
+        codes[0].textContent = hbFresh.token;
+        codes[1].textContent = `HEARTBEAT_TOKEN=${hbFresh.token} AGENT=${a.id} ORB_URL=http://kira-orb:8080 node tools/heartbeat.mjs`;
+        row.append(tk);
+      }
+      box.append(row);
+    }
+  }
+
   // ---------- agent colours (Settings) ----------
   // Picked colours are saved on the orb server per agent id, so every device matches and a rename keeps them.
   const colorTimers = {};
@@ -1626,13 +1715,23 @@ form.ask.chatask { margin-top: 2px; }
   const isSignOut = t => !!window.__ORB_SERVER__ && (SIGNOUT_RE.test(t.trim()) || SHUTSYS_RE.test(t.trim()));
   // Calling another agent: "Switch to Forge", "Call Ledger", "Talk to Kirk", "Kirk, get me Forge", "Put me through to Ledger".
   // Only names of your own agents count, so "call my wife" still goes to the agent as a normal request.
-  const SWITCH_RE = /^(?:(?:hey|ok|okay)\s+)?(?:[a-z0-9]+\s+)?(?:please\s+)?(?:(?:can|could|would) you\s+)?(?:(?:switch|change|swap|go|move|transfer|hand|pass|flip)(?:\s+(?:me|it|this|us))?(?:\s+(?:back|over))?\s+to|call(?:\s+up)?|get(?:\s+me)?|summon|wake(?:\s+up)?|bring(?:\s+(?:up|in|me))?|connect(?:\s+me)?(?:\s+(?:to|with))?|(?:let me|i want to|i d like to|i would like to)?\s*(?:talk|speak|chat)\s+(?:to|with)|put me (?:through|over) to|patch me(?:\s+through)? to|give me)\s+(?:agent\s+)?([a-z0-9 ]{2,40}?)(?:\s+(?:please|now|for me|instead))?$/;
+  const SWITCH_RE = /^(?:(?:hey|ok|okay)\s+)?(?:[a-z0-9]+\s+)?(?:please\s+)?(?:(?:can|could|would) you\s+)?(?:(?:switch|change|swap|go|move|transfer|hand|pass|flip)(?:\s+(?:me|it|this|us))?(?:\s+(?:back|over))?\s+to|call(?:\s+up)?|get(?:\s+me)?|summon|wake(?:\s+up)?|bring(?:\s+(?:up|in|me))?|connect(?:\s+me)?(?:\s+(?:to|with))?|(?:let me|i want to|i d like to|i would like to)?\s*(?:talk|speak|chat)\s+(?:to|with)|put me (?:through|over) to|patch me(?:\s+through)? to|give me)\s+(?:the\s+)?(?:agent\s+)?([a-z0-9 ]{2,40}?)(?:\s+(?:please|now|for me|instead))?$/;
   const squash = n => String(n || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  // Every name an agent answers to: its id, its display name, each word of a longer display name ("Forge Engineer"),
+  // and its acronym letters, so "Forge", "F.O.R.G.E." and "forge" all find it.
+  function agentNames(a) {
+    const names = new Set([squash(a.id), squash(a.label)]);
+    for (const w of String(a.label || '').split(/[^A-Za-z0-9]+/)) if (w.length >= 3) names.add(squash(w));
+    for (const w of String(a.id || '').split(/[^A-Za-z0-9]+/)) if (w.length >= 3) names.add(squash(w));
+    names.delete(''); return names;
+  }
   function switchTarget(text) {
     const t = String(text).toLowerCase().replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
     const m = SWITCH_RE.exec(t); if (!m) return null;
-    const want = squash(m[1]);
-    return agents.find(a => squash(a.label) === want || squash(a.id) === want) || null;
+    const want = squash(m[1]); if (!want) return null;
+    return agents.find(a => agentNames(a).has(want))
+      || agents.find(a => [...agentNames(a)].some(n => n.length >= 4 && (want.startsWith(n) || n.startsWith(want) && want.length >= 4)))
+      || null;
   }
   const isSwitch = t => !!(t && switchTarget(t));
   function switchAgent(a) {
@@ -1866,7 +1965,7 @@ form.ask.chatask { margin-top: 2px; }
       $('chatFullBtn').textContent = chatFull ? 'Exit full screen' : 'Full screen'; $('chatFullBtn').setAttribute('aria-pressed', String(chatFull)); renderChatAgents(); renderLinkNote(); renderLog(); loadHistory(); if (!MOBILE) setTimeout(() => $('chatText').focus(), 50); }
   };
   $('logBtn').addEventListener('click', () => toggleSheet('logSheet'));
-  $('setBtn').addEventListener('click', () => { renderAgentColors(); toggleSheet('setSheet'); });
+  $('setBtn').addEventListener('click', () => { renderAgentColors(); hbFresh = null; loadHbKeys(); toggleSheet('setSheet'); });
   document.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click', () => $(b.dataset.close).hidden = true));
   $('newConv').addEventListener('click', () => {
     stopAll(); const all = store.get('conv', {}); all[agent] = newId(); store.set('conv', all);
