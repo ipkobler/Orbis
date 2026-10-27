@@ -4,6 +4,6 @@
   "private": true,
   "type": "module",
   "description": "Jarvis-style talking orb front end for an OpenClaw gateway",
-  "scripts": { "start": "node server.js" },
+  "scripts": { "start": "node server.js", "test": "node --test" },
   "engines": { "node": ">=22.4" }
 }
