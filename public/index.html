@@ -1536,7 +1536,15 @@ form.ask.chatask { margin-top: 2px; }
     t = t.replace(/[,;:]+$/, '.');
     return t.replace(/(^|[.!?]\s+)([a-z])/g, (_, p, c) => p + c.toUpperCase());   // capitalised sentence starts sound more natural
   }
+  const voiceSilenced = () => { try { return sessionStorage.getItem('kibi.voice.preference') === 'silent'; } catch { return false; } };
+  // the Voice toggle in the header (silent-mode.js): going silent stops whatever is being said now, too
+  addEventListener('kibi-voice', e => {
+    if (!e.detail?.silent) return;
+    stopAgentVoice(); synth?.cancel(); speakQueue = 0;
+    if (state === 'speaking') finishTurn();
+  });
   function speak(text, who = agent) {
+    if (voiceSilenced()) return;       // text replies still show in full
     const t = speakable(speechify(text));
     if (!t || !speakOn) return;
     if (usesAgentVoice(who)) return queueAgentVoice(t, who);

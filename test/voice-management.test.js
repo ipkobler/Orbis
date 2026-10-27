@@ -13,7 +13,7 @@ async function profiles() {
 
 test('exposes the approved voice policy', () => {
   assert.deepEqual(VOICE_POLICY.formats, ['wav', 'mp3']);
-  assert.equal(VOICE_POLICY.minSeconds, 10);
+  assert.equal(VOICE_POLICY.minSeconds, 5);
   assert.equal(VOICE_POLICY.maxSeconds, 15);
   assert.equal(VOICE_POLICY.retentionDays, 30);
 });
@@ -30,7 +30,8 @@ test('rejects unsupported, oversized, and out-of-range clips', async () => {
   const v = await profiles();
   assert.throws(() => v.upsert('main', 'local', clip('ogg')));
   assert.throws(() => v.upsert('main', 'local', { ...clip(), bytes: VOICE_POLICY.maxBytes + 1 }));
-  assert.throws(() => v.upsert('main', 'local', clip('wav', 9)));
+  assert.throws(() => v.upsert('main', 'local', clip('wav', 4)));
+  assert.doesNotThrow(() => v.upsert('main', 'local', clip('wav', 5.5)));
   assert.throws(() => v.upsert('main', 'local', clip('wav', 16)));
 });
 

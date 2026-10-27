@@ -6,3 +6,6 @@ node_modules/
 __pycache__/
 *.pyc
 *.log
+# runtime and test state (device keys, inboxes) never belongs in the repo
+state/
+$null
