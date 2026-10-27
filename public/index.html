@@ -104,6 +104,9 @@ header { grid-area: head; display: flex; align-items: center; gap: 10px; flex-wr
   text-shadow: 0 0 28px color-mix(in srgb, var(--kibi) 70%, transparent); opacity: 0; animation: rise .9s .1s ease forwards; }
 .kb-sub { font: 500 clamp(9px, 1.7vw, 12px)/1.3 var(--f-display); letter-spacing: .48em; padding-left: .48em; color: var(--kibi); display: flex; align-items: center; gap: 12px; opacity: 0; animation: rise .9s .35s ease forwards; }
 .kb-sub::before, .kb-sub::after { content: ""; height: 1px; width: 0; background: var(--kibi); opacity: .6; animation: grow 1s .6s ease forwards; }
+.kb-ver { font: 600 11px/1 var(--f-mono); letter-spacing: .32em; padding: 5px 9px 5px calc(9px + .32em); color: var(--kibi);
+  border: 1px solid color-mix(in srgb, var(--kibi) 70%, transparent); border-radius: 999px; background: color-mix(in srgb, var(--kibi) 10%, transparent);
+  box-shadow: 0 0 14px -4px var(--kibi); opacity: 0; animation: rise .9s .45s ease forwards; }
 .kb-co { font: 500 10px/1 var(--f-display); letter-spacing: .32em; padding-left: .32em; color: var(--dim); opacity: 0; animation: rise .9s .55s ease forwards; }
 @keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 @keyframes grow { to { width: 40px; } }
@@ -554,6 +557,7 @@ form.ask.chatask { margin-top: 2px; }
     <div class="kb">
       <div class="kb-name">K.I.B.I.</div>
       <div class="kb-sub">Kobler Interactive Bot Interface</div>
+      <div class="kb-ver" id="kbVer">V1</div>
       <div class="kb-co">Finnesey &amp; Kobler · The Model Shop</div>
     </div>
     <div class="kb-head" id="bootHead"></div>
@@ -566,7 +570,7 @@ form.ask.chatask { margin-top: 2px; }
   </div>
   <div class="boot-sleep" id="bootSleep" hidden>
     <i></i>
-    <div class="label">K.I.B.I. offline</div>
+    <div class="label">K.I.B.I. V1 offline</div>
     <div class="hint2">Tap or press any key to power up</div>
   </div>
 </div>
@@ -717,6 +721,7 @@ form.ask.chatask { margin-top: 2px; }
       const wasLinked = linkInfo?.state === 'online'; linkInfo = j.link || null;
       if (j.conversations) syncConversations(j.conversations);
       if (!wasLinked && linkInfo?.state === 'online') historyLoaded[agent] = null;   // full link just came up: fetch the conversation
+      if (j.default) store.set('home', j.default);
       if (!agent || !agents.some(a => a.id === agent)) agent = j.default || agents[0]?.id;
     } catch {
       if (!agents.length) { DEMO = true; $('demoTag').hidden = false; const saved = store.get('colors', {}); agents = DEMO_AGENTS.map(a => ({ ...a, ...(saved[a.id] || {}) })); gateway = { online: true, latencyMs: 38 }; if (!agents.some(a => a.id === agent)) agent = 'main'; }
@@ -1619,11 +1624,30 @@ form.ask.chatask { margin-top: 2px; }
   // "Shutdown system" / "Shut down the system" / "System shutdown": full shutdown sequence, then sign out
   const SHUTSYS_RE = /^\W*(?:(?:hey|ok|okay)\s+)?(?:[a-z.]+[,:]?\s+)?(?:please\s+)?(?:(?:shut\s*down|power\s*(?:down|off))(?:\s+(?:the|your))?\s+(?:whole\s+|entire\s+)?system|system\s+shut\s*down)(?:\s+(?:now|please))?\W*$/i;
   const isSignOut = t => !!window.__ORB_SERVER__ && (SIGNOUT_RE.test(t.trim()) || SHUTSYS_RE.test(t.trim()));
+  // Calling another agent: "Switch to Forge", "Call Ledger", "Talk to Kirk", "Kirk, get me Forge", "Put me through to Ledger".
+  // Only names of your own agents count, so "call my wife" still goes to the agent as a normal request.
+  const SWITCH_RE = /^(?:(?:hey|ok|okay)\s+)?(?:[a-z0-9]+\s+)?(?:please\s+)?(?:(?:can|could|would) you\s+)?(?:(?:switch|change|swap|go|move|transfer|hand|pass|flip)(?:\s+(?:me|it|this|us))?(?:\s+(?:back|over))?\s+to|call(?:\s+up)?|get(?:\s+me)?|summon|wake(?:\s+up)?|bring(?:\s+(?:up|in|me))?|connect(?:\s+me)?(?:\s+(?:to|with))?|(?:let me|i want to|i d like to|i would like to)?\s*(?:talk|speak|chat)\s+(?:to|with)|put me (?:through|over) to|patch me(?:\s+through)? to|give me)\s+(?:agent\s+)?([a-z0-9 ]{2,40}?)(?:\s+(?:please|now|for me|instead))?$/;
+  const squash = n => String(n || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  function switchTarget(text) {
+    const t = String(text).toLowerCase().replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
+    const m = SWITCH_RE.exec(t); if (!m) return null;
+    const want = squash(m[1]);
+    return agents.find(a => squash(a.label) === want || squash(a.id) === want) || null;
+  }
+  const isSwitch = t => !!(t && switchTarget(t));
+  function switchAgent(a) {
+    stopListening();
+    if (a.id === agent) { caption(`<span class="you">You're already talking to ${esc(acronym(a.label))}</span>`); if (a.online) speak(`${a.label} here.`, a.id); return; }
+    selectAgent(a.id);
+    if (!$('logSheet').hidden) renderChatAgents();
+    if (a.online) { caption(`<span class="you">Switched to ${esc(acronym(a.label))}</span>`); speak(`${a.label} here.`, a.id); }
+  }
   async function send(text) {
+    if (text && isSwitch(text)) { switchAgent(switchTarget(text)); return; }
     if (text && isSignOut(text)) { stopListening(); powerDown({ signOut: true }); return; }
     if (text && SHUTSYS_RE.test(text.trim())) { stopListening(); powerDown(); return; }   // preview: no sign-out, just shut down
     if (text && isPowerDown(text)) { stopListening(); powerDown(); return; }
-    if ((!text && !attachments.length) || state === 'offline') return;
+    if ((!text && !attachments.length) || state === 'offline') return;   // (switch and power commands are handled above)
     // the same words twice within a few seconds (a double tap, a recogniser repeat) count once
     const sig = text.trim().toLowerCase();
     if (!attachments.length && sig && sig === lastSent.sig && Date.now() - lastSent.at < 4000) return;
@@ -1806,7 +1830,7 @@ form.ask.chatask { margin-top: 2px; }
   $('mic').addEventListener('click', orbTap);
   $('ask').addEventListener('submit', e => {
     e.preventDefault(); const v = $('text').value.trim(); if (!v && !attachments.length) return;
-    if (state === 'offline' && !isPowerDown(v) && !isSignOut(v)) { caption(`<span class="you">${esc(currentLabel())} is offline. Messages can't be sent until it's back.</span>`); return; }
+    if (state === 'offline' && !isPowerDown(v) && !isSignOut(v) && !isSwitch(v)) { caption(`<span class="you">${esc(currentLabel())} is offline. Messages can't be sent until it's back.</span>`); return; }
     $('text').value = ''; fitText(); stopListening(); send(v);
   });
   // Enter sends; Shift+Enter starts a new line. The box grows with the text, up to about six lines.
@@ -1822,7 +1846,7 @@ form.ask.chatask { margin-top: 2px; }
   });
   $('chatAsk').addEventListener('submit', e => {
     e.preventDefault(); const v = $('chatText').value.trim(); if (!v && !attachments.length) return;
-    if (state === 'offline' && !isPowerDown(v) && !isSignOut(v)) { caption(`<span class="you">${esc(currentLabel())} is offline. Messages can't be sent until it's back.</span>`); return; }
+    if (state === 'offline' && !isPowerDown(v) && !isSignOut(v) && !isSwitch(v)) { caption(`<span class="you">${esc(currentLabel())} is offline. Messages can't be sent until it's back.</span>`); return; }
     if (state === 'thinking' || state === 'speaking') stopAll();
     $('chatText').value = ''; fitText($('chatText')); stopListening(); send(v);
   });
@@ -2615,7 +2639,16 @@ form.ask.chatask { margin-top: 2px; }
     );
     return list;
   }
+  // The home agent (DEFAULT_AGENT, K.I.R.K.) runs startup and shutdown, so he's the one there when you power up.
+  const homeAgent = () => store.get('home', 'main');
+  function goHome() {
+    const home = homeAgent();
+    if (!home || agent === home) return;
+    if (agents.some(a => a.id === home)) selectAgent(home);
+    else { agent = home; store.set('agent', home); }
+  }
   async function runBoot(ready) {
+    goHome();
     const run = ++bootRun, el = $('boot');
     let skipped = false, completed = false, finishing = false;
     if (wakeKey) { removeEventListener('keydown', wakeKey, { capture: true }); wakeKey = null; }
@@ -2696,6 +2729,7 @@ form.ask.chatask { margin-top: 2px; }
     const run = ++bootRun, el = $('boot');
     handsFree = false; $('handsFree').setAttribute('aria-pressed', 'false');
     stopAll();
+    goHome();   // K.I.R.K. takes the console back before shutting it down
     document.querySelectorAll('.sheet').forEach(s => s.hidden = true);
     caption(`<span class="you">${signOut ? 'Shutting down all systems and signing out.' : 'Shutting down all systems.'}</span>`);
     ensureAudio(); sfx.powerDown();
