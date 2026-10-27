@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 import crypto from 'node:crypto';
 import { GatewayLink } from './gateway.js';
 import { NotificationCenter } from './notification-center.js';
+import { CommandRegistry } from './command-palette.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC = path.join(__dirname, 'public');
@@ -16,6 +17,9 @@ const PORT = Number(process.env.PORT || 8080);
 const OPENCLAW_URL = (process.env.OPENCLAW_URL || 'http://openclaw-gateway:18789').replace(/\/+$/, '');
 const TOKEN = process.env.OPENCLAW_TOKEN || '';
 const DEFAULT_AGENT = process.env.DEFAULT_AGENT || 'main';
+const commandAudit = [];
+const commands = new CommandRegistry({ authorize: (actor, command, action) => action !== 'execute' || !command.roles || command.roles.includes(actor), audit: event => commandAudit.push(event) });
+commands.register({ id: 'health.snapshot', title: 'View health', description: 'Show current gateway health', roles: ['operator'], handler: async () => await agentStatus(false) });
 // Optional allowlist, e.g. "main,forge". Blank = every agent the gateway lists.
 const ALLOW = (process.env.AGENTS || '').split(',').map(s => s.trim()).filter(Boolean);
 // Optional display names, e.g. "main=Kira,forge=Forge".
@@ -811,6 +815,11 @@ async function handleNotifications(req, res, url) {
     return send(res, 400, { error: 'Unknown action.' });
   }
   return send(res, 405, { error: 'Method not allowed.' });
+async function handleCommands(req, res, url) {
+  if (req.method === 'GET') return send(res, 200, { commands: commands.search(url.searchParams.get('q') || '', 'operator') });
+  let body; try { body = JSON.parse(await readBody(req, 64 * 1024)); } catch { return send(res, 400, { error: 'Bad request body.' }); }
+  try { return send(res, 200, await commands.execute(String(body.id || ''), body.params || {}, { actor: 'operator', confirm: body.confirm === true, requestId: body.requestId })); }
+  catch (error) { return send(res, error.message === 'unauthorized' ? 403 : 404, { error: error.message }); }
 }
 
 // ---- sign-in: one email + password, a signed session cookie ------------------------------------
@@ -928,6 +937,7 @@ http.createServer(async (req, res) => {
     if (pathname === '/api/history' && req.method === 'GET') return await handleHistory(req, res, new URL(req.url, 'http://x'));
     if (pathname === '/api/media' && req.method === 'GET') return await handleMedia(req, res, new URL(req.url, 'http://x'));
     if (pathname === '/api/notifications') return await handleNotifications(req, res, new URL(req.url, 'http://x'));
+    if (pathname === '/api/commands') return await handleCommands(req, res, new URL(req.url, 'http://x'));
     if (req.method === 'GET') return await serveStatic(req, res, pathname);
     send(res, 405, { error: 'Method not allowed.' });
   } catch (e) {
