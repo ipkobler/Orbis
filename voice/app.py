@@ -5,7 +5,8 @@ GET  /v1/voices         -> {"voices": ["forge", "ledger", "main"]}
 GET  /health            -> {"ready": bool, ...}
 
 A voice is a reference clip in /voices named after the agent id: main.mp3, forge.wav, ledger.wav …
-(.wav or .mp3). Clips are converted to clean mono WAV and must be 10–15 seconds long, and each
+(.wav or .mp3; the name's capitals don't matter). Clips are converted to clean mono WAV; they need at least 5 seconds
+of speech and anything past 15 seconds is trimmed off. Each
 voice is analysed once and kept in memory. BUILTIN_VOICES can give agents without a clip one of Pocket
 TTS's built-in voices, e.g. "scout=alba,dana=jane".
 """
@@ -21,8 +22,8 @@ VOICES_DIR = Path(os.getenv("VOICES_DIR", "/voices"))
 THREADS = int(os.getenv("TORCH_THREADS", "2") or 2)
 MAX_CHARS = int(os.getenv("MAX_CHARS", "600"))
 # Pocket TTS attends to the whole reference clip while speaking, so longer clips make every sentence slower.
-# Ten to fifteen seconds is the accepted reference range.
-MIN_CLIP_SECONDS = float(os.getenv("MIN_CLIP_SECONDS", "10"))
+# 5–15 seconds of speech is used: shorter clips are rejected, longer ones are trimmed to 15 s.
+MIN_CLIP_SECONDS = float(os.getenv("MIN_CLIP_SECONDS", "5"))
 MAX_CLIP_SECONDS = float(os.getenv("MAX_CLIP_SECONDS", "15"))
 MAX_CLIP_BYTES = int(os.getenv("MAX_CLIP_BYTES", str(10 * 1024 * 1024)))
 BUILTIN = dict(p.split("=", 1) for p in os.getenv("BUILTIN_VOICES", "").replace(" ", "").split(",") if "=" in p)
@@ -81,30 +82,40 @@ def clip_for(name: str) -> Path | None:
         p = VOICES_DIR / f"{name}{ext}"
         if p.is_file():
             return p
+    # the same name with different capitals (Ledger.mp3 for agent "ledger"): Windows doesn't keep them apart
+    for p in sorted(VOICES_DIR.iterdir()):
+        if p.is_file() and p.suffix.lower() in AUDIO_EXT and p.stem.lower() == name.lower():
+            return p
     return None
 
 
 def list_voices() -> list[str]:
-    clips = {p.stem for p in VOICES_DIR.iterdir() if p.suffix.lower() in AUDIO_EXT and VOICE_RE.match(p.stem)} if VOICES_DIR.is_dir() else set()
+    clips = {p.stem.lower() for p in VOICES_DIR.iterdir() if p.suffix.lower() in AUDIO_EXT and VOICE_RE.match(p.stem)} if VOICES_DIR.is_dir() else set()
     return sorted(clips | set(BUILTIN))
 
 
 def prepared_wav(src: Path) -> Path:
-    """Validate and convert an accepted clip to 24 kHz mono 16-bit WAV."""
+    """Validate and convert an accepted clip to 24 kHz mono 16-bit WAV, trimmed to MAX_CLIP_SECONDS."""
     if src.suffix.lower() not in AUDIO_EXT:
         raise HTTPException(415, "Voice clips must be .wav or .mp3.")
     if src.stat().st_size > MAX_CLIP_BYTES:
         raise HTTPException(413, f"Voice clip exceeds the {MAX_CLIP_BYTES // (1024 * 1024)} MB limit.")
     out = TMP / f"{src.stem}.wav"
-    cmd = ["ffmpeg", "-v", "error", "-y", "-i", str(src),
+    cmd = ["ffmpeg", "-v", "error", "-y", "-i", str(src), "-t", str(MAX_CLIP_SECONDS + 3),
            "-af", "silenceremove=start_periods=1:start_threshold=-45dB", "-ac", "1", "-ar", "24000", "-sample_fmt", "s16", str(out)]
     r = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
     if r.returncode != 0 or not out.exists():
         raise HTTPException(422, f"Couldn't read voice clip '{src.name}': {r.stderr.strip()[:200]}")
     with wave.open(str(out)) as w:
         secs = w.getnframes() / w.getframerate()
-    if secs < MIN_CLIP_SECONDS or secs > MAX_CLIP_SECONDS:
-        raise HTTPException(422, f"Voice clip '{src.name}' must be {MIN_CLIP_SECONDS:.0f}–{MAX_CLIP_SECONDS:.0f} seconds; found {secs:.1f}s.")
+    if secs < MIN_CLIP_SECONDS:
+        raise HTTPException(422, f"Voice clip '{src.name}' has {secs:.1f}s of speech; it needs at least {MIN_CLIP_SECONDS:.0f} seconds.")
+    if secs > MAX_CLIP_SECONDS:   # longer clips are trimmed, not rejected (a longer reference only makes speech slower)
+        trimmed = TMP / f"{src.stem}.trim.wav"
+        r = subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", str(out), "-t", str(MAX_CLIP_SECONDS), str(trimmed)], capture_output=True, text=True, timeout=60)
+        if r.returncode != 0 or not trimmed.exists():
+            raise HTTPException(422, f"Couldn't trim voice clip '{src.name}': {r.stderr.strip()[:200]}")
+        trimmed.replace(out)
     return out
 
 

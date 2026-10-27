@@ -1,7 +1,7 @@
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
-export const VOICE_POLICY = Object.freeze({ formats: ['wav', 'mp3'], minSeconds: 10, maxSeconds: 15, maxBytes: 10 * 1024 * 1024, retentionDays: 30 });
+export const VOICE_POLICY = Object.freeze({ formats: ['wav', 'mp3'], minSeconds: 5, maxSeconds: 15, maxBytes: 10 * 1024 * 1024, retentionDays: 30 });
 
 export class VoiceProfiles {
   constructor(file) { this.file = file; this.data = { profiles: {}, history: [] }; }
@@ -15,7 +15,7 @@ export class VoiceProfiles {
     const ext = String(clip.extension || '').replace(/^\./, '').toLowerCase();
     if (!VOICE_POLICY.formats.includes(ext)) throw new Error('Voice clips must be .wav or .mp3.');
     if (!Number.isFinite(clip.bytes) || clip.bytes < 1 || clip.bytes > VOICE_POLICY.maxBytes) throw new Error('Voice clip exceeds the 10 MB limit.');
-    if (!Number.isFinite(clip.durationSeconds) || clip.durationSeconds < 10 || clip.durationSeconds > 15) throw new Error('Voice clips must be 10–15 seconds.');
+    if (!Number.isFinite(clip.durationSeconds) || clip.durationSeconds < VOICE_POLICY.minSeconds || clip.durationSeconds > VOICE_POLICY.maxSeconds) throw new Error(`Voice clips must be ${VOICE_POLICY.minSeconds}–${VOICE_POLICY.maxSeconds} seconds.`);
     const p = this.data.profiles[agent] || {};
     this.data.history.push({ agent, source, clip: p[source] || null, createdAt: now.toISOString() });
     p[source] = { ...clip, extension: ext, createdAt: now.toISOString(), active: source === 'local' || !p.local };
