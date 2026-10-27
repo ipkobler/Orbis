@@ -7,6 +7,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import crypto from 'node:crypto';
 import { GatewayLink } from './gateway.js';
+import { NotificationCenter } from './notification-center.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC = path.join(__dirname, 'public');
@@ -102,6 +103,8 @@ if (!TOKEN) console.warn('[kira-orb] OPENCLAW_TOKEN is not set — chat requests
 // TRANSPORT=http: never open the WebSocket (old behaviour).
 const TRANSPORT = (process.env.TRANSPORT || 'auto').toLowerCase();
 const STATE_DIR = process.env.STATE_DIR || '/state';
+const notifications = new NotificationCenter({ file: path.join(STATE_DIR, 'notifications.json'), quietHours: process.env.NOTIFICATION_QUIET_HOURS ? process.env.NOTIFICATION_QUIET_HOURS.split(',') : null });
+await notifications.load();
 const link = TRANSPORT === 'http' ? null : new GatewayLink({ url: process.env.OPENCLAW_WS_URL || OPENCLAW_URL, token: TOKEN, stateDir: STATE_DIR });
 const linkStatus = () => link ? { ...link.status, transport: link.ready ? 'ws' : 'http' } : { state: 'off', transport: 'http' };
 // gateway events → the browser stream waiting on that session
@@ -788,6 +791,18 @@ async function serveStatic(req, res, urlPath) {
   } catch { send(res, 404, 'Not found', 'text/plain'); }
 }
 
+async function handleNotifications(req, res, url) {
+  if (req.method === 'GET') return send(res, 200, { events: notifications.list({ severity: url.searchParams.get('severity') || undefined, unreadOnly: url.searchParams.get('unread') === 'true', status: url.searchParams.get('status') || undefined, limit: 100 }), metrics: notifications.metrics() });
+  let body; try { body = JSON.parse(await readBody(req, 64 * 1024)); } catch { return send(res, 400, { error: 'Bad request body.' }); }
+  if (req.method === 'POST') return send(res, 201, notifications.enqueue(body));
+  if (req.method === 'PATCH') {
+    if (body.action === 'read') return send(res, 200, { ok: notifications.markRead(String(body.id)) });
+    if (body.action === 'deliver') return send(res, 200, await notifications.deliver(String(body.id), { force: body.force === true }));
+    return send(res, 400, { error: 'Unknown action.' });
+  }
+  return send(res, 405, { error: 'Method not allowed.' });
+}
+
 // ---- sign-in: one email + password, a signed session cookie ------------------------------------
 const ORB_EMAIL = (process.env.ORB_EMAIL || '').trim().toLowerCase();
 const ORB_PASSWORD = process.env.ORB_PASSWORD || '';
@@ -902,6 +917,7 @@ http.createServer(async (req, res) => {
     if (pathname === '/api/watch' && req.method === 'GET') return handleWatch(req, res, new URL(req.url, 'http://x'));
     if (pathname === '/api/history' && req.method === 'GET') return await handleHistory(req, res, new URL(req.url, 'http://x'));
     if (pathname === '/api/media' && req.method === 'GET') return await handleMedia(req, res, new URL(req.url, 'http://x'));
+    if (pathname === '/api/notifications') return await handleNotifications(req, res, new URL(req.url, 'http://x'));
     if (req.method === 'GET') return await serveStatic(req, res, pathname);
     send(res, 405, { error: 'Method not allowed.' });
   } catch (e) {
