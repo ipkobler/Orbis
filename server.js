@@ -7,6 +7,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import crypto from 'node:crypto';
 import { GatewayLink } from './gateway.js';
+import { VoiceState } from './voice-state.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC = path.join(__dirname, 'public');
@@ -15,6 +16,7 @@ const PORT = Number(process.env.PORT || 8080);
 const OPENCLAW_URL = (process.env.OPENCLAW_URL || 'http://openclaw-gateway:18789').replace(/\/+$/, '');
 const TOKEN = process.env.OPENCLAW_TOKEN || '';
 const DEFAULT_AGENT = process.env.DEFAULT_AGENT || 'main';
+const voiceState = new VoiceState();
 // Optional allowlist, e.g. "main,forge". Blank = every agent the gateway lists.
 const ALLOW = (process.env.AGENTS || '').split(',').map(s => s.trim()).filter(Boolean);
 // Optional display names, e.g. "main=Kira,forge=Forge".
@@ -902,6 +904,8 @@ http.createServer(async (req, res) => {
     if (pathname === '/api/watch' && req.method === 'GET') return handleWatch(req, res, new URL(req.url, 'http://x'));
     if (pathname === '/api/history' && req.method === 'GET') return await handleHistory(req, res, new URL(req.url, 'http://x'));
     if (pathname === '/api/media' && req.method === 'GET') return await handleMedia(req, res, new URL(req.url, 'http://x'));
+    if (pathname === '/api/voice/state' && req.method === 'GET') return send(res, 200, voiceState.snapshot());
+    if (pathname === '/api/voice/state' && req.method === 'PATCH') { let body; try { body = JSON.parse(await readBody(req, 4096)); } catch { return send(res, 400, { error: 'Bad request body.' }); } try { return send(res, 200, voiceState.transition(String(body.action || ''))); } catch (error) { return send(res, 400, { error: error.message }); } }
     if (req.method === 'GET') return await serveStatic(req, res, pathname);
     send(res, 405, { error: 'Method not allowed.' });
   } catch (e) {
