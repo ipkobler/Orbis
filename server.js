@@ -131,6 +131,7 @@ const notificationAdapters = {
 };
 const notifications = new NotificationCenter({ file: path.join(STATE_DIR, 'notifications.json'), adapters: notificationAdapters, quietHours: process.env.NOTIFICATION_QUIET_HOURS ? process.env.NOTIFICATION_QUIET_HOURS.split(',') : null, rateLimit: Number(process.env.NOTIFICATION_RATE_LIMIT || 0) || null });
 await notifications.load();
+const voiceState = new VoiceState();
 const voiceProfiles = await new VoiceProfiles(path.join(STATE_DIR, 'voice-profiles.json')).load();
 const link = TRANSPORT === 'http' ? null : new GatewayLink({ url: process.env.OPENCLAW_WS_URL || OPENCLAW_URL, token: TOKEN, stateDir: STATE_DIR });
 const linkStatus = () => link ? { ...link.status, transport: link.ready ? 'ws' : 'http' } : { state: 'off', transport: 'http' };
@@ -1054,7 +1055,6 @@ http.createServer(async (req, res) => {
     if (pathname === '/api/notifications') return await handleNotifications(req, res, new URL(req.url, 'http://x'));
     if (pathname === '/api/commands') return await handleCommands(req, res, new URL(req.url, 'http://x'));
     if (pathname === '/api/voice/state' && req.method === 'GET') return send(res, 200, voiceState.snapshot());
-    if (pathname === '/api/voice/state' && req.method === 'PATCH') { let body; try { body=JSON.parse(await readBody(req,4096)); } catch { return send(res,400,{error:'Bad request body.'}); } return send(res,200,voiceState.transition(body.action)); }
     if (pathname === '/api/preview' && req.method === 'GET') return await handlePreview(req, res, new URL(req.url, 'http://x'));
     if (pathname === '/api/inbox') return await handleInbox(req, res, new URL(req.url, 'http://x'));
     if (pathname === '/api/heartbeat/keys') return await handleHeartbeatKeys(req, res, new URL(req.url, 'http://x'));
@@ -1070,9 +1070,6 @@ http.createServer(async (req, res) => {
     if (pathname === '/api/watch' && req.method === 'GET') return handleWatch(req, res, new URL(req.url, 'http://x'));
     if (pathname === '/api/history' && req.method === 'GET') return await handleHistory(req, res, new URL(req.url, 'http://x'));
     if (pathname === '/api/media' && req.method === 'GET') return await handleMedia(req, res, new URL(req.url, 'http://x'));
-    if (pathname === '/api/notifications') return await handleNotifications(req, res, new URL(req.url, 'http://x'));
-    if (pathname === '/api/commands') return await handleCommands(req, res, new URL(req.url, 'http://x'));
-    if (pathname === '/api/voice/state' && req.method === 'GET') return send(res, 200, voiceState.snapshot());
     if (pathname === '/api/voice/state' && req.method === 'PATCH') { let body; try { body = JSON.parse(await readBody(req, 4096)); } catch { return send(res, 400, { error: 'Bad request body.' }); } try { return send(res, 200, voiceState.transition(String(body.action || ''))); } catch (error) { return send(res, 400, { error: error.message }); } }
     if (req.method === 'GET') return await serveStatic(req, res, pathname);
     send(res, 405, { error: 'Method not allowed.' });
