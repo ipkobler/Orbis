@@ -21,3 +21,13 @@ test('quiet hours defer delivery unless forced', async () => {
   const event = center.enqueue({ message: 'quiet' }).event; assert.equal((await center.deliver(event.id)).status, 'quiet');
   assert.equal((await center.deliver(event.id, { force: true })).status, 'retry');
 });
+
+test('routes channels, preserves action links, and protects critical alerts from policy', async () => {
+  const delivered = [];
+  const center = new NotificationCenter({ preferences: { default: { severities: ['error'] } }, adapters: { browser: async event => delivered.push(event) } });
+  const normal = center.enqueue({ actor: 'main', severity: 'info', channels: ['browser'], message: 'noise' }).event;
+  assert.equal((await center.deliver(normal.id)).status, 'suppressed');
+  const critical = center.enqueue({ actor: 'main', severity: 'error', channels: ['browser'], action: { href: '/approve/1' }, source: { href: '/runs/1' }, message: 'approve' }).event;
+  assert.equal((await center.deliver(critical.id)).status, 'delivered'); assert.equal(delivered[0].action.href, '/approve/1');
+  assert.equal(center.setActionState(critical.id, 'completed'), true); assert.equal(center.list()[0].actionState, 'completed');
+});

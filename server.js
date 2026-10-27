@@ -103,7 +103,16 @@ if (!TOKEN) console.warn('[kira-orb] OPENCLAW_TOKEN is not set — chat requests
 // TRANSPORT=http: never open the WebSocket (old behaviour).
 const TRANSPORT = (process.env.TRANSPORT || 'auto').toLowerCase();
 const STATE_DIR = process.env.STATE_DIR || '/state';
-const notifications = new NotificationCenter({ file: path.join(STATE_DIR, 'notifications.json'), quietHours: process.env.NOTIFICATION_QUIET_HOURS ? process.env.NOTIFICATION_QUIET_HOURS.split(',') : null });
+const notificationAdapters = {
+  browser: async () => {},
+  webhook: async event => {
+    const target = process.env.NOTIFICATION_WEBHOOK_URL;
+    if (!target) return;
+    const response = await fetch(target, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(event), signal: AbortSignal.timeout(5000) });
+    if (!response.ok) throw Error(`webhook returned ${response.status}`);
+  },
+};
+const notifications = new NotificationCenter({ file: path.join(STATE_DIR, 'notifications.json'), adapters: notificationAdapters, quietHours: process.env.NOTIFICATION_QUIET_HOURS ? process.env.NOTIFICATION_QUIET_HOURS.split(',') : null, rateLimit: Number(process.env.NOTIFICATION_RATE_LIMIT || 0) || null });
 await notifications.load();
 const link = TRANSPORT === 'http' ? null : new GatewayLink({ url: process.env.OPENCLAW_WS_URL || OPENCLAW_URL, token: TOKEN, stateDir: STATE_DIR });
 const linkStatus = () => link ? { ...link.status, transport: link.ready ? 'ws' : 'http' } : { state: 'off', transport: 'http' };
@@ -797,6 +806,7 @@ async function handleNotifications(req, res, url) {
   if (req.method === 'POST') return send(res, 201, notifications.enqueue(body));
   if (req.method === 'PATCH') {
     if (body.action === 'read') return send(res, 200, { ok: notifications.markRead(String(body.id)) });
+    if (body.action === 'action') return send(res, 200, { ok: notifications.setActionState(String(body.id), String(body.state || '')) });
     if (body.action === 'deliver') return send(res, 200, await notifications.deliver(String(body.id), { force: body.force === true }));
     return send(res, 400, { error: 'Unknown action.' });
   }
