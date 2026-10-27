@@ -1,6 +1,7 @@
 FROM node:22-alpine
 WORKDIR /app
-COPY package.json *.js ./   # every server module (the server imports 15 of them)
+# every server module (the server imports 15 of them)
+COPY package.json *.js ./
 COPY tools ./tools
 COPY public ./public
 # /state keeps the orb's device key (its approval in OpenClaw) and the shared conversation list
