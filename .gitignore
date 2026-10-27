@@ -3,4 +3,6 @@
 backup.env
 voice.env
 node_modules/
+__pycache__/
+*.pyc
 *.log
