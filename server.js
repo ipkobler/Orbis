@@ -992,6 +992,7 @@ http.createServer(async (req, res) => {
     if (pathname === '/metrics' && req.method === 'GET') return send(res, 200, metricsText(), 'text/plain; version=0.0.4');
     if (pathname === '/api/liveness' && req.method === 'GET') return send(res, 200, livenessReport());
     if (pathname === '/api/heartbeat/keys') return await handleHeartbeatKeys(req, res, new URL(req.url, 'http://x'));
+    if (pathname === '/api/presence' && req.method === 'GET') { const status = await agentStatus(new URL(req.url, 'http://x').searchParams.has('refresh')); return send(res, 200, { revision: status.checkedAt, agents: status.agents.map(a => ({ ...a, presence: { state: a.online ? (a.liveness?.state === 'HEALTHY' ? 'online' : 'stale') : 'offline', available: a.online, reason: a.reason } })) }); }
     if (pathname === '/api/agents' && req.method === 'GET') return send(res, 200, await agentStatus(new URL(req.url, 'http://x').searchParams.has('refresh')));
     if (pathname === '/api/chat' && req.method === 'POST') return await handleChat(req, res);
     if (pathname === '/api/tts' && req.method === 'POST') return await handleTts(req, res);
