@@ -257,7 +257,7 @@ docker compose exec kira-orb wget -S -O /dev/null -T 120 --post-data='{"voice":"
   names count, so "call my wife" still goes to the agent as a request. Works even while the current agent is offline.
 - **Startup and shutdown belong to the home agent** (`DEFAULT_AGENT`, K.I.R.K.): shutting down switches back to him
   first and he says "Shutting down all systems", so he's the one there when you power up again.
-- **Version:** the startup and shutdown screens show **V1**.
+- **Version:** the startup and shutdown screens show **V1.1**.
 - **Chat Mode:** in the chat window, **Full screen** turns it into a ChatGPT-style page: a centred conversation, the
   agent's live glass orb at the top and as its icon beside each reply, agent switcher pills, and a large message bar
   with attach, mic and send. Esc or **Exit full screen** goes back. On phones the chat always opens this way.
