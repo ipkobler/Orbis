@@ -7,6 +7,10 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import crypto from 'node:crypto';
 import { GatewayLink } from './gateway.js';
+import { NotificationCenter } from './notification-center.js';
+import { CommandRegistry } from './command-palette.js';
+import { VoiceState } from './voice-state.js';
+import { VoiceProfiles, VOICE_POLICY } from './voice-management.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC = path.join(__dirname, 'public');
@@ -15,6 +19,10 @@ const PORT = Number(process.env.PORT || 8080);
 const OPENCLAW_URL = (process.env.OPENCLAW_URL || 'http://openclaw-gateway:18789').replace(/\/+$/, '');
 const TOKEN = process.env.OPENCLAW_TOKEN || '';
 const DEFAULT_AGENT = process.env.DEFAULT_AGENT || 'main';
+const commandAudit = [];
+const commands = new CommandRegistry({ authorize: (actor, command, action) => action !== 'execute' || !command.roles || command.roles.includes(actor), audit: event => commandAudit.push(event) });
+commands.register({ id: 'health.snapshot', title: 'View health', description: 'Show current gateway health', roles: ['operator'], handler: async () => await agentStatus(false) });
+const voiceState = new VoiceState();
 // Optional allowlist, e.g. "main,forge". Blank = every agent the gateway lists.
 const ALLOW = (process.env.AGENTS || '').split(',').map(s => s.trim()).filter(Boolean);
 // Optional display names, e.g. "main=Kira,forge=Forge".
@@ -102,6 +110,18 @@ if (!TOKEN) console.warn('[kira-orb] OPENCLAW_TOKEN is not set — chat requests
 // TRANSPORT=http: never open the WebSocket (old behaviour).
 const TRANSPORT = (process.env.TRANSPORT || 'auto').toLowerCase();
 const STATE_DIR = process.env.STATE_DIR || '/state';
+const notificationAdapters = {
+  browser: async () => {},
+  webhook: async event => {
+    const target = process.env.NOTIFICATION_WEBHOOK_URL;
+    if (!target) return;
+    const response = await fetch(target, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(event), signal: AbortSignal.timeout(5000) });
+    if (!response.ok) throw Error(`webhook returned ${response.status}`);
+  },
+};
+const notifications = new NotificationCenter({ file: path.join(STATE_DIR, 'notifications.json'), adapters: notificationAdapters, quietHours: process.env.NOTIFICATION_QUIET_HOURS ? process.env.NOTIFICATION_QUIET_HOURS.split(',') : null, rateLimit: Number(process.env.NOTIFICATION_RATE_LIMIT || 0) || null });
+await notifications.load();
+const voiceProfiles = await new VoiceProfiles(path.join(STATE_DIR, 'voice-profiles.json')).load();
 const link = TRANSPORT === 'http' ? null : new GatewayLink({ url: process.env.OPENCLAW_WS_URL || OPENCLAW_URL, token: TOKEN, stateDir: STATE_DIR });
 const linkStatus = () => link ? { ...link.status, transport: link.ready ? 'ws' : 'http' } : { state: 'off', transport: 'http' };
 // gateway events → the browser stream waiting on that session
@@ -773,6 +793,16 @@ async function handleTts(req, res) {
   }
 }
 
+async function handleVoices(req, res) {
+  if (req.method === 'GET') return send(res, 200, { policy: VOICE_POLICY, profiles: voiceProfiles.list() });
+  let body; try { body = JSON.parse(await readBody(req, 32 * 1024)); } catch { return send(res, 400, { error: 'Bad request body.' }); }
+  try {
+    const agent = String(body.agent || ''), action = String(body.action || '');
+    const profile = action ? voiceProfiles.action(agent, action) : voiceProfiles.upsert(agent, String(body.source || 'local'), body);
+    await voiceProfiles.save(); return send(res, 200, { policy: VOICE_POLICY, profile });
+  } catch (e) { return send(res, 400, { error: e.message }); }
+}
+
 const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.webmanifest': 'application/manifest+json', '.png': 'image/png' };
 
 async function serveStatic(req, res, urlPath) {
@@ -786,6 +816,25 @@ async function serveStatic(req, res, urlPath) {
     res.writeHead(200, { 'Content-Type': TYPES[ext] || 'application/octet-stream', 'Cache-Control': rel === 'index.html' ? 'no-store' : 'public, max-age=3600', ...SECURITY_HEADERS });
     res.end(data);
   } catch { send(res, 404, 'Not found', 'text/plain'); }
+}
+
+async function handleNotifications(req, res, url) {
+  if (req.method === 'GET') return send(res, 200, { events: notifications.list({ severity: url.searchParams.get('severity') || undefined, unreadOnly: url.searchParams.get('unread') === 'true', status: url.searchParams.get('status') || undefined, limit: 100 }), metrics: notifications.metrics() });
+  let body; try { body = JSON.parse(await readBody(req, 64 * 1024)); } catch { return send(res, 400, { error: 'Bad request body.' }); }
+  if (req.method === 'POST') return send(res, 201, notifications.enqueue(body));
+  if (req.method === 'PATCH') {
+    if (body.action === 'read') return send(res, 200, { ok: notifications.markRead(String(body.id)) });
+    if (body.action === 'action') return send(res, 200, { ok: notifications.setActionState(String(body.id), String(body.state || '')) });
+    if (body.action === 'deliver') return send(res, 200, await notifications.deliver(String(body.id), { force: body.force === true }));
+    return send(res, 400, { error: 'Unknown action.' });
+  }
+  return send(res, 405, { error: 'Method not allowed.' });
+}
+async function handleCommands(req, res, url) {
+  if (req.method === 'GET') return send(res, 200, { commands: commands.search(url.searchParams.get('q') || '', 'operator') });
+  let body; try { body = JSON.parse(await readBody(req, 64 * 1024)); } catch { return send(res, 400, { error: 'Bad request body.' }); }
+  try { return send(res, 200, await commands.execute(String(body.id || ''), body.params || {}, { actor: 'operator', confirm: body.confirm === true, requestId: body.requestId })); }
+  catch (error) { return send(res, error.message === 'unauthorized' ? 403 : 404, { error: error.message }); }
 }
 
 // ---- sign-in: one email + password, a signed session cookie ------------------------------------
@@ -895,6 +944,7 @@ http.createServer(async (req, res) => {
     if (pathname === '/api/agents' && req.method === 'GET') return send(res, 200, await agentStatus(new URL(req.url, 'http://x').searchParams.has('refresh')));
     if (pathname === '/api/chat' && req.method === 'POST') return await handleChat(req, res);
     if (pathname === '/api/tts' && req.method === 'POST') return await handleTts(req, res);
+    if (pathname === '/api/voices' && ['GET', 'POST', 'PATCH'].includes(req.method)) return await handleVoices(req, res);
     if (pathname === '/api/upload' && req.method === 'POST') return await handleUpload(req, res, new URL(req.url, 'http://x'));
     if (pathname === '/api/conversation' && req.method === 'POST') return await handleConversation(req, res);
     if (pathname === '/api/colors' && req.method === 'POST') return await handleColors(req, res);
@@ -902,6 +952,10 @@ http.createServer(async (req, res) => {
     if (pathname === '/api/watch' && req.method === 'GET') return handleWatch(req, res, new URL(req.url, 'http://x'));
     if (pathname === '/api/history' && req.method === 'GET') return await handleHistory(req, res, new URL(req.url, 'http://x'));
     if (pathname === '/api/media' && req.method === 'GET') return await handleMedia(req, res, new URL(req.url, 'http://x'));
+    if (pathname === '/api/notifications') return await handleNotifications(req, res, new URL(req.url, 'http://x'));
+    if (pathname === '/api/commands') return await handleCommands(req, res, new URL(req.url, 'http://x'));
+    if (pathname === '/api/voice/state' && req.method === 'GET') return send(res, 200, voiceState.snapshot());
+    if (pathname === '/api/voice/state' && req.method === 'PATCH') { let body; try { body = JSON.parse(await readBody(req, 4096)); } catch { return send(res, 400, { error: 'Bad request body.' }); } try { return send(res, 200, voiceState.transition(String(body.action || ''))); } catch (error) { return send(res, 400, { error: error.message }); } }
     if (req.method === 'GET') return await serveStatic(req, res, pathname);
     send(res, 405, { error: 'Method not allowed.' });
   } catch (e) {

@@ -1,0 +1,9 @@
+import crypto from 'node:crypto';
+
+export class CommandRegistry {
+  constructor({ authorize = () => true, audit = () => {} } = {}) { this.commands = new Map(); this.authorize = authorize; this.audit = audit; }
+  register(command) { if (!command?.id || !/^[a-z][a-z0-9._-]{1,80}$/.test(command.id)) throw Error('invalid command id'); if (this.commands.has(command.id)) throw Error('command already registered'); const value = { ...command, version: command.version || 1, destructive: !!command.destructive, handler: command.handler }; this.commands.set(command.id, value); return this.describe(value); }
+  describe(command) { const { handler, ...safe } = command; return safe; }
+  search(query = '', actor = 'operator') { const q = String(query).toLowerCase(); return [...this.commands.values()].filter(c => this.authorize(actor, c, 'discover') && (!q || [c.id, c.title || '', c.description || ''].join(' ').toLowerCase().includes(q))).map(c => this.describe(c)); }
+  async execute(id, params = {}, options = {}) { const actor = options.actor || 'operator', requestId = options.requestId || crypto.randomUUID(), command = this.commands.get(id); if (!command) throw Error('unknown command'); if (!this.authorize(actor, command, 'execute')) throw Error('unauthorized'); if (command.destructive && options.confirm !== true) return { status: 'confirmation_required', requestId, id }; this.audit({ requestId, actor, id, params, at: new Date().toISOString() }); try { const result = await command.handler(params, { actor, requestId }); return { status: 'completed', requestId, id, result }; } catch (error) { return { status: 'failed', requestId, id, error: String(error.message || error) }; } }
+}
