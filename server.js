@@ -1,6 +1,9 @@
 // Kira Orb — tiny relay between the browser and the OpenClaw gateway.
 // Zero dependencies (Node 22+). The gateway token never leaves this container.
 import http from 'node:http';
+import { validatePreview, safeMetadata } from './safe-content.js';
+import { InboxStore } from './inbox-store.js';
+import { actionLink, replay } from './inbox-query.js';
 import { readFile, readdir, mkdir, writeFile, stat, rename } from 'node:fs/promises';
 import { Readable } from 'node:stream';
 import path from 'node:path';
@@ -10,11 +13,16 @@ import { GatewayLink } from './gateway.js';
 import { Liveness, defaultConfig as livenessConfig, NOT_REACHABLE } from './liveness.js';
 import { KeyStore, Verifier, tokenFor, MAX_BODY as HEARTBEAT_MAX_BODY } from './heartbeat.js';
 import { Alerts } from './alerts.js';
+import { HealthRegistry } from './health.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC = path.join(__dirname, 'public');
 
 const PORT = Number(process.env.PORT || 8080);
+const healthRegistry = new HealthRegistry({ timeoutMs: Number(process.env.HEALTH_TIMEOUT_MS || 3000) });
+const inboxStore = new InboxStore(path.join(process.env.STATE_DIR || '/state', 'inbox.json'));
+healthRegistry.register('process', () => ({ status: 'ok', evidence: { pid: process.pid, uptimeS: Math.round(process.uptime()) } }));
+healthRegistry.register('gateway-transport', () => ({ status: link?.ready ? 'ok' : 'degraded', evidence: { transport: link?.ready ? 'websocket' : 'http' } }));
 const OPENCLAW_URL = (process.env.OPENCLAW_URL || 'http://openclaw-gateway:18789').replace(/\/+$/, '');
 const TOKEN = process.env.OPENCLAW_TOKEN || '';
 const DEFAULT_AGENT = process.env.DEFAULT_AGENT || 'main';
@@ -973,6 +981,9 @@ async function handleLogin(req, res) {
 }
 const PUBLIC_PATHS = new Set(['/healthz', '/login', '/manifest.webmanifest', '/icon.svg']);
 
+async function handlePreview(req,res,url){const input=url.searchParams.get('url')||'';const checked=validatePreview(input);if(!checked.ok)return send(res,400,{ok:false,error:checked.reason});const metadata=safeMetadata({'content-type':url.searchParams.get('mime')||''});return send(res,200,{ok:true,url:checked.url,kind:checked.kind,state:'loading',metadata,safe:true});}
+async function handleInbox(req,res,url){const actor=url.searchParams.get('actor')||'*';if(req.method==='GET'){const after=url.searchParams.get('after');const events=inboxStore.list({actor,unreadOnly:url.searchParams.get('unread')==='true',includeArchived:url.searchParams.get('archived')==='true',query:url.searchParams.get('q')||'',limit:Math.min(200,Number(url.searchParams.get('limit')||100))});return send(res,200,{events:after?replay(events,{after,actor}):events,unread:inboxStore.unreadCount(actor)});}let body;try{body=JSON.parse(await readBody(req,64*1024));}catch{return send(res,400,{error:'Bad request body.'});}if(req.method==='POST'){return send(res,201,inboxStore.ingest(body));}if(req.method==='PATCH'){const id=String(body.id||'');if(!id)return send(res,400,{error:'Missing id.'});if(body.action==='acknowledge')inboxStore.acknowledge(id);else if(body.action==='archive')inboxStore.archive(id);else if(body.action==='read')inboxStore.markRead(id);else return send(res,400,{error:'Unknown action.'});return send(res,200,{ok:true,id,action:body.action});}return send(res,405,{error:'Method not allowed.'});}
+
 http.createServer(async (req, res) => {
   const { pathname } = new URL(req.url, 'http://x');
   try {
@@ -991,6 +1002,9 @@ http.createServer(async (req, res) => {
     }
     if (pathname === '/metrics' && req.method === 'GET') return send(res, 200, metricsText(), 'text/plain; version=0.0.4');
     if (pathname === '/api/liveness' && req.method === 'GET') return send(res, 200, livenessReport());
+    if (pathname === '/api/health' && req.method === 'GET') return send(res, 200, await healthRegistry.snapshot());
+    if (pathname === '/api/preview' && req.method === 'GET') return await handlePreview(req, res, new URL(req.url, 'http://x'));
+    if (pathname === '/api/inbox') return await handleInbox(req, res, new URL(req.url, 'http://x'));
     if (pathname === '/api/heartbeat/keys') return await handleHeartbeatKeys(req, res, new URL(req.url, 'http://x'));
     if (pathname === '/api/presence' && req.method === 'GET') { const status = await agentStatus(new URL(req.url, 'http://x').searchParams.has('refresh')); return send(res, 200, { revision: status.checkedAt, agents: status.agents.map(a => ({ ...a, presence: { state: a.online ? (a.liveness?.state === 'HEALTHY' ? 'online' : 'stale') : 'offline', available: a.online, reason: a.reason } })) }); }
     if (pathname === '/api/agents' && req.method === 'GET') return send(res, 200, await agentStatus(new URL(req.url, 'http://x').searchParams.has('refresh')));

@@ -1,0 +1,1 @@
+export const PREVIEW_STATES=Object.freeze(['loading','success','blocked','unsupported','error']);export function previewState(kind){return {state:kind==='image'||kind==='audio'||kind==='video'||kind==='pdf'?'success':kind==='blocked'?'blocked':'unsupported',canOpen:kind!=='blocked',canDownload:kind!=='blocked',keyboard:true};}

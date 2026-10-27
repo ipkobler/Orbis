@@ -1,0 +1,37 @@
+{
+  "events": [
+    {
+      "version": 1,
+      "id": "8f2563b7-d1db-4d17-a8e1-6ed8c4eb8c54",
+      "type": "approval.requested",
+      "actor": {
+        "id": "system",
+        "role": "system"
+      },
+      "createdAt": "2026-01-01T00:00:00.000Z",
+      "correlationId": "bbb77469-ac2c-41e8-ba68-73f131ea8e9a",
+      "idempotencyKey": "k1",
+      "payload": {
+        "actionUrl": "/approve/1"
+      },
+      "permissions": {
+        "read": [
+          "*"
+        ],
+        "act": [
+          "operator"
+        ]
+      },
+      "source": "gateway"
+    }
+  ],
+  "read": [
+    "8f2563b7-d1db-4d17-a8e1-6ed8c4eb8c54"
+  ],
+  "archived": [
+    "8f2563b7-d1db-4d17-a8e1-6ed8c4eb8c54"
+  ],
+  "acknowledged": [
+    "8f2563b7-d1db-4d17-a8e1-6ed8c4eb8c54"
+  ]
+}
