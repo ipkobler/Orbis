@@ -829,6 +829,7 @@ async function handleNotifications(req, res, url) {
     return send(res, 400, { error: 'Unknown action.' });
   }
   return send(res, 405, { error: 'Method not allowed.' });
+}
 async function handleCommands(req, res, url) {
   if (req.method === 'GET') return send(res, 200, { commands: commands.search(url.searchParams.get('q') || '', 'operator') });
   let body; try { body = JSON.parse(await readBody(req, 64 * 1024)); } catch { return send(res, 400, { error: 'Bad request body.' }); }
