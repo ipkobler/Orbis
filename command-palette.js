@@ -1,5 +1,4 @@
 import crypto from 'node:crypto';
-
 export class CommandRegistry {
   constructor({ authorize = () => true, audit = () => {} } = {}) { this.commands = new Map(); this.authorize = authorize; this.audit = audit; }
   register(command) { if (!command?.id || !/^[a-z][a-z0-9._-]{1,80}$/.test(command.id)) throw Error('invalid command id'); if (this.commands.has(command.id)) throw Error('command already registered'); const value = { ...command, version: command.version || 1, destructive: !!command.destructive, handler: command.handler }; this.commands.set(command.id, value); return this.describe(value); }

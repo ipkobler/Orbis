@@ -248,6 +248,10 @@ docker compose exec kira-orb wget -S -O /dev/null -T 120 --post-data='{"voice":"
 - **Agent colours:** Settings → Agent colours has a main and an accent colour for each agent. Choices are saved
   on the server (`state/colors.json`) per agent id, so every device matches and renaming an agent keeps them.
   Reset goes back to `AGENT_COLORS`. New agents get a colour automatically until you pick one.
+- **Heartbeat monitoring:** stalled or disconnected agents are flagged within about 1½ minutes, with one alert per
+  change and automatic recovery. Agents with a key (Settings → Heartbeat monitoring → *Create key*) send signed
+  heartbeats with `tools/heartbeat.mjs`; every agent is also checked through the gateway. States, alerts, metrics
+  (`/metrics`) and the full design: [`docs/heartbeat.md`](docs/heartbeat.md). Tests: `npm test`.
 - **Calling another agent:** say or type "Switch to Forge", "Call Ledger", "Talk to Kirk", "Kirk, get me Forge" or
   "Put me through to Ledger". The console switches to that agent and it answers "Forge here." Only your agents'
   names count, so "call my wife" still goes to the agent as a request. Works even while the current agent is offline.

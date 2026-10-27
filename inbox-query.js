@@ -1,0 +1,2 @@
+export function actionLink(event,actor='*'){const a=event.permissions?.act||[];return a.includes('*')||a.includes(actor)?event.payload?.actionUrl||null:null;}
+export function replay(events,{after=null,actor='*'}={}){return events.filter(e=>(!after||e.createdAt>after)&&(e.permissions.read.includes('*')||e.permissions.read.includes(actor))).sort((a,b)=>a.createdAt.localeCompare(b.createdAt));}
