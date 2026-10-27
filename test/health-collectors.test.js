@@ -1,0 +1,2 @@
+import assert from 'node:assert/strict';import {gatewayCollector,dependencyCollector,nodeCollector} from '../health-collectors.js';
+assert.equal((await gatewayCollector(async()=>({ok:true,status:200}))()).status,'ok');assert.equal((await gatewayCollector(async()=>{throw new Error('down')})()).status,'degraded');assert.equal((await dependencyCollector('x',async()=>({ok:false,detail:'offline'}))()).status,'degraded');assert.equal((await nodeCollector(async()=>({ok:true}))()).status,'ok');console.log('collector tests: 4 passed');
