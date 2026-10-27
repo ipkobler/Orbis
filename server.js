@@ -7,6 +7,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import crypto from 'node:crypto';
 import { GatewayLink } from './gateway.js';
+import { VoiceProfiles, VOICE_POLICY } from './voice-management.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC = path.join(__dirname, 'public');
@@ -102,6 +103,7 @@ if (!TOKEN) console.warn('[kira-orb] OPENCLAW_TOKEN is not set — chat requests
 // TRANSPORT=http: never open the WebSocket (old behaviour).
 const TRANSPORT = (process.env.TRANSPORT || 'auto').toLowerCase();
 const STATE_DIR = process.env.STATE_DIR || '/state';
+const voiceProfiles = await new VoiceProfiles(path.join(STATE_DIR, 'voice-profiles.json')).load();
 const link = TRANSPORT === 'http' ? null : new GatewayLink({ url: process.env.OPENCLAW_WS_URL || OPENCLAW_URL, token: TOKEN, stateDir: STATE_DIR });
 const linkStatus = () => link ? { ...link.status, transport: link.ready ? 'ws' : 'http' } : { state: 'off', transport: 'http' };
 // gateway events → the browser stream waiting on that session
@@ -773,6 +775,16 @@ async function handleTts(req, res) {
   }
 }
 
+async function handleVoices(req, res) {
+  if (req.method === 'GET') return send(res, 200, { policy: VOICE_POLICY, profiles: voiceProfiles.list() });
+  let body; try { body = JSON.parse(await readBody(req, 32 * 1024)); } catch { return send(res, 400, { error: 'Bad request body.' }); }
+  try {
+    const agent = String(body.agent || ''), action = String(body.action || '');
+    const profile = action ? voiceProfiles.action(agent, action) : voiceProfiles.upsert(agent, String(body.source || 'local'), body);
+    await voiceProfiles.save(); return send(res, 200, { policy: VOICE_POLICY, profile });
+  } catch (e) { return send(res, 400, { error: e.message }); }
+}
+
 const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.webmanifest': 'application/manifest+json', '.png': 'image/png' };
 
 async function serveStatic(req, res, urlPath) {
@@ -895,6 +907,7 @@ http.createServer(async (req, res) => {
     if (pathname === '/api/agents' && req.method === 'GET') return send(res, 200, await agentStatus(new URL(req.url, 'http://x').searchParams.has('refresh')));
     if (pathname === '/api/chat' && req.method === 'POST') return await handleChat(req, res);
     if (pathname === '/api/tts' && req.method === 'POST') return await handleTts(req, res);
+    if (pathname === '/api/voices' && ['GET', 'POST', 'PATCH'].includes(req.method)) return await handleVoices(req, res);
     if (pathname === '/api/upload' && req.method === 'POST') return await handleUpload(req, res, new URL(req.url, 'http://x'));
     if (pathname === '/api/conversation' && req.method === 'POST') return await handleConversation(req, res);
     if (pathname === '/api/colors' && req.method === 'POST') return await handleColors(req, res);
