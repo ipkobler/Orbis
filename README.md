@@ -321,8 +321,17 @@ clips can't be picked until it is.
   Talking is disabled until the agent is back; tapping the orb checks again immediately.
 - **HUD effects** around the orb are decoration: compass ring, radar sweep, orbiting satellites, scan line and
   corner brackets. The four readouts on leader lines are real: orb rotation, ribbon strand count, frame rate and link latency.
-- **Right-hand boxes** (wide screens): live voice bars (your mic while listening, the speech while it talks),
-  the Scope (a spinning neural core whose impulses speed up while listening and thinking), gateway status and latency, reply timing with a trend line, and this session's exchanges and talk time.
+- **Left column** (wide screens): a scrollable agent list where each card has its own little neural core turning
+  in the agent's colour; **Power distribution** (a bar per agent, the current one following what it's doing);
+  **Advanced telemetry** (uplink latency, neural load, voice in/out and synapse rate, with a rolling history); and
+  the **Neural core**, a spinning brain whose impulses speed up while listening and thinking.
+- **Under the orb**, the heartbeat bar is in the orb's colour, with its own pattern for each agent (bars, heart
+  monitor, mirrored bars, dot matrix, twin ribbons, equalizer, scanning pulse, bit blocks; after eight agents
+  they repeat). Segmented arcs to the right of the orb follow the voice and the agent's load.
+- **Right-hand boxes** (wide screens): load and signal gauges, core stability (how healthy the link to your agents
+  is), live voice bars with mic and voice traces, the Scope mode, gateway status and latency, reply timing with a
+  trend line and a response dial, and this session's exchanges and talk time. On shorter screens the extra
+  animated panels drop out first so the stats always fit.
 - **Tap the orb** (or the mic, or hold **Space** on a keyboard) to talk. Tap again to interrupt.
 - **Hands-free** keeps listening after every reply, like a real conversation.
 - **Chat** opens the chat window: the full conversation (it survives a reload and is shared with your phone),

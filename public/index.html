@@ -38,7 +38,7 @@ body {
 .app {
   height: 100%; box-sizing: border-box; position: relative;
   display: grid; gap: 14px 18px;
-  grid-template-columns: 220px minmax(0, 1fr) 250px;
+  grid-template-columns: 272px minmax(0, 1fr) 268px;
   grid-template-rows: auto minmax(0, 1fr) auto;
   grid-template-areas: "head head head" "roster stage hud" "roster dock hud";
   padding-left: max(16px, env(safe-area-inset-left, 0px));
@@ -214,6 +214,7 @@ header { grid-area: head; display: flex; align-items: center; gap: 10px; flex-wr
 .kh-resp .kv div { display: flex; justify-content: space-between; gap: 8px; }
 .kh-resp .kv span { color: var(--dim); }
 .kh-resp canvas { width: 70px; height: 70px; }
+.boot b.ok { color: var(--kibi-ok); } .boot b.bad { color: #ff5a6a; }
 .kh-c3 .sr { display: flex; justify-content: space-between; gap: 8px; font: 500 10.5px/1.7 var(--f-display); letter-spacing: .14em; }
 .kh-c3 .sr b { font: 500 10.5px/1.7 var(--f-mono); color: var(--kibi-3); }
 .kh-c3 .sr b.ok { color: var(--kibi-ok); } .kh-c3 .sr b.bad { color: #ff5a6a; }
@@ -284,30 +285,46 @@ header { grid-area: head; display: flex; align-items: center; gap: 10px; flex-wr
   .boot.out { transform: none; filter: none; }
 }
 
-/* ---------- roster (left) ---------- */
+/* ---------- roster (left): agents, power, telemetry, neural core ---------- */
 .roster { grid-area: roster; min-height: 0; display: flex; flex-direction: column; gap: 10px; z-index: 3; }
+.roster > .box { flex: none; }
+.agents-box { padding: 10px 10px 10px; gap: 8px; min-height: 0; flex: 0 1 auto !important; display: flex; flex-direction: column; }
 .roster-head { display: flex; justify-content: space-between; align-items: baseline; padding: 0 4px; }
-.agents { display: flex; flex-direction: column; gap: 6px; overflow-y: auto; min-height: 0; }
+.agents { display: flex; flex-direction: column; gap: 6px; overflow-y: auto; min-height: 0; max-height: 34vh; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--arc) 40%, transparent) transparent; padding-right: 2px; }
 .agent {
   --c: var(--off);
-  display: grid; grid-template-columns: 12px 1fr; align-items: center; gap: 4px 12px;
-  text-align: left; width: 100%; padding: 12px 12px; border-radius: 12px; cursor: pointer;
-  background: transparent; border: 1px solid transparent; color: var(--ink);
+  position: relative; display: grid; grid-template-columns: 12px minmax(0, 1fr) 64px; align-items: center; gap: 3px 10px;
+  text-align: left; width: 100%; padding: 9px 9px 9px 11px; border-radius: 10px; cursor: pointer; flex: none;
+  background: color-mix(in srgb, var(--void-lo) 55%, transparent); border: 1px solid color-mix(in srgb, var(--line) 80%, transparent); color: var(--ink);
+  transition: border-color .25s, background .25s, box-shadow .25s;
 }
-.agent:hover { background: color-mix(in srgb, var(--panel) 70%, transparent); }
-.agent[aria-current="true"] { background: var(--panel); border-color: color-mix(in srgb, var(--c) 45%, var(--line)); }
+.agent:hover { background: color-mix(in srgb, var(--panel) 80%, transparent); }
+.agent[aria-current="true"] { background: color-mix(in srgb, var(--c) 9%, var(--panel)); border-color: color-mix(in srgb, var(--c) 60%, var(--line)); box-shadow: 0 0 16px -8px var(--c), inset 0 0 18px -12px var(--c); }
 .agent .dot { grid-row: span 2; width: 10px; height: 10px; border-radius: 50%; background: var(--off); }
 .agent.on.warn .dot { box-shadow: 0 0 0 3px color-mix(in srgb, var(--amber) 45%, transparent), 0 0 12px var(--amber); }
 .agent.on.warn .st { color: var(--amber) !important; }
 .agent.on .dot { background: var(--c); box-shadow: 0 0 0 3px color-mix(in srgb, var(--c) 18%, transparent), 0 0 12px var(--c); }
 .agent.on.busy .dot { animation: beat 1s ease-in-out infinite; }
-.agent .nm { font: 600 15px/1.1 var(--f-display); letter-spacing: .12em; }
+.agent .nm { font: 600 14px/1.1 var(--f-display); letter-spacing: .12em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .agent:not(.on) .nm { color: var(--dim); }
 .agent .st { font: 500 10px/1.2 var(--f-display); letter-spacing: .16em; text-transform: uppercase; color: var(--dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .agent.on .st { color: color-mix(in srgb, var(--c) 70%, var(--ink)); }
+/* each agent's little neural core, in a targeting frame */
+.agent .mb { grid-column: 3; grid-row: 1 / span 2; width: 64px; height: 36px; display: block;
+  background: linear-gradient(var(--c), var(--c)) left top / 7px 1px no-repeat, linear-gradient(var(--c), var(--c)) left top / 1px 7px no-repeat,
+              linear-gradient(var(--c), var(--c)) right bottom / 7px 1px no-repeat, linear-gradient(var(--c), var(--c)) right bottom / 1px 7px no-repeat; opacity: .9; }
+.agent:not(.on) .mb { opacity: .35; }
 @keyframes beat { 50% { transform: scale(1.35); } }
-.roster-foot { margin-top: auto; display: grid; gap: 4px; padding: 0 4px; }
+.xpanel { padding: 10px 12px 11px; gap: 8px; }
+.xpanel canvas { height: 40px; }
+#tel { height: 92px; }
+.brain-box { flex: 1 1 auto !important; min-height: 130px; grid-template-rows: auto minmax(0, 1fr); padding: 10px 12px; gap: 6px; }
+.brain-box canvas { height: 100% !important; min-height: 0; }
+.roster-foot { margin-top: auto; display: grid; gap: 4px; padding: 0 4px; flex: none; }
 .roster-foot .mono { font-size: 12px; color: var(--dim); }
+@media (max-height: 860px) and (min-width: 1001px) { #telBox { display: none; } }
+@media (max-height: 760px) and (min-width: 1001px) { #pwrBox { display: none; } }
+@media (max-height: 600px) and (min-width: 1001px) { .roster .brain-box { display: none; } .agents { max-height: none; } .agents-box { flex: 1 1 auto !important; } }
 
 /* ---------- stage (middle) ---------- */
 .stage { grid-area: stage; position: relative; min-height: 0; display: grid; place-items: center; }
@@ -324,7 +341,7 @@ header { grid-area: head; display: flex; align-items: center; gap: 10px; flex-wr
 canvas#orb { position: absolute; inset: 0; width: 100%; height: 100%; }
 #orbBtn { position: relative; z-index: 2; width: min(56vmin, 440px); aspect-ratio: 1; max-width: 100%; border-radius: 50%; border: 0; background: transparent; cursor: pointer; }
 .readout { position: absolute; z-index: 2; left: 0; right: 0; bottom: 3%; display: grid; justify-items: center; gap: 9px; pointer-events: none; text-align: center; }
-.wave-pill { width: 132px; height: 30px; border-radius: 999px; display: block; margin-bottom: 2px;
+.wave-pill { width: 176px; height: 30px; border-radius: 999px; display: block; margin-bottom: 2px;
   background: color-mix(in srgb, var(--void-lo) 70%, transparent); border: 1px solid color-mix(in srgb, var(--arc) 35%, var(--line));
   box-shadow: 0 0 18px -6px var(--arc), inset 0 0 12px -6px var(--arc); }
 .app.offline .wave-pill { border-color: var(--line); box-shadow: none; opacity: .6; }
@@ -370,8 +387,18 @@ form.ask { width: 100%; box-sizing: border-box; display: flex; gap: 8px; align-i
 .hint { text-align: center; font: 500 11px/1.4 var(--f-display); letter-spacing: .14em; text-transform: uppercase; color: var(--dim); }
 
 /* ---------- instruments (right) ---------- */
-.hud { grid-area: hud; min-height: 0; display: flex; flex-direction: column; gap: 12px; overflow-y: auto; z-index: 3; }
-.box { position: relative; background: color-mix(in srgb, var(--panel) 82%, transparent); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px 14px; display: grid; gap: 10px; }
+.hud { grid-area: hud; min-height: 0; display: flex; flex-direction: column; gap: 10px; overflow-y: auto; z-index: 3; scrollbar-width: none; }
+.hud > .box { flex: none; }
+.box { position: relative; background: color-mix(in srgb, var(--panel) 82%, transparent); border: 1px solid color-mix(in srgb, #5aa8ff 22%, var(--line)); border-radius: 10px; padding: 12px 14px 14px; display: grid; gap: 10px;
+  box-shadow: inset 0 0 24px -14px color-mix(in srgb, var(--arc) 70%, transparent), 0 0 0 1px rgba(0,0,0,.2); }
+.box.slim { padding: 10px 14px; }
+.gauge-box { padding: 6px 8px; } .gauge-box canvas { height: 88px; }
+.stab-box { padding: 10px 12px 11px; gap: 8px; } .stab-box canvas { height: 24px; }
+.box canvas.trace { height: 26px; margin-top: -4px; }
+.resp-grid { display: grid; grid-template-columns: minmax(0, 1fr) 62px; gap: 12px; align-items: center; }
+#respDial { width: 62px; height: 62px; }
+@media (max-height: 860px) and (min-width: 1001px) { .gauge-box { display: none; } }
+@media (max-height: 760px) and (min-width: 1001px) { .stab-box, .box canvas.trace { display: none; } }
 /* corner ticks, like a targeting frame */
 .box::before, .box::after { content: ""; position: absolute; width: 10px; height: 10px; border: 1px solid var(--arc); opacity: .7; }
 .box::before { top: -1px; left: -1px; border-right: 0; border-bottom: 0; border-top-left-radius: 10px; }
@@ -550,8 +577,11 @@ form.ask.chatask { margin-top: 2px; }
 @media (max-width: 1000px) {
   .app { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto minmax(0, 1fr) auto; grid-template-areas: "head" "roster" "stage" "dock"; }
   .hud { display: none; }
-  .roster-head, .roster-foot { display: none; }
-  .agents { flex-direction: row; overflow-x: auto; overflow-y: visible; padding-bottom: 2px; }
+  .roster-head, .roster-foot, .roster .xpanel, .brain-box { display: none; }
+  .agents-box { padding: 0; background: none; border: 0; box-shadow: none; }
+  .agents-box::before, .agents-box::after { display: none; }
+  .agents { flex-direction: row; overflow-x: auto; overflow-y: visible; padding-bottom: 2px; max-height: none; }
+  .agent .mb { display: none; }
   .agent { width: auto; flex: none; grid-template-columns: 10px auto; padding: 8px 14px 8px 12px; border-radius: 999px; border-color: var(--line); }
   .agent .dot { grid-row: auto; }
   .agent .st { display: none; }
@@ -572,8 +602,22 @@ form.ask.chatask { margin-top: 2px; }
   </header>
 
   <nav class="roster" aria-label="Agents">
-    <div class="roster-head"><span class="label">Agents</span><span class="label mono" id="onlineCount">–</span></div>
-    <div class="agents" id="agents"></div>
+    <section class="box agents-box">
+      <div class="roster-head"><span class="label">Agents</span><span class="label mono" id="onlineCount">–</span></div>
+      <div class="agents" id="agents"></div>
+    </section>
+    <section class="box xpanel" id="pwrBox">
+      <div class="box-head"><span class="label">Power distribution</span><span class="mono" id="pwrTotal">–</span></div>
+      <canvas id="pwr" aria-hidden="true"></canvas>
+    </section>
+    <section class="box xpanel" id="telBox">
+      <div class="box-head"><span class="label">Advanced telemetry</span><span class="mono" id="telState">–</span></div>
+      <canvas id="tel" aria-hidden="true"></canvas>
+    </section>
+    <section class="box brain-box">
+      <div class="box-head"><span class="label">Neural core</span><span class="mono" id="scopeMode2">standby</span></div>
+      <canvas id="scope" aria-hidden="true"></canvas>
+    </section>
     <div class="roster-foot">
       <span class="label">Gateway</span>
       <span class="mono" id="gwLine">Checking…</span>
@@ -611,13 +655,20 @@ form.ask.chatask { margin-top: 2px; }
   </div>
 
   <aside class="hud" aria-label="Instruments">
+    <section class="box gauge-box">
+      <canvas id="gauges" aria-hidden="true"></canvas>
+    </section>
+    <section class="box stab-box">
+      <div class="box-head"><span class="label">Core stability</span><span class="mono" id="stabVal">–</span></div>
+      <canvas id="stab" aria-hidden="true"></canvas>
+    </section>
     <section class="box">
       <div class="box-head"><span class="label">Voice</span><span class="mono" id="voiceSrc">idle</span></div>
       <canvas id="bars" height="70"></canvas>
+      <canvas id="trace" class="trace" aria-hidden="true"></canvas>
     </section>
-    <section class="box">
+    <section class="box slim">
       <div class="box-head"><span class="label">Scope</span><span class="mono" id="scopeMode">auto</span></div>
-      <canvas id="scope" height="170"></canvas>
     </section>
     <section class="box">
       <div class="box-head"><span class="label">Link</span><span class="mono" id="clock">--:--:--</span></div>
@@ -631,10 +682,13 @@ form.ask.chatask { margin-top: 2px; }
     <section class="box">
       <div class="box-head"><span class="label">Response</span><span class="mono" id="respLast">–</span></div>
       <canvas id="spark" height="56"></canvas>
-      <div class="rows">
-        <div class="row"><span>First word</span><span class="mono" id="hFirst">–</span></div>
-        <div class="row"><span>Voice start</span><span class="mono" id="hVoice">–</span></div>
-        <div class="row"><span>Average reply</span><span class="mono" id="hAvg">–</span></div>
+      <div class="resp-grid">
+        <div class="rows">
+          <div class="row"><span>First word</span><span class="mono" id="hFirst">–</span></div>
+          <div class="row"><span>Voice start</span><span class="mono" id="hVoice">–</span></div>
+          <div class="row"><span>Average reply</span><span class="mono" id="hAvg">–</span></div>
+        </div>
+        <canvas id="respDial" aria-hidden="true"></canvas>
       </div>
     </section>
     <section class="box">
@@ -861,7 +915,7 @@ form.ask.chatask { margin-top: 2px; }
       box.textContent = '';
       for (const a of agents) {
         const b = document.createElement('button'); b.type = 'button'; b.className = 'agent'; b.dataset.id = a.id;
-        b.innerHTML = '<span class="dot"></span><span class="nm"></span><span class="st"></span>';
+        b.innerHTML = '<span class="dot"></span><span class="nm"></span><canvas class="mb" aria-hidden="true"></canvas><span class="st"></span>';
         b.addEventListener('click', () => selectAgent(a.id));
         box.append(b);
       }
@@ -2486,8 +2540,43 @@ form.ask.chatask { margin-top: 2px; }
         ctx.fillStyle = Wt(0.95); ctx.fillText(val.slice(0, Math.max(0, n - label.length)), hx + side * 4, ey + 9);
       }
     }
+
+    // segmented arc meters on the right of the orb: the outer one follows the voice, the inner one the agent's load;
+    // a thin graduated arc mirrors them on the left, and a small dial turns below right
+    const Ra = R * 2.1;
+    if (cx + Ra + R * .2 < W - 8 && cy - Ra * .62 > 8) {
+      const [hr, hg, hb] = hi.map(Math.round), C = (k, a) => `rgba(${Math.round(r + (hr - r) * k)},${Math.round(g + (hg - g) * k)},${Math.round(b + (hb - b) * k)},${a * (0.3 + 0.7 * live) * ease})`;
+      arcV.out += (clamp01(lvl * 1.7 + (state === 'listening' ? micLevel : 0)) - arcV.out) * 0.2;
+      arcV.in += (clamp01((ACT[state] ?? .3) * live * .85 + .05 * Math.sin(t * 1.7)) - arcV.in) * 0.06;
+      const span = 0.62, N = 34;
+      [[Ra + R * .14, arcV.out, Math.max(5, R * .07)], [Ra, arcV.in, Math.max(3, R * .04)]].forEach(([rad, v, lw]) => {
+        ctx.lineWidth = lw;
+        for (let i = 0; i < N; i++) {
+          const k = i / (N - 1), a0 = span - (2 * span) * (i / N), a1 = a0 - (2 * span) / N * .68;
+          ctx.strokeStyle = k <= v ? C(k, .85) : A(.1);
+          ctx.beginPath(); ctx.arc(cx, cy, rad, a1, a0); ctx.stroke();
+        }
+      });
+      ctx.lineWidth = 1; ctx.strokeStyle = A(.3);
+      ctx.beginPath(); ctx.arc(cx, cy, Ra + R * .24, -span, span); ctx.stroke();
+      ctx.beginPath(); ctx.arc(cx, cy, Ra, Math.PI - span * .8, Math.PI + span * .8); ctx.stroke();
+      for (let i = 0; i <= 12; i++) { const a = Math.PI - span * .8 + span * 1.6 * i / 12, l = i % 3 ? 4 : 8;
+        ctx.beginPath(); ctx.moveTo(cx + Math.cos(a) * Ra, cy + Math.sin(a) * Ra); ctx.lineTo(cx + Math.cos(a) * (Ra - l), cy + Math.sin(a) * (Ra - l)); ctx.stroke(); }
+      ctx.font = `9px ${MONO}`; ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillStyle = Wt(0.6);
+      ctx.fillText(String(Math.round(arcV.out * 100)).padStart(2, '0'), cx + Math.cos(span) * (Ra + R * .3), cy + Math.sin(span) * (Ra + R * .3));
+      // dial
+      const dx = cx + Math.cos(0.98) * Ra, dy = cy + Math.sin(0.98) * Ra, dr = Math.max(14, R * .17);
+      if (dy + dr < H - 8) {
+        arcV.rot += dt * (0.5 + (ACT[state] ?? .3) * 3) * mo * live;
+        ctx.lineWidth = 3;
+        for (let i = 0; i < 18; i++) { const a = i / 18 * 6.283; ctx.strokeStyle = A(i % 3 ? .18 : .5); ctx.beginPath(); ctx.arc(dx, dy, dr, a, a + .2); ctx.stroke(); }
+        ctx.lineWidth = 2; ctx.strokeStyle = C(.4, .9); ctx.beginPath(); ctx.arc(dx, dy, dr * .7, arcV.rot, arcV.rot + 2); ctx.stroke();
+        ctx.textAlign = 'center'; ctx.fillStyle = Wt(0.85); ctx.fillText(String(Math.round(arcV.in * 100)).padStart(2, '0'), dx, dy);
+      }
+    }
     ctx.restore();
   }
+  const arcV = { out: 0, in: 0, rot: 0 };
 
   // ---------- instruments ----------
   const BARS = 28, barVals = new Float32Array(BARS);
@@ -2558,7 +2647,7 @@ form.ask.chatask { margin-top: 2px; }
   function fireImpulse() { const a = (Math.random() * NEURONS.length) | 0; impulses.push({ a, b: NEAR[a][(Math.random() * NEAR[a].length) | 0], p: 0, hops: 3 + ((Math.random() * 6) | 0) }); }
   function drawScope(t, dt) {
     const c = $('scope'); if (!c.offsetParent) return;
-    const g = c.getContext('2d'), w = c.clientWidth, h = c.clientHeight;
+    const [g, w, h] = sized(c);
     const act = { idle: .25, listening: .6, thinking: 1, speaking: .8, error: .15, offline: 0 }[state] ?? .3;
     const live = (1 - dim) * clamp01(orbDraw * 1.5), mo = reduceMotion ? .2 : 1;
     const [r, gg, b] = col.map(Math.round), [r2, g2, b2] = col2.map(Math.round);
@@ -2618,36 +2707,259 @@ form.ask.chatask { margin-top: 2px; }
     g.fillText('NODES ' + NEURONS.length, 4, h - 5);
     g.textAlign = 'right'; g.fillText('α ' + (8 + act * 5.5 + Math.sin(t * 1.4) * .4).toFixed(1) + ' Hz', w - 4, 11);
     g.fillText('LOAD ' + String(Math.max(0, Math.round(act * live * 86 + Math.sin(t * 3.3) * 3 + 4 * live))).padStart(2, '0') + '%', w - 4, h - 5);
-    $('scopeMode').textContent = live > 0.5 ? 'neural · ' + (state === 'thinking' ? 'active' : state === 'idle' ? 'auto' : state) : 'standby';
+    const mode = live > 0.5 ? 'neural · ' + (state === 'thinking' ? 'active' : state === 'idle' ? 'auto' : state) : 'standby';
+    if ($('scopeMode').textContent !== mode) { $('scopeMode').textContent = mode; $('scopeMode2').textContent = mode; }
+    // callouts: leader lines from the core to its regions, on the larger left-hand panel
+    if (w > 200 && h > 120) {
+      g.font = '8.5px "IBM Plex Mono", ui-monospace, monospace'; g.lineWidth = 1;
+      [[-.55, -.25, 'CORTEX'], [.6, -.3, 'SYNAPSE MAP'], [-.5, .35, 'MEMORY'], [.45, .45, 'MOTOR · VOX']].forEach(([px, py, label], k) => {
+        const sx = x0 + px * sc * 1.25, sy = y0 + py * sc * 1.25, side = px < 0 ? -1 : 1, ex = side < 0 ? 6 : w - 6, ly = sy - 10 * Math.sign(py || 1);
+        if (Math.abs(ex - sx) < 30) return;
+        g.strokeStyle = A2(.18 + .3 * live); g.beginPath(); g.moveTo(sx, sy); g.lineTo(sx + side * 10, ly); g.lineTo(ex, ly); g.stroke();
+        g.fillStyle = A(.5 + .4 * live); g.beginPath(); g.arc(sx, sy, 1.6, 0, 6.283); g.fill();
+        g.textAlign = side < 0 ? 'left' : 'right'; g.fillStyle = A2(.5 + .4 * live); g.fillText(label, ex, ly - 5);
+      });
+    }
   }
 
-  // the pill under the orb: small multicoloured lines, a living waveform that follows the mic and the voice
-  const PILL_N = 26, pillVals = new Float32Array(PILL_N);
+  // The heartbeat bar under the orb, in the orb's own colour. Each agent has its own pattern (eight, then they
+  // repeat); all of them follow the mic while listening, the voice while speaking, and quicken while thinking.
+  const PILL_N = 30, pillVals = new Float32Array(PILL_N);
+  const PILL_STYLES = ['bars', 'ecg', 'mirror', 'dots', 'ribbon', 'eq', 'scan', 'blocks'];
+  function pillStyle() { const i = Math.max(0, agents.findIndex(a => a.id === agent)); return PILL_STYLES[i % PILL_STYLES.length]; }
   function drawPill(t) {
     const c = $('wavePill'); if (!c || !c.offsetParent) return;
     const w = c.clientWidth, h = c.clientHeight, d = Math.min(2, devicePixelRatio || 1);
     if (c.width !== Math.round(w * d)) { c.width = Math.round(w * d); c.height = Math.round(h * d); }
     const g = c.getContext('2d'); g.setTransform(d, 0, 0, d, 0, 0); g.clearRect(0, 0, w, h);
-    const live = (1 - dim) * clamp01(orbDraw * 1.4);
-    const cA = col.map(Math.round), cB = col2.map(Math.round), cC = hueShift(cA, 70), cD = hueShift(cB, -60);
-    const stops = [cA, cB, cC, cD, cA];
-    const padX = 14, gap = (w - padX * 2) / (PILL_N - 1), mid = h / 2;
-    g.lineCap = 'round'; g.lineWidth = 2;
-    for (let i = 0; i < PILL_N; i++) {
-      const x = i / (PILL_N - 1), env = Math.sin(Math.PI * (0.08 + x * 0.84));
-      let v;
-      if (state === 'offline') v = 0.04;
-      else if (state === 'speaking') v = lvl * (0.45 + 0.55 * Math.abs(Math.sin(t * (7 + i * 0.9) + i * 1.7))) * 1.4;
-      else if (state === 'listening') v = 0.12 + micLevel * (0.6 + 0.4 * Math.abs(Math.sin(t * 9 + i * 1.3))) * 1.6;
-      else if (state === 'thinking') v = 0.18 + 0.5 * Math.max(0, Math.sin(t * 7 - i * 0.55)) ** 2;
-      else v = 0.1 + 0.08 * Math.sin(t * 2.2 + i * 0.7) + 0.05 * Math.sin(t * 3.7 - i * 1.1);
-      pillVals[i] += (Math.min(1, v * env) - pillVals[i]) * 0.3;
-      const hh = Math.max(1.5, pillVals[i] * (h - 10) * live);
-      const f = x * 4, k = Math.min(3, Math.floor(f)), m = f - k;
-      const c0 = stops[k], c1 = stops[k + 1], cc = c0.map((v2, j) => Math.round(v2 + (c1[j] - v2) * m));
-      g.strokeStyle = `rgba(${cc[0]},${cc[1]},${cc[2]},${0.35 + 0.65 * live})`;
-      g.beginPath(); g.moveTo(padX + i * gap, mid - hh / 2); g.lineTo(padX + i * gap, mid + hh / 2); g.stroke();
+    const live = (1 - dim) * clamp01(orbDraw * 1.4), mo = reduceMotion ? .3 : 1;
+    const [r, gg, b] = col.map(Math.round), [hr, hg, hb] = hi.map(Math.round);
+    const C = (k, a) => `rgba(${Math.round(r + (hr - r) * k)},${Math.round(gg + (hg - gg) * k)},${Math.round(b + (hb - b) * k)},${a * (0.35 + 0.65 * live)})`;
+    // one energy value per column, for whatever the agent is doing
+    const energy = (i, x) => {
+      if (state === 'offline') return 0.04;
+      if (state === 'speaking') return lvl * (0.45 + 0.55 * Math.abs(Math.sin(t * (7 + i * 0.9) * mo + i * 1.7))) * 1.4;
+      if (state === 'listening') return 0.12 + micLevel * (0.6 + 0.4 * Math.abs(Math.sin(t * 9 * mo + i * 1.3))) * 1.6;
+      if (state === 'thinking') return 0.18 + 0.5 * Math.max(0, Math.sin(t * 7 * mo - i * 0.55)) ** 2;
+      return 0.1 + 0.08 * Math.sin(t * 2.2 * mo + i * 0.7) + 0.05 * Math.sin(t * 3.7 * mo - i * 1.1);
+    };
+    const padX = 14, mid = h / 2, n = PILL_N, gap = (w - padX * 2) / (n - 1), style = pillStyle();
+    for (let i = 0; i < n; i++) {
+      const x = i / (n - 1), env = Math.sin(Math.PI * (0.08 + x * 0.84));
+      pillVals[i] += (Math.min(1, energy(i, x) * env) - pillVals[i]) * 0.3;
     }
+    const amp = (h - 10) * live, beat = state === 'thinking' ? 2.2 : state === 'speaking' || state === 'listening' ? 1.6 : 1;
+    g.lineCap = 'round';
+    if (style === 'bars' || style === 'mirror' || style === 'eq' || style === 'scan') {
+      g.lineWidth = 2;
+      for (let i = 0; i < n; i++) {
+        let v = pillVals[i];
+        if (style === 'mirror') v = pillVals[Math.abs(Math.round((n - 1) / 2 - i))] * 1.1;
+        if (style === 'scan') { const head = ((t * .6 * beat * mo) % 1.3) * n; v = Math.max(v * .55, Math.exp(-((i - head) ** 2) / 6) * (.35 + v)); }
+        const hh = Math.max(1.5, v * amp), xx = padX + i * gap;
+        g.strokeStyle = C(clamp01(v * 1.3), 0.45 + 0.55 * clamp01(v * 2));
+        g.beginPath();
+        if (style === 'eq') { g.moveTo(xx, h - 6); g.lineTo(xx, h - 6 - hh); }
+        else { g.moveTo(xx, mid - hh / 2); g.lineTo(xx, mid + hh / 2); }
+        g.stroke();
+      }
+    } else if (style === 'ecg') {
+      // a heart-monitor trace: flat line with a beat running across it
+      const level = pillVals.reduce((s, v) => s + v, 0) / n;
+      const pos = ((t * .55 * beat * mo) % 1) * (w - padX * 2);
+      g.lineWidth = 1.6; g.strokeStyle = C(.2, .95); g.beginPath();
+      for (let x = 0; x <= w - padX * 2; x += 1.5) {
+        const u = (x - pos) / 10;
+        let y = Math.sin(x * .3 + t * 6) * level * 3;
+        if (u > -1.2 && u < 2.5) y += (u < 0 ? Math.sin(u * Math.PI) * 3 : u < .5 ? -Math.sin(u / .5 * Math.PI) * (6 + level * 22) : u < 1 ? Math.sin((u - .5) / .5 * Math.PI) * (4 + level * 10) : Math.sin((u - 1) / 1.5 * Math.PI) * -2.5);
+        const xx = padX + x, yy = mid + y * live;
+        x ? g.lineTo(xx, yy) : g.moveTo(xx, yy);
+      }
+      g.stroke();
+      g.fillStyle = C(1, .95); g.beginPath(); g.arc(padX + pos, mid, 1.8, 0, 6.283); g.fill();
+    } else if (style === 'dots') {
+      // a dot matrix: each column lights a stack of dots
+      const rows = 5, dy = (h - 10) / (rows - 1);
+      for (let i = 0; i < n; i += 1) {
+        const lit = Math.round(pillVals[i] * rows * 1.3);
+        for (let k = 0; k < rows; k++) {
+          const on = Math.abs(k - (rows - 1) / 2) < lit / 2 + .01;
+          g.fillStyle = on ? C(k / rows, .95) : C(0, .14);
+          g.beginPath(); g.arc(padX + i * gap, 5 + k * dy, 1.1, 0, 6.283); g.fill();
+        }
+      }
+    } else if (style === 'ribbon') {
+      // two sine ribbons twisting round each other
+      for (const [ph, k] of [[0, 0], [Math.PI, .7]]) {
+        g.lineWidth = 1.6; g.strokeStyle = C(k, .9); g.beginPath();
+        for (let i = 0; i <= 60; i++) {
+          const x = i / 60, j = Math.min(n - 1, Math.round(x * (n - 1))), env = Math.sin(Math.PI * x);
+          const y = mid + Math.sin(x * 11 + t * 3.2 * beat * mo + ph) * (2 + pillVals[j] * amp * .5) * env;
+          i ? g.lineTo(padX + x * (w - padX * 2), y) : g.moveTo(padX, y);
+        }
+        g.stroke();
+      }
+    } else {
+      // blocks: stepped cells, like a bit stream
+      const bw = gap * .7;
+      for (let i = 0; i < n; i++) {
+        const v = pillVals[i], cells = Math.max(1, Math.round(v * 4 * 1.4)), ch = (h - 10) / 4 - 1.5;
+        for (let k = 0; k < 4; k++) { g.fillStyle = k < cells ? C(k / 4, .9) : C(0, .1); g.fillRect(padX + i * gap - bw / 2, h - 5 - (k + 1) * (ch + 1.5), bw, ch); }
+      }
+    }
+  }
+
+  // ---------- K.I.B.I. console panels: mini cores, power, telemetry, gauges, stability, traces ----------
+  function sized(c) {
+    const d = Math.min(2, devicePixelRatio || 1), w = c.clientWidth, h = c.clientHeight;
+    if (c.width !== Math.round(w * d) || c.height !== Math.round(h * d)) { c.width = Math.round(w * d); c.height = Math.round(h * d); }
+    const g = c.getContext('2d'); g.setTransform(d, 0, 0, d, 0, 0); g.clearRect(0, 0, w, h);
+    return [g, w, h];
+  }
+  const ACT = { idle: .25, listening: .6, thinking: 1, speaking: .8, error: .15, offline: 0 };
+  const activity = () => ACT[state] ?? .3;
+  const liveness = () => (1 - dim) * clamp01(orbDraw * 1.5);
+  const voiceLevel = () => state === 'listening' ? micLevel : state === 'speaking' ? lvl : 0;
+  const rgbOf = id => hex(agentColor(id));
+  const SEGS = (g, x, y, w, h, n, v, color, off = 'rgba(90,168,255,.13)') => {
+    const gap = 2, sw = (w - gap * (n - 1)) / n, lit = Math.round(clamp01(v) * n);
+    for (let k = 0; k < n; k++) { g.fillStyle = k < lit ? (typeof color === 'function' ? color(k / (n - 1), k) : color) : off; g.fillRect(x + k * (sw + gap), y, sw, h); }
+  };
+  const FONT = s => `${s}px ${MONO}`;
+
+  // each agent card's little neural core: the scope's brain at miniature size, turning at its own pace
+  const miniRot = {};
+  function drawMiniBrains(dt) {
+    const mo = reduceMotion ? .2 : 1;
+    document.querySelectorAll('#agents .agent').forEach((card, idx) => {
+      const c = card.querySelector('.mb'); if (!c || !c.offsetParent) return;
+      const a = agents.find(x => x.id === card.dataset.id); if (!a) return;
+      const me = a.id === agent, busy = me && ['listening', 'thinking', 'speaking'].includes(state);
+      miniRot[a.id] = (miniRot[a.id] ?? idx * 1.7) + dt * mo * (a.online ? (busy ? 1.4 : .35) : .05);
+      const [g, w, h] = sized(c), [r, gg, b] = rgbOf(a.id), A = al => `rgba(${r},${gg},${b},${al})`;
+      const cr = Math.cos(miniRot[a.id]), sr = Math.sin(miniRot[a.id]), sc = Math.min(w, h * 1.6) * .34, x0 = w / 2, y0 = h / 2 + 1;
+      const P = [];
+      for (let i = 0; i < NEURONS.length; i += 2) { const n = NEURONS[i], x = n.x * cr + n.z * sr, z = -n.x * sr + n.z * cr; P[i] = [x0 + x * sc, y0 + (n.y * .95 - z * .3) * sc, z]; }
+      g.lineWidth = .6; g.strokeStyle = A(a.online ? (me ? .5 : .32) : .18);
+      g.beginPath(); for (const [i, j] of SYN) { if (!P[i] || !P[j]) continue; g.moveTo(P[i][0], P[i][1]); g.lineTo(P[j][0], P[j][1]); } g.stroke();
+      for (const p of P) { if (!p) continue; g.fillStyle = A((.35 + .5 * (p[2] + 1) / 2) * (a.online ? 1 : .4)); g.fillRect(p[0] - .6, p[1] - .6, 1.2, 1.2); }
+      if (busy) { const n = P[(Math.floor(performance.now() / 90) * 2) % NEURONS.length & ~1]; if (n) { g.fillStyle = 'rgba(255,255,255,.9)'; g.beginPath(); g.arc(n[0], n[1], 1.6, 0, 6.283); g.fill(); } }
+    });
+  }
+
+  // power distribution: one segmented bar per agent, the current one following what it's doing
+  const pwrVals = {};
+  function drawPower(t) {
+    const c = $('pwr'); if (!c.offsetParent) return;
+    const list = agents.slice(0, 6), rowH = 14, want = list.length * rowH + (agents.length > 6 ? 12 : 0) + 2;
+    if (c.clientHeight !== want) c.style.height = want + 'px';
+    const [g, w] = sized(c), live = liveness();
+    g.font = FONT(9); g.textBaseline = 'middle';
+    let sum = 0;
+    list.forEach((a, i) => {
+      const me = a.id === agent, y = i * rowH + 2;
+      const target = !a.online ? 0 : me ? (.32 + activity() * .5 + voiceLevel() * .3) * live + .04 * Math.sin(t * 5 + i) : .2 + .06 * Math.sin(t * 1.3 + i * 2);
+      pwrVals[a.id] = (pwrVals[a.id] ?? 0) + (clamp01(target) - (pwrVals[a.id] ?? 0)) * .12; sum += pwrVals[a.id];
+      const [r, gg, b] = rgbOf(a.id);
+      g.fillStyle = a.online ? `rgba(${r},${gg},${b},.95)` : 'rgba(142,163,198,.5)';
+      g.textAlign = 'left'; g.fillText(acronym(a.label).slice(0, 12), 0, y + 5);
+      SEGS(g, 74, y, w - 74 - 34, 9, 22, pwrVals[a.id], k => `rgba(${r},${gg},${b},${.35 + .65 * k})`);
+      g.textAlign = 'right'; g.fillStyle = 'rgba(226,236,244,.75)'; g.fillText(String(Math.round(pwrVals[a.id] * 100)).padStart(2, '0') + '%', w, y + 5);
+    });
+    if (agents.length > 6) { g.textAlign = 'left'; g.fillStyle = 'rgba(142,163,198,.7)'; g.fillText(`+ ${agents.length - 6} more`, 0, list.length * rowH + 7); }
+    $('pwrTotal').textContent = list.length ? Math.round(sum / list.length * 100) + '%' : '–';
+  }
+
+  // advanced telemetry: uplink, neural load, voice I/O and synapse rate, with a rolling history
+  const telHist = { a: new Float32Array(80), b: new Float32Array(80), at: 0 }, telV = [0, 0, 0, 0];
+  function drawTelemetry(t, now) {
+    const c = $('tel'); if (!c.offsetParent) return;
+    const [g, w, h] = sized(c), live = liveness(), [r, gg, b] = col.map(Math.round), [r2, g2, b2] = col2.map(Math.round);
+    const lat = gateway.online && gateway.latencyMs != null ? gateway.latencyMs : null;
+    const want = [gateway.online ? clamp01(1 - (lat ?? 200) / 600) : 0, activity() * live, voiceLevel() * 1.4, clamp01(synRate / 22)];
+    want.forEach((v, i) => { telV[i] += (clamp01(v) - telV[i]) * .15; });
+    const rows = [['UPLINK', lat != null ? lat + ' ms' : '—'], ['NEURAL', Math.round(telV[1] * 100) + '%'], ['VOICE I/O', Math.round(telV[2] * 100) + '%'], ['SYNAPSE', String(Math.round(synRate * 12)).padStart(4, '0')]];
+    g.font = FONT(9); g.textBaseline = 'middle';
+    rows.forEach(([label, val], i) => {
+      const y = i * 12;
+      g.textAlign = 'left'; g.fillStyle = 'rgba(142,163,198,.85)'; g.fillText(label, 0, y + 5);
+      SEGS(g, 62, y + 1, w - 62 - 46, 7, 26, telV[i], i % 2 ? `rgba(${r2},${g2},${b2},.85)` : k => `rgba(${r},${gg},${b},${.35 + .65 * k})`);
+      g.textAlign = 'right'; g.fillStyle = 'rgba(226,236,244,.8)'; g.fillText(val, w, y + 5);
+    });
+    if (now - telHist.at > 90) { telHist.at = now; telHist.a.copyWithin(0, 1); telHist.b.copyWithin(0, 1); telHist.a[79] = telV[1]; telHist.b[79] = telV[2]; }
+    const top = 52, gh = h - top - 2;
+    g.strokeStyle = 'rgba(90,168,255,.12)'; g.lineWidth = 1; g.strokeRect(.5, top + .5, w - 1, gh);
+    for (const [arr, cc] of [[telHist.a, `rgba(${r},${gg},${b},.9)`], [telHist.b, `rgba(${r2},${g2},${b2},.9)`]]) {
+      g.beginPath(); for (let k = 0; k < 80; k++) { const x = 1 + k / 79 * (w - 2), y = top + gh - 2 - arr[k] * (gh - 4) - Math.sin(t * 3 + k * .5) * .6 * live; k ? g.lineTo(x, y) : g.moveTo(x, y); }
+      g.strokeStyle = cc; g.lineWidth = 1.2; g.stroke();
+    }
+    const st = $('telState'); const txt = gateway.online ? 'online' : 'no link'; if (st.textContent !== txt) { st.textContent = txt; st.className = 'mono ' + (gateway.online ? 'ok' : 'bad'); }
+  }
+
+  // gauges: load (what the agent is doing) and signal (mic or voice level)
+  const gv = { load: 0, sig: 0 };
+  function drawGaugeBox(t) {
+    const c = $('gauges'); if (!c.offsetParent) return;
+    const [g, w, h] = sized(c), live = liveness();
+    gv.load += (clamp01(activity() * live * .9 + .04 * Math.sin(t * 2.3)) - gv.load) * .08;
+    gv.sig += (clamp01(voiceLevel() * 1.6) - gv.sig) * .2;
+    const gauge = (x, y, rr, v, rgb, label, val) => {
+      const a0 = Math.PI * 1.05, a1 = Math.PI * 1.95, N = 26;
+      g.lineWidth = Math.max(5, rr * .16);
+      for (let k = 0; k < N; k++) { const s0 = a0 + (a1 - a0) * k / N; g.strokeStyle = k / N < v ? `rgba(${rgb[0]},${rgb[1]},${rgb[2]},${.45 + .55 * k / N})` : 'rgba(90,168,255,.12)'; g.beginPath(); g.arc(x, y, rr, s0, s0 + (a1 - a0) / N * .72); g.stroke(); }
+      const na = a0 + (a1 - a0) * v; g.lineWidth = 2; g.strokeStyle = '#fff'; g.beginPath(); g.moveTo(x, y); g.lineTo(x + Math.cos(na) * rr * .8, y + Math.sin(na) * rr * .8); g.stroke();
+      g.fillStyle = '#fff'; g.beginPath(); g.arc(x, y, 2.5, 0, 6.283); g.fill();
+      g.font = FONT(9); g.textAlign = 'center'; g.textBaseline = 'alphabetic';
+      g.fillStyle = 'rgba(142,163,198,.85)'; g.fillText(label, x, y + 13);
+      g.fillStyle = '#fff'; g.fillText(val, x, y - rr * .36);
+    };
+    const rr = Math.min(w * .21, h * .62), cA = col.map(Math.round), cB = hi.map(Math.round);
+    gauge(w * .27, h * .8, rr, gv.load, cA, 'LOAD', Math.round(gv.load * 100) + '%');
+    gauge(w * .73, h * .8, rr, gv.sig, cB, 'SIGNAL', Math.round(gv.sig * 100) + '%');
+  }
+
+  // core stability: two rows of cells lit by how healthy the link to the agents is
+  let stabV = 0;
+  function drawStab(t) {
+    const c = $('stab'); if (!c.offsetParent) return;
+    const [g, w, h] = sized(c), on = agents.filter(a => a.online).length;
+    const want = gateway.online ? (agents.length ? on / agents.length : 0) * (1 - Math.min(.4, (gateway.latencyMs ?? 0) / 1000)) : .04;
+    stabV += (want - stabV) * .05;
+    const [r, gg, b] = col.map(Math.round), [r2, g2, b2] = col2.map(Math.round), n = 16, rowH = (h - 3) / 2;
+    for (let row = 0; row < 2; row++) {
+      const v = clamp01(stabV - row * .04 + .02 * Math.sin(t * 4 + row));
+      SEGS(g, 0, row * (rowH + 3), w, rowH, n, v, k => (row ? `rgba(${r2},${g2},${b2},${.5 + .5 * k})` : `rgba(${r},${gg},${b},${.5 + .5 * k})`));
+    }
+    const txt = Math.round(stabV * 100) + '%'; if ($('stabVal').textContent !== txt) $('stabVal').textContent = txt;
+  }
+
+  // voice traces under the voice bars: your mic and the agent's voice over the last few seconds
+  const trace = { mic: new Float32Array(90), out: new Float32Array(90), at: 0 };
+  function drawTrace(t, now) {
+    const c = $('trace'); if (!c.offsetParent) return;
+    if (now - trace.at > 60) { trace.at = now; trace.mic.copyWithin(0, 1); trace.out.copyWithin(0, 1); trace.mic[89] = state === 'listening' ? micLevel : 0; trace.out[89] = state === 'speaking' ? lvl : 0; }
+    const [g, w, h] = sized(c), [r, gg, b] = col.map(Math.round), [r2, g2, b2] = col2.map(Math.round), half = (w - 8) / 2;
+    [[trace.mic, 0, `rgba(${r2},${g2},${b2},.9)`, 'MIC'], [trace.out, half + 8, `rgba(${r},${gg},${b},.95)`, 'OUT']].forEach(([arr, x0, cc, label]) => {
+      g.strokeStyle = 'rgba(90,168,255,.14)'; g.lineWidth = 1; g.strokeRect(x0 + .5, .5, half - 1, h - 1);
+      g.beginPath();
+      for (let k = 0; k < 90; k++) { const x = x0 + 1 + k / 89 * (half - 2), y = h / 2 + Math.sin(k * 1.9 + t * 9) * arr[k] * (h / 2 - 2) + Math.sin(k * .7 + t * 2) * .6; k ? g.lineTo(x, y) : g.moveTo(x, y); }
+      g.strokeStyle = cc; g.lineWidth = 1.1; g.stroke();
+      g.font = FONT(8); g.fillStyle = 'rgba(142,163,198,.7)'; g.textAlign = 'left'; g.textBaseline = 'top'; g.fillText(label, x0 + 4, 2);
+    });
+  }
+
+  // response dial: rings turning with the agent's state; quickens while it thinks
+  let dialA = 0;
+  function drawRespDial(t, dt) {
+    const c = $('respDial'); if (!c.offsetParent) return;
+    const [g, w] = sized(c), cx = w / 2, R = w * .44, live = liveness(), [r, gg, b] = col.map(Math.round), [r2, g2, b2] = col2.map(Math.round);
+    dialA += dt * (reduceMotion ? .2 : 1) * (.4 + activity() * 3) * (.2 + .8 * live);
+    g.lineWidth = 4;
+    for (let k = 0; k < 24; k++) { const a = k / 24 * 6.283; g.strokeStyle = `rgba(${r2},${g2},${b2},${(k % 3 ? .16 : .45) * (.4 + .6 * live)})`; g.beginPath(); g.arc(cx, cx, R, a, a + .17); g.stroke(); }
+    g.lineWidth = 3; g.strokeStyle = `rgba(${r},${gg},${b},${.25 + .7 * live})`; g.beginPath(); g.arc(cx, cx, R * .72, dialA, dialA + 2.2); g.stroke();
+    g.lineWidth = 1.5; g.strokeStyle = `rgba(${r},${gg},${b},${.2 + .5 * live})`; g.beginPath(); g.arc(cx, cx, R * .5, -dialA * 1.5, -dialA * 1.5 + 1.5); g.stroke();
+    const p = .5 + .5 * Math.sin(t * (2 + activity() * 6));
+    g.fillStyle = `rgba(${r},${gg},${b},${(.4 + .5 * p) * (.3 + .7 * live)})`; g.beginPath(); g.arc(cx, cx, R * (.14 + .05 * p), 0, 6.283); g.fill();
   }
 
   let sparkTick = 0;
@@ -2670,6 +2982,13 @@ form.ask.chatask { margin-top: 2px; }
     safe('scope', () => drawScope(t, dt));
     safe('chat icons', mirrorChatOrbs);
     safe('pill', () => drawPill(t));
+    safe('power', () => drawPower(t));
+    safe('telemetry', () => drawTelemetry(t, now));
+    safe('gauges', () => drawGaugeBox(t));
+    safe('stability', () => drawStab(t));
+    safe('trace', () => drawTrace(t, now));
+    safe('dial', () => drawRespDial(t, dt));
+    if (sparkTick % 3 === 0) safe('agent cores', () => drawMiniBrains(dt * 3));
     if (++sparkTick % 30 === 0) safe('spark', drawSpark);
     requestAnimationFrame(frame);
   }
@@ -2805,7 +3124,7 @@ form.ask.chatask { margin-top: 2px; }
   let poweredDown = false, sleeping = false, wakeKey = null;
   let bootRun = 0;
   // the console's panels, in power-up order (shutdown uses the reverse)
-  const panels = () => [document.querySelector('header'), document.querySelector('.roster'), ...document.querySelectorAll('.hud .box'), document.querySelector('.dock'), $('orb'), document.querySelector('.readout')].filter(Boolean);
+  const panels = () => [document.querySelector('header'), ...document.querySelectorAll('.roster > .box'), document.querySelector('.roster-foot'), ...document.querySelectorAll('.hud .box'), document.querySelector('.dock'), $('orb'), document.querySelector('.readout')].filter(el => el && el.offsetParent !== null);
   function panelsOff() { for (const el of panels()) { el.classList.remove('pwr-on', 'pwr-down'); el.classList.add('pwr-off'); } }
   function panelsShow() { for (const el of panels()) el.classList.remove('pwr-off', 'pwr-down', 'pwr-on'); }
   async function panelsUp(run, onOrb) {
