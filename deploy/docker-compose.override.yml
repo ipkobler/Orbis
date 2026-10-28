@@ -60,6 +60,11 @@ services:
       # The orb's own device key (its approval in OpenClaw) and the conversation each agent is on.
       # Create it once, owned by the container's user: mkdir -p data/kira-orb && chown 1000:1000 data/kira-orb
       - ./data/kira-orb:/state
+      # Voice Manager: clips you upload or record in the orb, and the one each agent uses (<agent>.wav).
+      # Shared with the voice service below. Create it once: mkdir -p data/voice-clips && chown 1000:1000 data/voice-clips
+      - ./data/voice-clips:/voice-clips
+    environment:
+      VOICE_CLIPS_DIR: /voice-clips
     depends_on:
       - openclaw-gateway
 
@@ -73,10 +78,10 @@ services:
         required: false
     environment:
       TORCH_THREADS: "2"
-      CLIP_SECONDS: "10"        # seconds of each voice clip used; longer = slower speech, 10 clones well
       # BUILTIN_VOICES: "scout=alba"   # optional: built-in Pocket TTS voices for agents without a clip
     volumes:
-      - ./kira-orb/voices:/voices:ro    # one clip per agent, kept in the Orbis repo: main.mp3, forge.mp3, ledger.mp3
+      - ./kira-orb/voices:/voices:ro    # default clip per agent, kept in the Orbis repo: main.mp3, forge.mp3, ledger.mp3
+      - ./data/voice-clips:/custom-voices:ro   # voices picked in the orb's Voice Manager (used before the repo's clips)
       - ./data/voice-cache:/cache       # downloaded model weights (kept out of backups)
     mem_limit: 1536m
     cpus: "2.0"

@@ -38,7 +38,7 @@ body {
 .app {
   height: 100%; box-sizing: border-box; position: relative;
   display: grid; gap: 14px 18px;
-  grid-template-columns: 220px minmax(0, 1fr) 250px;
+  grid-template-columns: 272px minmax(0, 1fr) 268px;
   grid-template-rows: auto minmax(0, 1fr) auto;
   grid-template-areas: "head head head" "roster stage hud" "roster dock hud";
   padding-left: max(16px, env(safe-area-inset-left, 0px));
@@ -67,125 +67,264 @@ header { grid-area: head; display: flex; align-items: center; gap: 10px; flex-wr
 .mark em { font: 500 11px/1 var(--f-display); font-style: normal; letter-spacing: .22em; color: var(--dim); opacity: .7; }
 .mark em::before { content: "·"; margin-right: 8px; }
 
-/* ---------- startup & shutdown: K.I.B.I. ---------- */
+/* ---------- startup & shutdown: K.I.B.I. HUD ---------- */
+/* A full-screen console that boots block by block: the boot sequence runs down the left (real checks), each block of
+   the HUD powers up as its systems report in, and the core globe in the middle counts the load. Shutdown is the reverse. */
 .boot {
-  --kibi: #ff3b4d;          /* K.I.B.I. red: the boot and shutdown screen's accent, whatever agent is selected */
-  position: fixed; inset: 0; z-index: 50; cursor: pointer; overflow: hidden auto;
-  background: radial-gradient(ellipse 70% 60% at 50% 45%, var(--void-hi), var(--void) 60%, var(--void-lo));
-  display: grid; place-items: center;
-  padding: max(16px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) max(16px, env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
+  --kibi: #ff3b4d; --kibi-2: #ff8a3d; --kibi-3: #ffc23d; --kibi-ok: #3ee08f; --kibi-ice: #7fd4ff;
+  --kp: color-mix(in srgb, #0a1530 82%, transparent);       /* panel fill */
+  --kl: color-mix(in srgb, #5aa8ff 34%, transparent);        /* panel line */
+  position: fixed; inset: 0; z-index: 50; cursor: pointer; overflow: hidden;
+  background: radial-gradient(ellipse 60% 55% at 50% 44%, #1a0f22 0%, #0a0d22 38%, var(--void-lo) 100%);
   transition: opacity .75s ease, transform .75s ease, filter .75s ease;
+  color: var(--ink);
 }
-.boot.out { opacity: 0; transform: scale(1.04); filter: blur(4px); pointer-events: none; }
+.boot.out { opacity: 0; transform: scale(1.06); filter: blur(5px); pointer-events: none; }
 .boot::after { /* fine scanlines */
-  content: ""; position: fixed; inset: 0; pointer-events: none; opacity: .35;
-  background: repeating-linear-gradient(to bottom, transparent 0 2px, rgba(0, 0, 0, .16) 2px 3px);
+  content: ""; position: fixed; inset: 0; pointer-events: none; opacity: .3; z-index: 3;
+  background: repeating-linear-gradient(to bottom, transparent 0 2px, rgba(0, 0, 0, .18) 2px 3px);
 }
 .boot-fx { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none; }
-.kr .trk i::after, .kb-trk i::after { /* a light sweep running along each bar while it loads */
-  content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,.55) 50%, transparent 100%);
-  width: 30%; transform: translateX(-120%); animation: sweep 1.1s linear infinite; mix-blend-mode: overlay; }
-@keyframes sweep { to { transform: translateX(420%); } }
-.kr b.ok, .kr b.off, .kr b.bad, .kr b.warn { animation: pop .28s ease-out; }
-@keyframes pop { 0% { transform: scale(1.35); filter: brightness(2); } 100% { transform: none; filter: none; } }
-.kb-name { position: relative; }
-.kb-name.glitch { animation: rise .9s .1s ease forwards, glitch 1.1s .2s steps(1) 1; }
+@keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@keyframes blink { 50% { opacity: .2; } }
+
+.kh { position: relative; z-index: 1; height: 100%; box-sizing: border-box; display: grid;
+  grid-template-columns: minmax(270px, 24%) minmax(0, 1fr) minmax(240px, 22%); grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: 12px 18px; padding: max(12px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) max(10px, env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
+  font: 11px/1.25 var(--f-mono); }
+.kh-col { display: flex; flex-direction: column; gap: 10px; min-height: 0; min-width: 0; }
+
+/* top bar */
+.kh-top { grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; gap: 12px; min-width: 0; }
+.kh-brand { display: flex; align-items: center; gap: 9px; font: 600 12px/1 var(--f-display); letter-spacing: .26em; text-transform: uppercase; white-space: nowrap; overflow: hidden; }
+.kh-brand i { width: 8px; height: 8px; border-radius: 50%; background: var(--kibi); box-shadow: 0 0 10px var(--kibi); animation: blink 1.6s steps(2) infinite; flex: none; }
+.kh-brand em { font-style: normal; color: var(--dim); font-weight: 500; letter-spacing: .2em; }
+.kh-chips { display: flex; gap: 8px; align-items: center; flex: none; }
+.kh-chip { font: 500 10.5px/1 var(--f-display); letter-spacing: .14em; text-transform: uppercase; color: var(--dim); padding: 8px 13px; border-radius: 999px;
+  border: 1px dashed color-mix(in srgb, var(--kl) 80%, transparent); background: var(--kp); transition: color .3s, border-color .3s, box-shadow .3s, background .3s; white-space: nowrap; }
+.kh-chip.done { color: var(--ink); border-style: dashed; border-color: color-mix(in srgb, var(--kibi-ice) 55%, transparent); }
+.kh-chip.on { color: #fff; border: 1px solid var(--kibi); background: color-mix(in srgb, var(--kibi) 22%, var(--kp)); box-shadow: 0 0 16px -3px var(--kibi), inset 0 0 12px -4px var(--kibi); }
+.kh-ver { font: 600 11px/1 var(--f-mono); letter-spacing: .24em; padding: 8px 10px 8px calc(10px + .24em); border-radius: 999px; color: var(--kibi);
+  border: 1px solid color-mix(in srgb, var(--kibi) 70%, transparent); background: color-mix(in srgb, var(--kibi) 10%, transparent); box-shadow: 0 0 14px -4px var(--kibi); }
+
+/* panels ("blocks") */
+.kh-p { position: relative; min-width: 0; background: var(--kp); border: 1px solid var(--kl); border-radius: 10px; padding: 10px 12px;
+  box-shadow: inset 0 0 22px -12px #5aa8ff, 0 0 0 1px rgba(0,0,0,.25); }
+.kh-p::before { content: ""; position: absolute; inset: -1px; border-radius: inherit; pointer-events: none;
+  background: linear-gradient(var(--kibi-ice), var(--kibi-ice)) left top / 14px 1px no-repeat, linear-gradient(var(--kibi-ice), var(--kibi-ice)) left top / 1px 14px no-repeat,
+              linear-gradient(var(--kibi-ice), var(--kibi-ice)) right bottom / 14px 1px no-repeat, linear-gradient(var(--kibi-ice), var(--kibi-ice)) right bottom / 1px 14px no-repeat; opacity: .8; }
+.kh-p h4 { margin: 0 0 8px; display: flex; justify-content: space-between; align-items: center; gap: 8px; font: 600 11px/1.1 var(--f-display); letter-spacing: .14em; text-transform: uppercase; color: var(--ink); }
+.kh-p h4 em { font-style: normal; color: var(--kibi-3); font-weight: 500; }
+.kh-p h4 .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--kibi); box-shadow: 0 0 8px var(--kibi); flex: none; }
+.kh-p.red { border-color: color-mix(in srgb, var(--kibi) 50%, transparent); box-shadow: inset 0 0 22px -12px var(--kibi); }
+.kh-p.amber { border-color: color-mix(in srgb, var(--kibi-3) 55%, transparent); box-shadow: inset 0 0 22px -12px var(--kibi-3); }
+/* a block that hasn't powered up yet: a dim outline */
+.kh-blk { transition: opacity .3s; }
+.kh-blk:not(.on) { opacity: .16; filter: grayscale(.8); }
+.kh-blk.on { animation: khOn .7s ease-out both; }
+.kh-blk.quiet { animation: none; }
+.kh-blk.dn { animation: khDown .45s ease-in both; }
+@keyframes khOn { 0% { opacity: .16; clip-path: inset(0 0 100% 0); filter: brightness(2.2); } 35% { opacity: .9; } 45% { opacity: .3; } 60% { opacity: 1; clip-path: inset(0 0 0 0); } 100% { opacity: 1; clip-path: inset(0 0 0 0); filter: none; } }
+@keyframes khDown { 0% { opacity: 1; filter: none; } 40% { opacity: .8; filter: brightness(1.8); } 55% { opacity: .2; } 70% { opacity: .55; } 100% { opacity: .16; filter: grayscale(.8); } }
+
+/* boot sequence (left): one row per system */
+.kh-seq { flex: 1 1 auto; min-height: 120px; display: flex; flex-direction: column; overflow: hidden; }
+.kb-rows { display: grid; gap: 4px; align-content: start; overflow: hidden; min-height: 0; }
+.kr { display: grid; grid-template-columns: 7px minmax(0, 1fr) 50px 7.4em; gap: 8px; align-items: center; font-size: 10.5px; animation: rise .22s ease both; }
+.kr > i { width: 7px; height: 7px; border-radius: 50%; background: var(--kibi-3); box-shadow: 0 0 6px var(--kibi-3); }
+.kr.ok > i { background: var(--kibi-ok); box-shadow: 0 0 6px var(--kibi-ok); } .kr.warn > i { background: var(--amber); } .kr.bad > i, .kr.off > i { background: var(--kibi); box-shadow: 0 0 6px var(--kibi); }
+.kr .lab { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; letter-spacing: .03em; text-transform: uppercase; }
+.kr .lab small { color: var(--dim); font-size: 9px; margin-right: 6px; letter-spacing: .08em; }
+/* segmented bar: the gradient spans the whole track and the fill reveals it, so each bar climbs red → amber → green */
+.kseg { position: relative; height: 8px; display: block;
+  -webkit-mask: repeating-linear-gradient(90deg, #000 0 4px, transparent 4px 6px); mask: repeating-linear-gradient(90deg, #000 0 4px, transparent 4px 6px); }
+.kseg::before { content: ""; position: absolute; inset: 0; background: color-mix(in srgb, var(--kl) 55%, transparent); }
+.kseg i { position: absolute; inset: 0; background: linear-gradient(90deg, #ff3b4d 0%, #ff8a3d 33%, #ffd23d 60%, #3ee08f 100%); clip-path: inset(0 100% 0 0); }
+.kr b { font-weight: 500; text-align: right; letter-spacing: .06em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--dim); font-variant-numeric: tabular-nums; }
+.kr b.pending { color: var(--kibi-3); }
+.kr b.ok { color: var(--kibi-ok); } .kr b.warn { color: var(--amber); } .kr b.bad, .kr b.off { color: #ff5a6a; }
+.kr b.ok, .kr b.bad, .kr b.warn, .kr b.off { animation: pop .28s ease-out; }
+@keyframes pop { 0% { transform: scale(1.3); filter: brightness(2); } 100% { transform: none; filter: none; } }
+
+/* hardware initialization (left) */
+.kh-hw .hwr { display: grid; grid-template-columns: minmax(0, 1fr) auto 48px; gap: 8px; align-items: center; font-size: 10px; text-transform: uppercase; }
+.kh-hw .hwr + .hwr { margin-top: 3px; }
+.kh-hw .hwr span:nth-child(2) { color: var(--dim); }
+.kcells { display: grid; grid-template-columns: repeat(6, 1fr); gap: 2px; height: 8px; }
+.kcells i { background: color-mix(in srgb, var(--kl) 45%, transparent); }
+.kcells i.l { background: var(--kibi-3); box-shadow: 0 0 6px -1px var(--kibi-3); }
+.kcells i.r { background: var(--kibi); }
+.kh-foot { display: flex; justify-content: space-between; margin-top: 8px; font: 500 9.5px/1 var(--f-display); letter-spacing: .16em; color: var(--kibi-ok); }
+/* neural brain (left) */
+.kh-brain { flex: 0 0 auto; height: clamp(130px, 25vh, 240px); padding: 0; overflow: hidden; }
+.kh-brain canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+.kh-brain .tg { position: absolute; top: 8px; font: 500 9.5px/1 var(--f-display); letter-spacing: .16em; color: var(--kibi-ok); }
+.kh-brain .tg.l { left: 10px; } .kh-brain .tg.r { right: 10px; }
+
+/* core (middle) */
+.kh-mid { display: grid; grid-template-rows: minmax(0, 1fr) auto; justify-items: center; min-height: 0; min-width: 0; }
+.kh-globe { position: relative; width: 100%; height: 100%; min-height: 200px; }
+.kh-globe canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+.kh-hex { position: absolute; left: 4%; top: 50%; transform: translateY(-50%); display: grid; gap: 3px; font: 10px/1 var(--f-mono); color: color-mix(in srgb, var(--kibi-2) 70%, var(--dim)); opacity: .75; }
+.kh-hex span.hot { color: #fff; text-shadow: 0 0 8px var(--kibi-2); }
+.kh-lbl { position: absolute; font: 10px/1.25 var(--f-mono); color: var(--dim); text-transform: uppercase; }
+.kh-lbl b { display: block; color: var(--ink); font-weight: 500; }
+.kh-name-box { display: grid; justify-items: center; gap: 7px; text-align: center; padding-bottom: 4px; }
+.kh-wave { display: flex; gap: 2px; align-items: center; height: 22px; padding: 0 16px; border-radius: 999px; border: 1px solid color-mix(in srgb, var(--kibi) 45%, transparent); background: var(--kp); }
+.kh-wave i { width: 2px; height: 30%; border-radius: 1px; background: var(--kibi-2); transition: height .12s; }
+.kh-name { font: 600 clamp(28px, 4.6vw, 46px)/1 var(--f-display); letter-spacing: .32em; padding-left: .32em; color: #fff; text-shadow: 0 0 24px color-mix(in srgb, var(--kibi) 75%, transparent); }
+.kh-name.glitch { animation: glitch 1.1s .2s steps(1) 1; }
 @keyframes glitch {
-  0%, 100% { text-shadow: 0 0 28px color-mix(in srgb, var(--kibi) 70%, transparent); transform: none; }
+  0%, 100% { text-shadow: 0 0 24px color-mix(in srgb, var(--kibi) 75%, transparent); transform: none; }
   10% { text-shadow: -3px 0 #ff3b4d, 3px 0 #3ee0ff; transform: translateX(2px) skewX(-6deg); }
   14% { text-shadow: 3px 0 #ff3b4d, -3px 0 #3ee0ff; transform: translateX(-2px); }
-  18% { text-shadow: 0 0 28px color-mix(in srgb, var(--kibi) 70%, transparent); transform: none; }
+  18% { text-shadow: 0 0 24px color-mix(in srgb, var(--kibi) 75%, transparent); transform: none; }
   52% { text-shadow: -2px 0 #ff3b4d, 2px 0 #3ee0ff; transform: translateX(-1px) skewX(4deg); }
-  56% { text-shadow: 0 0 28px color-mix(in srgb, var(--kibi) 70%, transparent); transform: none; }
+  56% { text-shadow: 0 0 24px color-mix(in srgb, var(--kibi) 75%, transparent); transform: none; }
 }
-.boot-inner { width: min(780px, 100%); display: grid; justify-items: center; gap: 14px; position: relative; z-index: 1; }
-.kb { display: grid; justify-items: center; gap: 8px; text-align: center; text-transform: uppercase; }
-.kb-name { font: 600 clamp(40px, 8vw, 68px)/1 var(--f-display); letter-spacing: .3em; padding-left: .3em; color: var(--ink);
-  text-shadow: 0 0 28px color-mix(in srgb, var(--kibi) 70%, transparent); opacity: 0; animation: rise .9s .1s ease forwards; }
-.kb-sub { font: 500 clamp(9px, 1.7vw, 12px)/1.3 var(--f-display); letter-spacing: .48em; padding-left: .48em; color: var(--kibi); display: flex; align-items: center; gap: 12px; opacity: 0; animation: rise .9s .35s ease forwards; }
-.kb-sub::before, .kb-sub::after { content: ""; height: 1px; width: 0; background: var(--kibi); opacity: .6; animation: grow 1s .6s ease forwards; }
-.kb-ver { font: 600 11px/1 var(--f-mono); letter-spacing: .32em; padding: 5px 9px 5px calc(9px + .32em); color: var(--kibi);
-  border: 1px solid color-mix(in srgb, var(--kibi) 70%, transparent); border-radius: 999px; background: color-mix(in srgb, var(--kibi) 10%, transparent);
-  box-shadow: 0 0 14px -4px var(--kibi); opacity: 0; animation: rise .9s .45s ease forwards; }
-.kb-co { font: 500 10px/1 var(--f-display); letter-spacing: .32em; padding-left: .32em; color: var(--dim); opacity: 0; animation: rise .9s .55s ease forwards; }
-@keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
-@keyframes grow { to { width: 40px; } }
-.kb-head { margin-top: 6px; min-height: 1.4em; font: 500 12px/1.4 var(--f-mono); letter-spacing: .32em; padding-left: .32em; color: var(--ink); text-align: center; }
-.kb-head::after { content: "▌"; color: var(--kibi); animation: blink .8s steps(2) infinite; margin-left: 2px; }
-.kb-rows { width: 100%; display: grid; gap: 6px; font: 11.5px/1.2 var(--f-mono); }
-.kr { display: grid; grid-template-columns: minmax(0, 19em) minmax(40px, 1fr) 6.6em 9em; gap: 12px; align-items: center; animation: rise .25s ease both; }
-.kr .lab { color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; letter-spacing: .04em; }
-.kr .lab small { color: var(--dim); font-size: 10px; margin-right: 7px; letter-spacing: .08em; }
-.kr .trk, .kb-trk { position: relative; height: 7px; border-radius: 4px; background: color-mix(in srgb, var(--void-lo) 80%, transparent); border: 1px solid var(--line); overflow: hidden; }
-/* the gradient spans the whole track and the fill reveals it, so each bar climbs red → amber → green */
-.kr .trk i, .kb-trk i { position: absolute; inset: 0; background: linear-gradient(90deg, #ff3b4d 0%, #ff8a3d 33%, #ffd23d 60%, #3ee08f 100%); clip-path: inset(0 100% 0 0); }
-.kr .num { text-align: right; color: var(--dim); font-variant-numeric: tabular-nums; }
-.kr b { font-weight: 500; text-align: right; letter-spacing: .08em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.kr b.pending { color: #ffd23d; animation: blink .6s steps(2) infinite; }
-.kr b.ok { color: #3ee08f; } .kr b.warn { color: var(--amber); } .kr b.bad, .kr b.off { color: #ff5a6a; }
-@keyframes blink { 50% { opacity: .2; } }
-.kb-total { width: 100%; display: grid; gap: 7px; margin-top: 6px; }
-.kb-tt { display: flex; justify-content: space-between; font: 500 10px/1 var(--f-display); letter-spacing: .3em; text-transform: uppercase; color: var(--ink); }
-.kb-tt .mono { letter-spacing: .14em; }
-.kb-trk { height: 9px; border-radius: 5px; }
-.boot-foot { width: 100%; text-align: center; font: 500 10px/1 var(--f-display); letter-spacing: .2em; text-transform: uppercase; color: var(--dim); opacity: .7; }
-.boot.fading .boot-inner { transition: opacity 1s ease; opacity: .12; }
+.kh-sub { font: 500 10px/1.3 var(--f-display); letter-spacing: .34em; padding-left: .34em; color: var(--dim); text-transform: uppercase; }
+.kh-sub b { color: var(--kibi); font-weight: 600; }
+.kh-core { font: 500 clamp(13px, 1.9vw, 19px)/1.2 var(--f-display); letter-spacing: .12em; text-transform: uppercase; color: var(--kibi-3); text-shadow: 0 0 14px color-mix(in srgb, var(--kibi-2) 60%, transparent); }
+.kh-core b { font-weight: 600; font-variant-numeric: tabular-nums; }
+.kh-pill { font: 500 11px/1 var(--f-display); letter-spacing: .16em; text-transform: uppercase; color: var(--ink); padding: 9px 16px; border-radius: 999px; min-height: 11px;
+  border: 1px solid color-mix(in srgb, var(--kibi) 60%, transparent); background: color-mix(in srgb, var(--kibi) 10%, var(--kp)); box-shadow: 0 0 16px -6px var(--kibi); }
+.kh-pill::after { content: "▌"; color: var(--kibi); animation: blink .8s steps(2) infinite; margin-left: 3px; }
+
+/* right column */
+.kh-gauge { height: clamp(96px, 15vh, 140px); padding: 0; }
+.kh-gauge canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+.kh-power h4 { color: var(--kibi-2); justify-content: center; letter-spacing: .2em; }
+.kh-power .rowc { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.kh-power .rowc + .rowc { margin-top: 5px; }
+.kh-power .kcells { grid-template-columns: repeat(4, 1fr); height: 9px; }
+.kh-eq .bars { display: grid; grid-template-columns: repeat(12, 1fr); gap: 4px; height: clamp(44px, 8vh, 70px); align-items: end; }
+.kh-eq .bars i { display: block; height: 20%; background: linear-gradient(to top, var(--kibi), var(--kibi-2) 60%, var(--kibi-3)); opacity: .85; transition: height .12s; }
+.kh-eq .lbls { display: grid; grid-template-columns: repeat(12, 1fr); gap: 4px; margin-top: 4px; font-size: 7.5px; color: var(--dim); text-align: center; }
+.kh-eq .tags { display: flex; gap: 6px; margin-top: 8px; }
+.kh-eq .tags span { flex: 1; text-align: center; font: 500 9.5px/1 var(--f-display); letter-spacing: .12em; padding: 6px 4px; border-radius: 6px; border: 1px solid color-mix(in srgb, var(--kibi) 55%, transparent); color: var(--kibi-2); }
+.kh-eq .tags span + span { border-color: color-mix(in srgb, var(--kibi-ice) 45%, transparent); color: var(--kibi-ice); }
+.kh-stat { display: grid; gap: 6px; padding: 0; background: none; border: 0; box-shadow: none; }
+.kh-stat::before { display: none; }
+.kh-stat .sr { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 8px 12px; border: 1px solid color-mix(in srgb, var(--kibi-3) 45%, transparent); border-radius: 8px; background: var(--kp); font: 500 10.5px/1 var(--f-display); letter-spacing: .14em; }
+.kh-stat .sr b { font: 500 10.5px/1 var(--f-mono); letter-spacing: .06em; color: var(--kibi-3); }
+.kh-stat .sr b.ok { color: var(--kibi-ok); } .kh-stat .sr b.bad { color: #ff5a6a; }
+.kh-resp { display: grid; grid-template-columns: minmax(0, 1fr) 70px; gap: 6px 10px; align-items: center; }
+.kh-resp h4 { grid-column: 1 / -1; margin: 0; color: var(--kibi-3); }
+.kh-resp .kv { display: grid; gap: 5px; font-size: 10.5px; }
+.kh-resp .kv div { display: flex; justify-content: space-between; gap: 8px; }
+.kh-resp .kv span { color: var(--dim); }
+.kh-resp canvas { width: 70px; height: 70px; }
+.boot b.ok { color: var(--kibi-ok); } .boot b.bad { color: #ff5a6a; }
+.kh-c3 .sr { display: flex; justify-content: space-between; gap: 8px; font: 500 10.5px/1.7 var(--f-display); letter-spacing: .14em; }
+.kh-c3 .sr b { font: 500 10.5px/1.7 var(--f-mono); color: var(--kibi-3); }
+.kh-c3 .sr b.ok { color: var(--kibi-ok); } .kh-c3 .sr b.bad { color: #ff5a6a; }
+
+/* bottom */
+.kh-bot { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(0, 24%) minmax(0, 1fr) minmax(0, 22%); gap: 18px; align-items: end; }
+.kh-mod { font: 10px/1.5 var(--f-mono); color: var(--dim); text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.kh-mod b { color: var(--ink); font-weight: 500; }
+.kh-dockwrap { display: grid; gap: 7px; justify-items: center; }
+.kh-dock { width: min(560px, 100%); display: grid; grid-template-columns: 34px 34px minmax(0, 1fr) 34px; gap: 8px; align-items: center; padding: 6px; box-sizing: border-box;
+  border: 1px solid color-mix(in srgb, var(--kibi) 55%, transparent); border-radius: 14px; background: var(--kp); box-shadow: 0 0 22px -10px var(--kibi); }
+.kh-dock > span { height: 34px; display: grid; place-items: center; border-radius: 10px; border: 1px solid var(--kl); color: var(--dim); font-size: 13px; }
+.kh-prog { position: relative; height: 34px; display: grid; grid-template-columns: minmax(0, 1fr) 30%; align-items: center; gap: 8px; padding: 0 8px 0 12px; border-radius: 10px; border: 1px solid var(--kl); overflow: hidden; }
+.kh-prog span { font: 500 10.5px/1 var(--f-display); letter-spacing: .12em; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.kh-prog .kseg { height: 14px; }
+.boot-foot { font: 500 9.5px/1 var(--f-display); letter-spacing: .2em; text-transform: uppercase; color: var(--dim); opacity: .75; text-align: center; }
+.kh-tr { font: 10px/1.5 var(--f-mono); color: var(--dim); text-align: right; text-transform: uppercase; white-space: nowrap; overflow: hidden; }
+
+/* switching off */
+.boot.fading .kh { transition: opacity 1s ease; opacity: .12; }
 .boot.off { background: #01040a; transition: background .6s ease .3s; }
-.boot.off-content .boot-inner { visibility: hidden; }
+.boot.off-content .kh { visibility: hidden; }
 .boot.off .boot-fx { opacity: 0; transition: opacity .3s; }
-.boot.off .boot-inner { animation: crt .75s cubic-bezier(.7,0,.3,1) forwards; }
+.boot.off .kh { animation: crt .75s cubic-bezier(.7,0,.3,1) forwards; }
 @keyframes crt {
   0%   { transform: scale(1, 1); filter: brightness(1); opacity: 1; }
   45%  { transform: scale(1, .006); filter: brightness(4); opacity: 1; }
   75%  { transform: scale(.02, .006); filter: brightness(6); opacity: 1; }
   100% { transform: scale(0, 0); filter: brightness(8); opacity: 0; }
 }
-.boot-sleep { position: fixed; inset: 0; z-index: 2; display: grid; place-content: center; justify-items: center; gap: 18px; text-align: center; animation: rise 1.2s ease both; }
+.boot-sleep { position: fixed; inset: 0; z-index: 4; display: grid; place-content: center; justify-items: center; gap: 18px; text-align: center; animation: rise 1.2s ease both; font: 500 12px/1 var(--f-display); text-transform: uppercase; }
 .boot-sleep i { width: 6px; height: 6px; border-radius: 50%; background: var(--kibi); box-shadow: 0 0 14px var(--kibi); animation: standby 3.2s ease-in-out infinite; }
 .boot-sleep .label { color: var(--dim); letter-spacing: .32em; padding-left: .32em; }
 .boot-sleep .hint2 { font: 500 10px/1.5 var(--f-display); letter-spacing: .2em; text-transform: uppercase; color: var(--dim); opacity: .55; }
 @keyframes standby { 0%, 100% { opacity: .15; transform: scale(.8); } 50% { opacity: .75; transform: scale(1); } }
-/* the console's panels power up one at a time after the boot screen, and off in reverse */
+
+/* the console's panels power up one block at a time after the boot screen, and off in reverse */
 .pwr-off { opacity: 0 !important; pointer-events: none; }
-.pwr-on { animation: pwrOn .55s ease-out both; }
-@keyframes pwrOn { 0% { opacity: 0; transform: translateY(6px); clip-path: inset(0 0 100% 0); } 30% { opacity: .55; } 45% { opacity: .15; } 60% { opacity: 1; clip-path: inset(0 0 0 0); } 100% { opacity: 1; transform: none; clip-path: inset(0 0 0 0); } }
+.pwr-on { animation: pwrOn .6s ease-out both; }
+@keyframes pwrOn { 0% { opacity: 0; transform: translateY(6px); clip-path: inset(0 0 100% 0); filter: brightness(2.4); } 30% { opacity: .55; } 45% { opacity: .15; } 60% { opacity: 1; clip-path: inset(0 0 0 0); } 100% { opacity: 1; transform: none; clip-path: inset(0 0 0 0); filter: none; } }
 .pwr-down { animation: pwrDown .42s ease-in both; pointer-events: none; }
-@keyframes pwrDown { 0% { opacity: 1; clip-path: inset(0 0 0 0); } 40% { opacity: .85; clip-path: inset(0 0 0 0); } 55% { opacity: .15; } 70% { opacity: .5; } 100% { opacity: 0; transform: translateY(6px); clip-path: inset(0 0 100% 0); } }
-@media (max-width: 640px) {
-  .kr { grid-template-columns: minmax(0, 1fr) 5.6em 5.8em; gap: 4px 8px; font-size: 10.5px; }
-  .kr .trk { grid-column: 1 / -1; grid-row: 2; height: 5px; }
-  .kb-rows { gap: 5px; }
+@keyframes pwrDown { 0% { opacity: 1; clip-path: inset(0 0 0 0); } 40% { opacity: .85; clip-path: inset(0 0 0 0); filter: brightness(1.8); } 55% { opacity: .15; } 70% { opacity: .5; } 100% { opacity: 0; transform: translateY(6px); clip-path: inset(0 0 100% 0); } }
+
+/* shorter screens: fewer blocks */
+@media (max-height: 820px) and (min-width: 821px) { .kh-brain, .kh-c3 { display: none; } }
+@media (max-height: 680px) and (min-width: 821px) { .kh-hw, .kh-gauge, .kh-eq { display: none; } .kh-name-box { gap: 5px; } }
+/* tablets and phones: the core, the boot sequence and the progress dock */
+@media (max-width: 1100px) and (min-width: 821px) { .kh { grid-template-columns: minmax(230px, 28%) minmax(0, 1fr) minmax(210px, 25%); } .kh-chip:not(.on) { display: none; } }
+@media (max-width: 820px) {
+  .boot { overflow-y: auto; }
+  .kh { height: auto; min-height: 100%; grid-template-columns: minmax(0, 1fr); grid-template-rows: none; gap: 10px; }
+  .kh-chip:not(.on) { display: none; }
+  .kh-brand em { display: none; }
+  .kh-brand { font-size: 10px; letter-spacing: .16em; }
+  .kh-sub { letter-spacing: .18em; padding-left: .18em; }
+  .kh-mid { order: 1; grid-template-rows: auto auto; }
+  .kh-globe { height: min(78vw, 40vh); min-height: 0; }
+  .kh-left { order: 2; }
+  .kh-right, .kh-hw, .kh-brain { display: none; }
+  .kh-seq { max-height: 30vh; }
+  .kh-bot { order: 3; grid-template-columns: minmax(0, 1fr); gap: 8px; }
+  .kh-mod, .kh-tr { display: none; }
+  .kh-hex { display: none; }
+  .kr { grid-template-columns: 7px minmax(0, 1fr) 46px 5.8em; gap: 6px; }
 }
-@media (max-height: 760px) and (min-width: 641px) { .kb-rows { gap: 3px; font-size: 10.5px; } .boot-inner { gap: 9px; } }
 @media (prefers-reduced-motion: reduce) {
   .boot, .boot *, .pwr-on, .pwr-down { animation-duration: .01s !important; animation-iteration-count: 1 !important; transition-duration: .2s !important; }
   .boot.out { transform: none; filter: none; }
 }
 
-/* ---------- roster (left) ---------- */
+/* ---------- roster (left): agents, power, telemetry, neural core ---------- */
 .roster { grid-area: roster; min-height: 0; display: flex; flex-direction: column; gap: 10px; z-index: 3; }
+.roster > .box { flex: none; }
+.agents-box { padding: 10px 10px 10px; gap: 8px; min-height: 0; flex: 0 1 auto !important; display: flex; flex-direction: column; }
 .roster-head { display: flex; justify-content: space-between; align-items: baseline; padding: 0 4px; }
-.agents { display: flex; flex-direction: column; gap: 6px; overflow-y: auto; min-height: 0; }
+.agents { display: flex; flex-direction: column; gap: 6px; overflow-y: auto; min-height: 0; max-height: 34vh; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--arc) 40%, transparent) transparent; padding-right: 2px; }
 .agent {
   --c: var(--off);
-  display: grid; grid-template-columns: 12px 1fr; align-items: center; gap: 4px 12px;
-  text-align: left; width: 100%; padding: 12px 12px; border-radius: 12px; cursor: pointer;
-  background: transparent; border: 1px solid transparent; color: var(--ink);
+  position: relative; display: grid; grid-template-columns: 12px minmax(0, 1fr) 64px; align-items: center; gap: 3px 10px;
+  text-align: left; width: 100%; padding: 9px 9px 9px 11px; border-radius: 10px; cursor: pointer; flex: none;
+  background: color-mix(in srgb, var(--void-lo) 55%, transparent); border: 1px solid color-mix(in srgb, var(--line) 80%, transparent); color: var(--ink);
+  transition: border-color .25s, background .25s, box-shadow .25s;
 }
-.agent:hover { background: color-mix(in srgb, var(--panel) 70%, transparent); }
-.agent[aria-current="true"] { background: var(--panel); border-color: color-mix(in srgb, var(--c) 45%, var(--line)); }
+.agent:hover { background: color-mix(in srgb, var(--panel) 80%, transparent); }
+.agent[aria-current="true"] { background: color-mix(in srgb, var(--c) 9%, var(--panel)); border-color: color-mix(in srgb, var(--c) 60%, var(--line)); box-shadow: 0 0 16px -8px var(--c), inset 0 0 18px -12px var(--c); }
 .agent .dot { grid-row: span 2; width: 10px; height: 10px; border-radius: 50%; background: var(--off); }
 .agent.on.warn .dot { box-shadow: 0 0 0 3px color-mix(in srgb, var(--amber) 45%, transparent), 0 0 12px var(--amber); }
 .agent.on.warn .st { color: var(--amber) !important; }
 .agent.on .dot { background: var(--c); box-shadow: 0 0 0 3px color-mix(in srgb, var(--c) 18%, transparent), 0 0 12px var(--c); }
 .agent.on.busy .dot { animation: beat 1s ease-in-out infinite; }
-.agent .nm { font: 600 15px/1.1 var(--f-display); letter-spacing: .12em; }
+.agent .nm { font: 600 14px/1.1 var(--f-display); letter-spacing: .12em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .agent:not(.on) .nm { color: var(--dim); }
 .agent .st { font: 500 10px/1.2 var(--f-display); letter-spacing: .16em; text-transform: uppercase; color: var(--dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .agent.on .st { color: color-mix(in srgb, var(--c) 70%, var(--ink)); }
+/* each agent's little neural core, in a targeting frame */
+.agent .mb { grid-column: 3; grid-row: 1 / span 2; width: 64px; height: 36px; display: block;
+  background: linear-gradient(var(--c), var(--c)) left top / 7px 1px no-repeat, linear-gradient(var(--c), var(--c)) left top / 1px 7px no-repeat,
+              linear-gradient(var(--c), var(--c)) right bottom / 7px 1px no-repeat, linear-gradient(var(--c), var(--c)) right bottom / 1px 7px no-repeat; opacity: .9; }
+.agent:not(.on) .mb { opacity: .35; }
 @keyframes beat { 50% { transform: scale(1.35); } }
-.roster-foot { margin-top: auto; display: grid; gap: 4px; padding: 0 4px; }
+.xpanel { padding: 10px 12px 11px; gap: 8px; }
+.xpanel canvas { height: 40px; }
+#tel { height: 92px; }
+.brain-box { flex: 1 1 auto !important; min-height: 130px; grid-template-rows: auto minmax(0, 1fr); padding: 10px 12px; gap: 6px; }
+.brain-box canvas { height: 100% !important; min-height: 0; }
+.roster-foot { margin-top: auto; display: grid; gap: 4px; padding: 0 4px; flex: none; }
 .roster-foot .mono { font-size: 12px; color: var(--dim); }
+@media (max-height: 860px) and (min-width: 1001px) { #telBox { display: none; } }
+@media (max-height: 760px) and (min-width: 1001px) { #pwrBox { display: none; } }
+@media (max-height: 600px) and (min-width: 1001px) { .roster .brain-box { display: none; } .agents { max-height: none; } .agents-box { flex: 1 1 auto !important; } }
 
 /* ---------- stage (middle) ---------- */
 .stage { grid-area: stage; position: relative; min-height: 0; display: grid; place-items: center; }
@@ -202,7 +341,7 @@ header { grid-area: head; display: flex; align-items: center; gap: 10px; flex-wr
 canvas#orb { position: absolute; inset: 0; width: 100%; height: 100%; }
 #orbBtn { position: relative; z-index: 2; width: min(56vmin, 440px); aspect-ratio: 1; max-width: 100%; border-radius: 50%; border: 0; background: transparent; cursor: pointer; }
 .readout { position: absolute; z-index: 2; left: 0; right: 0; bottom: 3%; display: grid; justify-items: center; gap: 9px; pointer-events: none; text-align: center; }
-.wave-pill { width: 132px; height: 30px; border-radius: 999px; display: block; margin-bottom: 2px;
+.wave-pill { width: 176px; height: 30px; border-radius: 999px; display: block; margin-bottom: 2px;
   background: color-mix(in srgb, var(--void-lo) 70%, transparent); border: 1px solid color-mix(in srgb, var(--arc) 35%, var(--line));
   box-shadow: 0 0 18px -6px var(--arc), inset 0 0 12px -6px var(--arc); }
 .app.offline .wave-pill { border-color: var(--line); box-shadow: none; opacity: .6; }
@@ -248,8 +387,18 @@ form.ask { width: 100%; box-sizing: border-box; display: flex; gap: 8px; align-i
 .hint { text-align: center; font: 500 11px/1.4 var(--f-display); letter-spacing: .14em; text-transform: uppercase; color: var(--dim); }
 
 /* ---------- instruments (right) ---------- */
-.hud { grid-area: hud; min-height: 0; display: flex; flex-direction: column; gap: 12px; overflow-y: auto; z-index: 3; }
-.box { position: relative; background: color-mix(in srgb, var(--panel) 82%, transparent); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px 14px; display: grid; gap: 10px; }
+.hud { grid-area: hud; min-height: 0; display: flex; flex-direction: column; gap: 10px; overflow-y: auto; z-index: 3; scrollbar-width: none; }
+.hud > .box { flex: none; }
+.box { position: relative; background: color-mix(in srgb, var(--panel) 82%, transparent); border: 1px solid color-mix(in srgb, #5aa8ff 22%, var(--line)); border-radius: 10px; padding: 12px 14px 14px; display: grid; gap: 10px;
+  box-shadow: inset 0 0 24px -14px color-mix(in srgb, var(--arc) 70%, transparent), 0 0 0 1px rgba(0,0,0,.2); }
+.box.slim { padding: 10px 14px; }
+.gauge-box { padding: 6px 8px; } .gauge-box canvas { height: 88px; }
+.stab-box { padding: 10px 12px 11px; gap: 8px; } .stab-box canvas { height: 24px; }
+.box canvas.trace { height: 26px; margin-top: -4px; }
+.resp-grid { display: grid; grid-template-columns: minmax(0, 1fr) 62px; gap: 12px; align-items: center; }
+#respDial { width: 62px; height: 62px; }
+@media (max-height: 860px) and (min-width: 1001px) { .gauge-box { display: none; } }
+@media (max-height: 760px) and (min-width: 1001px) { .stab-box, .box canvas.trace { display: none; } }
 /* corner ticks, like a targeting frame */
 .box::before, .box::after { content: ""; position: absolute; width: 10px; height: 10px; border: 1px solid var(--arc); opacity: .7; }
 .box::before { top: -1px; left: -1px; border-right: 0; border-bottom: 0; border-top-left-radius: 10px; }
@@ -428,8 +577,11 @@ form.ask.chatask { margin-top: 2px; }
 @media (max-width: 1000px) {
   .app { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto minmax(0, 1fr) auto; grid-template-areas: "head" "roster" "stage" "dock"; }
   .hud { display: none; }
-  .roster-head, .roster-foot { display: none; }
-  .agents { flex-direction: row; overflow-x: auto; overflow-y: visible; padding-bottom: 2px; }
+  .roster-head, .roster-foot, .roster .xpanel, .brain-box { display: none; }
+  .agents-box { padding: 0; background: none; border: 0; box-shadow: none; }
+  .agents-box::before, .agents-box::after { display: none; }
+  .agents { flex-direction: row; overflow-x: auto; overflow-y: visible; padding-bottom: 2px; max-height: none; }
+  .agent .mb { display: none; }
   .agent { width: auto; flex: none; grid-template-columns: 10px auto; padding: 8px 14px 8px 12px; border-radius: 999px; border-color: var(--line); }
   .agent .dot { grid-row: auto; }
   .agent .st { display: none; }
@@ -450,8 +602,22 @@ form.ask.chatask { margin-top: 2px; }
   </header>
 
   <nav class="roster" aria-label="Agents">
-    <div class="roster-head"><span class="label">Agents</span><span class="label mono" id="onlineCount">–</span></div>
-    <div class="agents" id="agents"></div>
+    <section class="box agents-box">
+      <div class="roster-head"><span class="label">Agents</span><span class="label mono" id="onlineCount">–</span></div>
+      <div class="agents" id="agents"></div>
+    </section>
+    <section class="box xpanel" id="pwrBox">
+      <div class="box-head"><span class="label">Power distribution</span><span class="mono" id="pwrTotal">–</span></div>
+      <canvas id="pwr" aria-hidden="true"></canvas>
+    </section>
+    <section class="box xpanel" id="telBox">
+      <div class="box-head"><span class="label">Advanced telemetry</span><span class="mono" id="telState">–</span></div>
+      <canvas id="tel" aria-hidden="true"></canvas>
+    </section>
+    <section class="box brain-box">
+      <div class="box-head"><span class="label">Neural core</span><span class="mono" id="scopeMode2">standby</span></div>
+      <canvas id="scope" aria-hidden="true"></canvas>
+    </section>
     <div class="roster-foot">
       <span class="label">Gateway</span>
       <span class="mono" id="gwLine">Checking…</span>
@@ -489,13 +655,20 @@ form.ask.chatask { margin-top: 2px; }
   </div>
 
   <aside class="hud" aria-label="Instruments">
+    <section class="box gauge-box">
+      <canvas id="gauges" aria-hidden="true"></canvas>
+    </section>
+    <section class="box stab-box">
+      <div class="box-head"><span class="label">Core stability</span><span class="mono" id="stabVal">–</span></div>
+      <canvas id="stab" aria-hidden="true"></canvas>
+    </section>
     <section class="box">
       <div class="box-head"><span class="label">Voice</span><span class="mono" id="voiceSrc">idle</span></div>
       <canvas id="bars" height="70"></canvas>
+      <canvas id="trace" class="trace" aria-hidden="true"></canvas>
     </section>
-    <section class="box">
+    <section class="box slim">
       <div class="box-head"><span class="label">Scope</span><span class="mono" id="scopeMode">auto</span></div>
-      <canvas id="scope" height="170"></canvas>
     </section>
     <section class="box">
       <div class="box-head"><span class="label">Link</span><span class="mono" id="clock">--:--:--</span></div>
@@ -509,10 +682,13 @@ form.ask.chatask { margin-top: 2px; }
     <section class="box">
       <div class="box-head"><span class="label">Response</span><span class="mono" id="respLast">–</span></div>
       <canvas id="spark" height="56"></canvas>
-      <div class="rows">
-        <div class="row"><span>First word</span><span class="mono" id="hFirst">–</span></div>
-        <div class="row"><span>Voice start</span><span class="mono" id="hVoice">–</span></div>
-        <div class="row"><span>Average reply</span><span class="mono" id="hAvg">–</span></div>
+      <div class="resp-grid">
+        <div class="rows">
+          <div class="row"><span>First word</span><span class="mono" id="hFirst">–</span></div>
+          <div class="row"><span>Voice start</span><span class="mono" id="hVoice">–</span></div>
+          <div class="row"><span>Average reply</span><span class="mono" id="hAvg">–</span></div>
+        </div>
+        <canvas id="respDial" aria-hidden="true"></canvas>
       </div>
     </section>
     <section class="box">
@@ -550,6 +726,9 @@ form.ask.chatask { margin-top: 2px; }
     <h2>Settings <button class="close" data-close="setSheet" aria-label="Close">×</button></h2>
     <div class="field"><label for="engine">Agent voices</label><select id="engine"><option value="clone">Cloned agent voices (Pocket TTS)</option><option value="browser">Browser voice</option></select></div>
     <p class="note" id="voiceNote"></p>
+    <div class="field"><span class="label">Voice Manager</span>
+      <div class="uirow"><button class="btn" id="vmOpen" type="button">Manage voices</button></div>
+      <p class="note">Pick each agent's voice, upload or record a new one, try voices out, and delete old ones.</p></div>
     <div class="field"><span class="label">Browser voice for each agent</span><div id="agentVoices" class="avlist"></div></div>
     <div class="field"><span class="label">Heartbeat monitoring</span><div id="hbList"></div>
       <p class="note">Agents with a key send signed heartbeats; the orb also checks each agent through the gateway. A stalled or disconnected agent is flagged within about 1½ minutes and you get one alert per change. Setup: <code>docs/heartbeat.md</code>.</p></div>
@@ -577,24 +756,79 @@ form.ask.chatask { margin-top: 2px; }
 
 <div class="boot" id="boot" role="status" aria-label="K.I.B.I. startup">
   <canvas class="boot-fx" id="bootFx" aria-hidden="true"></canvas>
-  <div class="boot-inner">
-    <div class="kb">
-      <div class="kb-name">K.I.B.I.</div>
-      <div class="kb-sub">Kobler Interactive Bot Interface</div>
-      <div class="kb-ver" id="kbVer">V1</div>
-      <div class="kb-co">Finnesey &amp; Kobler · The Model Shop</div>
+  <div class="kh" id="kh">
+    <div class="kh-top">
+      <div class="kh-brand"><i></i>Finnesey &amp; Kobler <em>· The Model Shop</em></div>
+      <div class="kh-chips" id="khChips"><span class="kh-chip"></span><span class="kh-chip"></span><span class="kh-chip"></span><span class="kh-ver" data-kibi-ver>V1.15</span></div>
     </div>
-    <div class="kb-head" id="bootHead"></div>
-    <div class="kb-rows" id="bootLog"></div>
-    <div class="kb-total">
-      <div class="kb-tt"><span id="bootState">System load</span><span class="mono" id="bootPct">0000/1000</span></div>
-      <div class="kb-trk"><i id="bootBar"></i></div>
+
+    <div class="kh-col kh-left">
+      <section class="kh-p kh-seq">
+        <h4><span id="khSeqT">System boot sequence</span><span class="dot"></span></h4>
+        <div class="kb-rows" id="bootLog"></div>
+      </section>
+      <section class="kh-p kh-hw kh-blk" data-blk="0">
+        <h4><span>Hardware initialization</span><em>Memory integrity</em></h4>
+        <div id="khHw"></div>
+        <div class="kh-foot"><span>Online</span><span id="khHwPct">000%</span><span>Online</span></div>
+      </section>
+      <section class="kh-p kh-brain kh-blk" data-blk="6"><canvas id="khBrain" aria-hidden="true"></canvas><span class="tg l">Neural map</span><span class="tg r" id="khBrainTg">Synapses 0000</span></section>
     </div>
-    <div class="boot-foot" id="bootSkip">Tap or press any key to skip</div>
+
+    <div class="kh-mid">
+      <div class="kh-globe" id="khGlobeBox">
+        <canvas id="khGlobe" aria-hidden="true"></canvas>
+        <div class="kh-hex" id="khHex" aria-hidden="true"></div>
+        <div class="kh-lbl" style="left:22%;top:9%">Azm<b id="khAzm">000.0°</b></div>
+        <div class="kh-lbl" style="right:22%;top:9%;text-align:right">Strands<b id="khStr">00%</b></div>
+        <div class="kh-lbl" style="left:22%;bottom:9%">Frame<b id="khFrm">00.0 pc</b></div>
+        <div class="kh-lbl" style="right:22%;bottom:9%;text-align:right">Link<b id="khLink">– ms</b></div>
+      </div>
+      <div class="kh-name-box">
+        <div class="kh-wave" id="khWave" aria-hidden="true"></div>
+        <div class="kh-name" id="khName">K.I.B.I.</div>
+        <div class="kh-sub">Kobler Interactive Bot Interface · <b data-kibi-ver>V1.15</b></div>
+        <div class="kh-core"><span id="bootState">Core initialization</span>: <b id="bootPct">0%</b> <span id="bootWord">complete</span></div>
+        <div class="kh-pill" id="bootHead"></div>
+      </div>
+    </div>
+
+    <div class="kh-col kh-right">
+      <section class="kh-p kh-gauge kh-blk" data-blk="1"><canvas id="khGauge" aria-hidden="true"></canvas></section>
+      <section class="kh-p kh-power amber kh-blk" data-blk="2"><h4>Power core stability</h4><div id="khPower"></div></section>
+      <section class="kh-p kh-eq red kh-blk" data-blk="3">
+        <div class="bars" id="khEq"></div>
+        <div class="lbls"><span>IM</span><span>EE</span><span>IM</span><span>SYS</span><span>VU</span><span>3D</span><span>50</span><span>100</span><span>FX</span><span>DSP</span><span>MX</span><span>OUT</span></div>
+        <div class="tags"><span id="khTagA">Initializing…</span><span id="khTagB">Calibrating…</span></div>
+      </section>
+      <section class="kh-p kh-stat kh-blk" data-blk="4">
+        <div class="sr">V.O.I.C.E.<b id="khVoice">…</b></div>
+        <div class="sr">N.E.U.R.A.L.<b id="khNeural">…</b></div>
+      </section>
+      <section class="kh-p kh-resp amber kh-blk" data-blk="5">
+        <h4>Response</h4>
+        <div class="kv"><div><span>Gateway</span><b id="khGw">…</b></div><div><span>Latency</span><b id="khLat">–</b></div><div><span>Agents online</span><b id="khAg">–</b></div></div>
+        <canvas id="khDial" width="140" height="140" aria-hidden="true"></canvas>
+      </section>
+      <section class="kh-p kh-c3 kh-blk" data-blk="7">
+        <div class="sr">V.O.I.C.E.<b id="khV2">…</b></div>
+        <div class="sr">N.E.U.R.A.L.<b id="khN2">…</b></div>
+        <div class="sr">C.O.R.E. status<b id="khCore">Standby</b></div>
+      </section>
+    </div>
+
+    <div class="kh-bot">
+      <div class="kh-mod" id="khMod"><b>Loading modules…</b><br>Online · – ms · loading…</div>
+      <div class="kh-dockwrap">
+        <div class="kh-dock" aria-hidden="true"><span>⌁</span><span>◉</span><div class="kh-prog"><span id="khDockText">Initializing system kernel — please wait…</span><span class="kseg"><i id="bootBar"></i></span></div><span>→</span></div>
+        <div class="boot-foot" id="bootSkip">Tap or press any key to skip</div>
+      </div>
+      <div class="kh-tr" id="khTr">Uptime 00:00:00<br>Sector 0x0000</div>
+    </div>
   </div>
   <div class="boot-sleep" id="bootSleep" hidden>
     <i></i>
-    <div class="label">K.I.B.I. V1 offline</div>
+    <div class="label">K.I.B.I. <span data-kibi-ver>V1.15</span> offline</div>
     <div class="hint2">Tap or press any key to power up</div>
   </div>
 </div>
@@ -681,7 +915,7 @@ form.ask.chatask { margin-top: 2px; }
       box.textContent = '';
       for (const a of agents) {
         const b = document.createElement('button'); b.type = 'button'; b.className = 'agent'; b.dataset.id = a.id;
-        b.innerHTML = '<span class="dot"></span><span class="nm"></span><span class="st"></span>';
+        b.innerHTML = '<span class="dot"></span><span class="nm"></span><canvas class="mb" aria-hidden="true"></canvas><span class="st"></span>';
         b.addEventListener('click', () => selectAgent(a.id));
         box.append(b);
       }
@@ -2306,8 +2540,43 @@ form.ask.chatask { margin-top: 2px; }
         ctx.fillStyle = Wt(0.95); ctx.fillText(val.slice(0, Math.max(0, n - label.length)), hx + side * 4, ey + 9);
       }
     }
+
+    // segmented arc meters on the right of the orb: the outer one follows the voice, the inner one the agent's load;
+    // a thin graduated arc mirrors them on the left, and a small dial turns below right
+    const Ra = R * 2.1;
+    if (cx + Ra + R * .2 < W - 8 && cy - Ra * .62 > 8) {
+      const [hr, hg, hb] = hi.map(Math.round), C = (k, a) => `rgba(${Math.round(r + (hr - r) * k)},${Math.round(g + (hg - g) * k)},${Math.round(b + (hb - b) * k)},${a * (0.3 + 0.7 * live) * ease})`;
+      arcV.out += (clamp01(lvl * 1.7 + (state === 'listening' ? micLevel : 0)) - arcV.out) * 0.2;
+      arcV.in += (clamp01((ACT[state] ?? .3) * live * .85 + .05 * Math.sin(t * 1.7)) - arcV.in) * 0.06;
+      const span = 0.62, N = 34;
+      [[Ra + R * .14, arcV.out, Math.max(5, R * .07)], [Ra, arcV.in, Math.max(3, R * .04)]].forEach(([rad, v, lw]) => {
+        ctx.lineWidth = lw;
+        for (let i = 0; i < N; i++) {
+          const k = i / (N - 1), a0 = span - (2 * span) * (i / N), a1 = a0 - (2 * span) / N * .68;
+          ctx.strokeStyle = k <= v ? C(k, .85) : A(.1);
+          ctx.beginPath(); ctx.arc(cx, cy, rad, a1, a0); ctx.stroke();
+        }
+      });
+      ctx.lineWidth = 1; ctx.strokeStyle = A(.3);
+      ctx.beginPath(); ctx.arc(cx, cy, Ra + R * .24, -span, span); ctx.stroke();
+      ctx.beginPath(); ctx.arc(cx, cy, Ra, Math.PI - span * .8, Math.PI + span * .8); ctx.stroke();
+      for (let i = 0; i <= 12; i++) { const a = Math.PI - span * .8 + span * 1.6 * i / 12, l = i % 3 ? 4 : 8;
+        ctx.beginPath(); ctx.moveTo(cx + Math.cos(a) * Ra, cy + Math.sin(a) * Ra); ctx.lineTo(cx + Math.cos(a) * (Ra - l), cy + Math.sin(a) * (Ra - l)); ctx.stroke(); }
+      ctx.font = `9px ${MONO}`; ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillStyle = Wt(0.6);
+      ctx.fillText(String(Math.round(arcV.out * 100)).padStart(2, '0'), cx + Math.cos(span) * (Ra + R * .3), cy + Math.sin(span) * (Ra + R * .3));
+      // dial
+      const dx = cx + Math.cos(0.98) * Ra, dy = cy + Math.sin(0.98) * Ra, dr = Math.max(14, R * .17);
+      if (dy + dr < H - 8) {
+        arcV.rot += dt * (0.5 + (ACT[state] ?? .3) * 3) * mo * live;
+        ctx.lineWidth = 3;
+        for (let i = 0; i < 18; i++) { const a = i / 18 * 6.283; ctx.strokeStyle = A(i % 3 ? .18 : .5); ctx.beginPath(); ctx.arc(dx, dy, dr, a, a + .2); ctx.stroke(); }
+        ctx.lineWidth = 2; ctx.strokeStyle = C(.4, .9); ctx.beginPath(); ctx.arc(dx, dy, dr * .7, arcV.rot, arcV.rot + 2); ctx.stroke();
+        ctx.textAlign = 'center'; ctx.fillStyle = Wt(0.85); ctx.fillText(String(Math.round(arcV.in * 100)).padStart(2, '0'), dx, dy);
+      }
+    }
     ctx.restore();
   }
+  const arcV = { out: 0, in: 0, rot: 0 };
 
   // ---------- instruments ----------
   const BARS = 28, barVals = new Float32Array(BARS);
@@ -2378,7 +2647,7 @@ form.ask.chatask { margin-top: 2px; }
   function fireImpulse() { const a = (Math.random() * NEURONS.length) | 0; impulses.push({ a, b: NEAR[a][(Math.random() * NEAR[a].length) | 0], p: 0, hops: 3 + ((Math.random() * 6) | 0) }); }
   function drawScope(t, dt) {
     const c = $('scope'); if (!c.offsetParent) return;
-    const g = c.getContext('2d'), w = c.clientWidth, h = c.clientHeight;
+    const [g, w, h] = sized(c);
     const act = { idle: .25, listening: .6, thinking: 1, speaking: .8, error: .15, offline: 0 }[state] ?? .3;
     const live = (1 - dim) * clamp01(orbDraw * 1.5), mo = reduceMotion ? .2 : 1;
     const [r, gg, b] = col.map(Math.round), [r2, g2, b2] = col2.map(Math.round);
@@ -2438,36 +2707,259 @@ form.ask.chatask { margin-top: 2px; }
     g.fillText('NODES ' + NEURONS.length, 4, h - 5);
     g.textAlign = 'right'; g.fillText('α ' + (8 + act * 5.5 + Math.sin(t * 1.4) * .4).toFixed(1) + ' Hz', w - 4, 11);
     g.fillText('LOAD ' + String(Math.max(0, Math.round(act * live * 86 + Math.sin(t * 3.3) * 3 + 4 * live))).padStart(2, '0') + '%', w - 4, h - 5);
-    $('scopeMode').textContent = live > 0.5 ? 'neural · ' + (state === 'thinking' ? 'active' : state === 'idle' ? 'auto' : state) : 'standby';
+    const mode = live > 0.5 ? 'neural · ' + (state === 'thinking' ? 'active' : state === 'idle' ? 'auto' : state) : 'standby';
+    if ($('scopeMode').textContent !== mode) { $('scopeMode').textContent = mode; $('scopeMode2').textContent = mode; }
+    // callouts: leader lines from the core to its regions, on the larger left-hand panel
+    if (w > 200 && h > 120) {
+      g.font = '8.5px "IBM Plex Mono", ui-monospace, monospace'; g.lineWidth = 1;
+      [[-.55, -.25, 'CORTEX'], [.6, -.3, 'SYNAPSE MAP'], [-.5, .35, 'MEMORY'], [.45, .45, 'MOTOR · VOX']].forEach(([px, py, label], k) => {
+        const sx = x0 + px * sc * 1.25, sy = y0 + py * sc * 1.25, side = px < 0 ? -1 : 1, ex = side < 0 ? 6 : w - 6, ly = sy - 10 * Math.sign(py || 1);
+        if (Math.abs(ex - sx) < 30) return;
+        g.strokeStyle = A2(.18 + .3 * live); g.beginPath(); g.moveTo(sx, sy); g.lineTo(sx + side * 10, ly); g.lineTo(ex, ly); g.stroke();
+        g.fillStyle = A(.5 + .4 * live); g.beginPath(); g.arc(sx, sy, 1.6, 0, 6.283); g.fill();
+        g.textAlign = side < 0 ? 'left' : 'right'; g.fillStyle = A2(.5 + .4 * live); g.fillText(label, ex, ly - 5);
+      });
+    }
   }
 
-  // the pill under the orb: small multicoloured lines, a living waveform that follows the mic and the voice
-  const PILL_N = 26, pillVals = new Float32Array(PILL_N);
+  // The heartbeat bar under the orb, in the orb's own colour. Each agent has its own pattern (eight, then they
+  // repeat); all of them follow the mic while listening, the voice while speaking, and quicken while thinking.
+  const PILL_N = 30, pillVals = new Float32Array(PILL_N);
+  const PILL_STYLES = ['bars', 'ecg', 'mirror', 'dots', 'ribbon', 'eq', 'scan', 'blocks'];
+  function pillStyle() { const i = Math.max(0, agents.findIndex(a => a.id === agent)); return PILL_STYLES[i % PILL_STYLES.length]; }
   function drawPill(t) {
     const c = $('wavePill'); if (!c || !c.offsetParent) return;
     const w = c.clientWidth, h = c.clientHeight, d = Math.min(2, devicePixelRatio || 1);
     if (c.width !== Math.round(w * d)) { c.width = Math.round(w * d); c.height = Math.round(h * d); }
     const g = c.getContext('2d'); g.setTransform(d, 0, 0, d, 0, 0); g.clearRect(0, 0, w, h);
-    const live = (1 - dim) * clamp01(orbDraw * 1.4);
-    const cA = col.map(Math.round), cB = col2.map(Math.round), cC = hueShift(cA, 70), cD = hueShift(cB, -60);
-    const stops = [cA, cB, cC, cD, cA];
-    const padX = 14, gap = (w - padX * 2) / (PILL_N - 1), mid = h / 2;
-    g.lineCap = 'round'; g.lineWidth = 2;
-    for (let i = 0; i < PILL_N; i++) {
-      const x = i / (PILL_N - 1), env = Math.sin(Math.PI * (0.08 + x * 0.84));
-      let v;
-      if (state === 'offline') v = 0.04;
-      else if (state === 'speaking') v = lvl * (0.45 + 0.55 * Math.abs(Math.sin(t * (7 + i * 0.9) + i * 1.7))) * 1.4;
-      else if (state === 'listening') v = 0.12 + micLevel * (0.6 + 0.4 * Math.abs(Math.sin(t * 9 + i * 1.3))) * 1.6;
-      else if (state === 'thinking') v = 0.18 + 0.5 * Math.max(0, Math.sin(t * 7 - i * 0.55)) ** 2;
-      else v = 0.1 + 0.08 * Math.sin(t * 2.2 + i * 0.7) + 0.05 * Math.sin(t * 3.7 - i * 1.1);
-      pillVals[i] += (Math.min(1, v * env) - pillVals[i]) * 0.3;
-      const hh = Math.max(1.5, pillVals[i] * (h - 10) * live);
-      const f = x * 4, k = Math.min(3, Math.floor(f)), m = f - k;
-      const c0 = stops[k], c1 = stops[k + 1], cc = c0.map((v2, j) => Math.round(v2 + (c1[j] - v2) * m));
-      g.strokeStyle = `rgba(${cc[0]},${cc[1]},${cc[2]},${0.35 + 0.65 * live})`;
-      g.beginPath(); g.moveTo(padX + i * gap, mid - hh / 2); g.lineTo(padX + i * gap, mid + hh / 2); g.stroke();
+    const live = (1 - dim) * clamp01(orbDraw * 1.4), mo = reduceMotion ? .3 : 1;
+    const [r, gg, b] = col.map(Math.round), [hr, hg, hb] = hi.map(Math.round);
+    const C = (k, a) => `rgba(${Math.round(r + (hr - r) * k)},${Math.round(gg + (hg - gg) * k)},${Math.round(b + (hb - b) * k)},${a * (0.35 + 0.65 * live)})`;
+    // one energy value per column, for whatever the agent is doing
+    const energy = (i, x) => {
+      if (state === 'offline') return 0.04;
+      if (state === 'speaking') return lvl * (0.45 + 0.55 * Math.abs(Math.sin(t * (7 + i * 0.9) * mo + i * 1.7))) * 1.4;
+      if (state === 'listening') return 0.12 + micLevel * (0.6 + 0.4 * Math.abs(Math.sin(t * 9 * mo + i * 1.3))) * 1.6;
+      if (state === 'thinking') return 0.18 + 0.5 * Math.max(0, Math.sin(t * 7 * mo - i * 0.55)) ** 2;
+      return 0.1 + 0.08 * Math.sin(t * 2.2 * mo + i * 0.7) + 0.05 * Math.sin(t * 3.7 * mo - i * 1.1);
+    };
+    const padX = 14, mid = h / 2, n = PILL_N, gap = (w - padX * 2) / (n - 1), style = pillStyle();
+    for (let i = 0; i < n; i++) {
+      const x = i / (n - 1), env = Math.sin(Math.PI * (0.08 + x * 0.84));
+      pillVals[i] += (Math.min(1, energy(i, x) * env) - pillVals[i]) * 0.3;
     }
+    const amp = (h - 10) * live, beat = state === 'thinking' ? 2.2 : state === 'speaking' || state === 'listening' ? 1.6 : 1;
+    g.lineCap = 'round';
+    if (style === 'bars' || style === 'mirror' || style === 'eq' || style === 'scan') {
+      g.lineWidth = 2;
+      for (let i = 0; i < n; i++) {
+        let v = pillVals[i];
+        if (style === 'mirror') v = pillVals[Math.abs(Math.round((n - 1) / 2 - i))] * 1.1;
+        if (style === 'scan') { const head = ((t * .6 * beat * mo) % 1.3) * n; v = Math.max(v * .55, Math.exp(-((i - head) ** 2) / 6) * (.35 + v)); }
+        const hh = Math.max(1.5, v * amp), xx = padX + i * gap;
+        g.strokeStyle = C(clamp01(v * 1.3), 0.45 + 0.55 * clamp01(v * 2));
+        g.beginPath();
+        if (style === 'eq') { g.moveTo(xx, h - 6); g.lineTo(xx, h - 6 - hh); }
+        else { g.moveTo(xx, mid - hh / 2); g.lineTo(xx, mid + hh / 2); }
+        g.stroke();
+      }
+    } else if (style === 'ecg') {
+      // a heart-monitor trace: flat line with a beat running across it
+      const level = pillVals.reduce((s, v) => s + v, 0) / n;
+      const pos = ((t * .55 * beat * mo) % 1) * (w - padX * 2);
+      g.lineWidth = 1.6; g.strokeStyle = C(.2, .95); g.beginPath();
+      for (let x = 0; x <= w - padX * 2; x += 1.5) {
+        const u = (x - pos) / 10;
+        let y = Math.sin(x * .3 + t * 6) * level * 3;
+        if (u > -1.2 && u < 2.5) y += (u < 0 ? Math.sin(u * Math.PI) * 3 : u < .5 ? -Math.sin(u / .5 * Math.PI) * (6 + level * 22) : u < 1 ? Math.sin((u - .5) / .5 * Math.PI) * (4 + level * 10) : Math.sin((u - 1) / 1.5 * Math.PI) * -2.5);
+        const xx = padX + x, yy = mid + y * live;
+        x ? g.lineTo(xx, yy) : g.moveTo(xx, yy);
+      }
+      g.stroke();
+      g.fillStyle = C(1, .95); g.beginPath(); g.arc(padX + pos, mid, 1.8, 0, 6.283); g.fill();
+    } else if (style === 'dots') {
+      // a dot matrix: each column lights a stack of dots
+      const rows = 5, dy = (h - 10) / (rows - 1);
+      for (let i = 0; i < n; i += 1) {
+        const lit = Math.round(pillVals[i] * rows * 1.3);
+        for (let k = 0; k < rows; k++) {
+          const on = Math.abs(k - (rows - 1) / 2) < lit / 2 + .01;
+          g.fillStyle = on ? C(k / rows, .95) : C(0, .14);
+          g.beginPath(); g.arc(padX + i * gap, 5 + k * dy, 1.1, 0, 6.283); g.fill();
+        }
+      }
+    } else if (style === 'ribbon') {
+      // two sine ribbons twisting round each other
+      for (const [ph, k] of [[0, 0], [Math.PI, .7]]) {
+        g.lineWidth = 1.6; g.strokeStyle = C(k, .9); g.beginPath();
+        for (let i = 0; i <= 60; i++) {
+          const x = i / 60, j = Math.min(n - 1, Math.round(x * (n - 1))), env = Math.sin(Math.PI * x);
+          const y = mid + Math.sin(x * 11 + t * 3.2 * beat * mo + ph) * (2 + pillVals[j] * amp * .5) * env;
+          i ? g.lineTo(padX + x * (w - padX * 2), y) : g.moveTo(padX, y);
+        }
+        g.stroke();
+      }
+    } else {
+      // blocks: stepped cells, like a bit stream
+      const bw = gap * .7;
+      for (let i = 0; i < n; i++) {
+        const v = pillVals[i], cells = Math.max(1, Math.round(v * 4 * 1.4)), ch = (h - 10) / 4 - 1.5;
+        for (let k = 0; k < 4; k++) { g.fillStyle = k < cells ? C(k / 4, .9) : C(0, .1); g.fillRect(padX + i * gap - bw / 2, h - 5 - (k + 1) * (ch + 1.5), bw, ch); }
+      }
+    }
+  }
+
+  // ---------- K.I.B.I. console panels: mini cores, power, telemetry, gauges, stability, traces ----------
+  function sized(c) {
+    const d = Math.min(2, devicePixelRatio || 1), w = c.clientWidth, h = c.clientHeight;
+    if (c.width !== Math.round(w * d) || c.height !== Math.round(h * d)) { c.width = Math.round(w * d); c.height = Math.round(h * d); }
+    const g = c.getContext('2d'); g.setTransform(d, 0, 0, d, 0, 0); g.clearRect(0, 0, w, h);
+    return [g, w, h];
+  }
+  const ACT = { idle: .25, listening: .6, thinking: 1, speaking: .8, error: .15, offline: 0 };
+  const activity = () => ACT[state] ?? .3;
+  const liveness = () => (1 - dim) * clamp01(orbDraw * 1.5);
+  const voiceLevel = () => state === 'listening' ? micLevel : state === 'speaking' ? lvl : 0;
+  const rgbOf = id => hex(agentColor(id));
+  const SEGS = (g, x, y, w, h, n, v, color, off = 'rgba(90,168,255,.13)') => {
+    const gap = 2, sw = (w - gap * (n - 1)) / n, lit = Math.round(clamp01(v) * n);
+    for (let k = 0; k < n; k++) { g.fillStyle = k < lit ? (typeof color === 'function' ? color(k / (n - 1), k) : color) : off; g.fillRect(x + k * (sw + gap), y, sw, h); }
+  };
+  const FONT = s => `${s}px ${MONO}`;
+
+  // each agent card's little neural core: the scope's brain at miniature size, turning at its own pace
+  const miniRot = {};
+  function drawMiniBrains(dt) {
+    const mo = reduceMotion ? .2 : 1;
+    document.querySelectorAll('#agents .agent').forEach((card, idx) => {
+      const c = card.querySelector('.mb'); if (!c || !c.offsetParent) return;
+      const a = agents.find(x => x.id === card.dataset.id); if (!a) return;
+      const me = a.id === agent, busy = me && ['listening', 'thinking', 'speaking'].includes(state);
+      miniRot[a.id] = (miniRot[a.id] ?? idx * 1.7) + dt * mo * (a.online ? (busy ? 1.4 : .35) : .05);
+      const [g, w, h] = sized(c), [r, gg, b] = rgbOf(a.id), A = al => `rgba(${r},${gg},${b},${al})`;
+      const cr = Math.cos(miniRot[a.id]), sr = Math.sin(miniRot[a.id]), sc = Math.min(w, h * 1.6) * .34, x0 = w / 2, y0 = h / 2 + 1;
+      const P = [];
+      for (let i = 0; i < NEURONS.length; i += 2) { const n = NEURONS[i], x = n.x * cr + n.z * sr, z = -n.x * sr + n.z * cr; P[i] = [x0 + x * sc, y0 + (n.y * .95 - z * .3) * sc, z]; }
+      g.lineWidth = .6; g.strokeStyle = A(a.online ? (me ? .5 : .32) : .18);
+      g.beginPath(); for (const [i, j] of SYN) { if (!P[i] || !P[j]) continue; g.moveTo(P[i][0], P[i][1]); g.lineTo(P[j][0], P[j][1]); } g.stroke();
+      for (const p of P) { if (!p) continue; g.fillStyle = A((.35 + .5 * (p[2] + 1) / 2) * (a.online ? 1 : .4)); g.fillRect(p[0] - .6, p[1] - .6, 1.2, 1.2); }
+      if (busy) { const n = P[(Math.floor(performance.now() / 90) * 2) % NEURONS.length & ~1]; if (n) { g.fillStyle = 'rgba(255,255,255,.9)'; g.beginPath(); g.arc(n[0], n[1], 1.6, 0, 6.283); g.fill(); } }
+    });
+  }
+
+  // power distribution: one segmented bar per agent, the current one following what it's doing
+  const pwrVals = {};
+  function drawPower(t) {
+    const c = $('pwr'); if (!c.offsetParent) return;
+    const list = agents.slice(0, 6), rowH = 14, want = list.length * rowH + (agents.length > 6 ? 12 : 0) + 2;
+    if (c.clientHeight !== want) c.style.height = want + 'px';
+    const [g, w] = sized(c), live = liveness();
+    g.font = FONT(9); g.textBaseline = 'middle';
+    let sum = 0;
+    list.forEach((a, i) => {
+      const me = a.id === agent, y = i * rowH + 2;
+      const target = !a.online ? 0 : me ? (.32 + activity() * .5 + voiceLevel() * .3) * live + .04 * Math.sin(t * 5 + i) : .2 + .06 * Math.sin(t * 1.3 + i * 2);
+      pwrVals[a.id] = (pwrVals[a.id] ?? 0) + (clamp01(target) - (pwrVals[a.id] ?? 0)) * .12; sum += pwrVals[a.id];
+      const [r, gg, b] = rgbOf(a.id);
+      g.fillStyle = a.online ? `rgba(${r},${gg},${b},.95)` : 'rgba(142,163,198,.5)';
+      g.textAlign = 'left'; g.fillText(acronym(a.label).slice(0, 12), 0, y + 5);
+      SEGS(g, 74, y, w - 74 - 34, 9, 22, pwrVals[a.id], k => `rgba(${r},${gg},${b},${.35 + .65 * k})`);
+      g.textAlign = 'right'; g.fillStyle = 'rgba(226,236,244,.75)'; g.fillText(String(Math.round(pwrVals[a.id] * 100)).padStart(2, '0') + '%', w, y + 5);
+    });
+    if (agents.length > 6) { g.textAlign = 'left'; g.fillStyle = 'rgba(142,163,198,.7)'; g.fillText(`+ ${agents.length - 6} more`, 0, list.length * rowH + 7); }
+    $('pwrTotal').textContent = list.length ? Math.round(sum / list.length * 100) + '%' : '–';
+  }
+
+  // advanced telemetry: uplink, neural load, voice I/O and synapse rate, with a rolling history
+  const telHist = { a: new Float32Array(80), b: new Float32Array(80), at: 0 }, telV = [0, 0, 0, 0];
+  function drawTelemetry(t, now) {
+    const c = $('tel'); if (!c.offsetParent) return;
+    const [g, w, h] = sized(c), live = liveness(), [r, gg, b] = col.map(Math.round), [r2, g2, b2] = col2.map(Math.round);
+    const lat = gateway.online && gateway.latencyMs != null ? gateway.latencyMs : null;
+    const want = [gateway.online ? clamp01(1 - (lat ?? 200) / 600) : 0, activity() * live, voiceLevel() * 1.4, clamp01(synRate / 22)];
+    want.forEach((v, i) => { telV[i] += (clamp01(v) - telV[i]) * .15; });
+    const rows = [['UPLINK', lat != null ? lat + ' ms' : '—'], ['NEURAL', Math.round(telV[1] * 100) + '%'], ['VOICE I/O', Math.round(telV[2] * 100) + '%'], ['SYNAPSE', String(Math.round(synRate * 12)).padStart(4, '0')]];
+    g.font = FONT(9); g.textBaseline = 'middle';
+    rows.forEach(([label, val], i) => {
+      const y = i * 12;
+      g.textAlign = 'left'; g.fillStyle = 'rgba(142,163,198,.85)'; g.fillText(label, 0, y + 5);
+      SEGS(g, 62, y + 1, w - 62 - 46, 7, 26, telV[i], i % 2 ? `rgba(${r2},${g2},${b2},.85)` : k => `rgba(${r},${gg},${b},${.35 + .65 * k})`);
+      g.textAlign = 'right'; g.fillStyle = 'rgba(226,236,244,.8)'; g.fillText(val, w, y + 5);
+    });
+    if (now - telHist.at > 90) { telHist.at = now; telHist.a.copyWithin(0, 1); telHist.b.copyWithin(0, 1); telHist.a[79] = telV[1]; telHist.b[79] = telV[2]; }
+    const top = 52, gh = h - top - 2;
+    g.strokeStyle = 'rgba(90,168,255,.12)'; g.lineWidth = 1; g.strokeRect(.5, top + .5, w - 1, gh);
+    for (const [arr, cc] of [[telHist.a, `rgba(${r},${gg},${b},.9)`], [telHist.b, `rgba(${r2},${g2},${b2},.9)`]]) {
+      g.beginPath(); for (let k = 0; k < 80; k++) { const x = 1 + k / 79 * (w - 2), y = top + gh - 2 - arr[k] * (gh - 4) - Math.sin(t * 3 + k * .5) * .6 * live; k ? g.lineTo(x, y) : g.moveTo(x, y); }
+      g.strokeStyle = cc; g.lineWidth = 1.2; g.stroke();
+    }
+    const st = $('telState'); const txt = gateway.online ? 'online' : 'no link'; if (st.textContent !== txt) { st.textContent = txt; st.className = 'mono ' + (gateway.online ? 'ok' : 'bad'); }
+  }
+
+  // gauges: load (what the agent is doing) and signal (mic or voice level)
+  const gv = { load: 0, sig: 0 };
+  function drawGaugeBox(t) {
+    const c = $('gauges'); if (!c.offsetParent) return;
+    const [g, w, h] = sized(c), live = liveness();
+    gv.load += (clamp01(activity() * live * .9 + .04 * Math.sin(t * 2.3)) - gv.load) * .08;
+    gv.sig += (clamp01(voiceLevel() * 1.6) - gv.sig) * .2;
+    const gauge = (x, y, rr, v, rgb, label, val) => {
+      const a0 = Math.PI * 1.05, a1 = Math.PI * 1.95, N = 26;
+      g.lineWidth = Math.max(5, rr * .16);
+      for (let k = 0; k < N; k++) { const s0 = a0 + (a1 - a0) * k / N; g.strokeStyle = k / N < v ? `rgba(${rgb[0]},${rgb[1]},${rgb[2]},${.45 + .55 * k / N})` : 'rgba(90,168,255,.12)'; g.beginPath(); g.arc(x, y, rr, s0, s0 + (a1 - a0) / N * .72); g.stroke(); }
+      const na = a0 + (a1 - a0) * v; g.lineWidth = 2; g.strokeStyle = '#fff'; g.beginPath(); g.moveTo(x, y); g.lineTo(x + Math.cos(na) * rr * .8, y + Math.sin(na) * rr * .8); g.stroke();
+      g.fillStyle = '#fff'; g.beginPath(); g.arc(x, y, 2.5, 0, 6.283); g.fill();
+      g.font = FONT(9); g.textAlign = 'center'; g.textBaseline = 'alphabetic';
+      g.fillStyle = 'rgba(142,163,198,.85)'; g.fillText(label, x, y + 13);
+      g.fillStyle = '#fff'; g.fillText(val, x, y - rr * .36);
+    };
+    const rr = Math.min(w * .21, h * .62), cA = col.map(Math.round), cB = hi.map(Math.round);
+    gauge(w * .27, h * .8, rr, gv.load, cA, 'LOAD', Math.round(gv.load * 100) + '%');
+    gauge(w * .73, h * .8, rr, gv.sig, cB, 'SIGNAL', Math.round(gv.sig * 100) + '%');
+  }
+
+  // core stability: two rows of cells lit by how healthy the link to the agents is
+  let stabV = 0;
+  function drawStab(t) {
+    const c = $('stab'); if (!c.offsetParent) return;
+    const [g, w, h] = sized(c), on = agents.filter(a => a.online).length;
+    const want = gateway.online ? (agents.length ? on / agents.length : 0) * (1 - Math.min(.4, (gateway.latencyMs ?? 0) / 1000)) : .04;
+    stabV += (want - stabV) * .05;
+    const [r, gg, b] = col.map(Math.round), [r2, g2, b2] = col2.map(Math.round), n = 16, rowH = (h - 3) / 2;
+    for (let row = 0; row < 2; row++) {
+      const v = clamp01(stabV - row * .04 + .02 * Math.sin(t * 4 + row));
+      SEGS(g, 0, row * (rowH + 3), w, rowH, n, v, k => (row ? `rgba(${r2},${g2},${b2},${.5 + .5 * k})` : `rgba(${r},${gg},${b},${.5 + .5 * k})`));
+    }
+    const txt = Math.round(stabV * 100) + '%'; if ($('stabVal').textContent !== txt) $('stabVal').textContent = txt;
+  }
+
+  // voice traces under the voice bars: your mic and the agent's voice over the last few seconds
+  const trace = { mic: new Float32Array(90), out: new Float32Array(90), at: 0 };
+  function drawTrace(t, now) {
+    const c = $('trace'); if (!c.offsetParent) return;
+    if (now - trace.at > 60) { trace.at = now; trace.mic.copyWithin(0, 1); trace.out.copyWithin(0, 1); trace.mic[89] = state === 'listening' ? micLevel : 0; trace.out[89] = state === 'speaking' ? lvl : 0; }
+    const [g, w, h] = sized(c), [r, gg, b] = col.map(Math.round), [r2, g2, b2] = col2.map(Math.round), half = (w - 8) / 2;
+    [[trace.mic, 0, `rgba(${r2},${g2},${b2},.9)`, 'MIC'], [trace.out, half + 8, `rgba(${r},${gg},${b},.95)`, 'OUT']].forEach(([arr, x0, cc, label]) => {
+      g.strokeStyle = 'rgba(90,168,255,.14)'; g.lineWidth = 1; g.strokeRect(x0 + .5, .5, half - 1, h - 1);
+      g.beginPath();
+      for (let k = 0; k < 90; k++) { const x = x0 + 1 + k / 89 * (half - 2), y = h / 2 + Math.sin(k * 1.9 + t * 9) * arr[k] * (h / 2 - 2) + Math.sin(k * .7 + t * 2) * .6; k ? g.lineTo(x, y) : g.moveTo(x, y); }
+      g.strokeStyle = cc; g.lineWidth = 1.1; g.stroke();
+      g.font = FONT(8); g.fillStyle = 'rgba(142,163,198,.7)'; g.textAlign = 'left'; g.textBaseline = 'top'; g.fillText(label, x0 + 4, 2);
+    });
+  }
+
+  // response dial: rings turning with the agent's state; quickens while it thinks
+  let dialA = 0;
+  function drawRespDial(t, dt) {
+    const c = $('respDial'); if (!c.offsetParent) return;
+    const [g, w] = sized(c), cx = w / 2, R = w * .44, live = liveness(), [r, gg, b] = col.map(Math.round), [r2, g2, b2] = col2.map(Math.round);
+    dialA += dt * (reduceMotion ? .2 : 1) * (.4 + activity() * 3) * (.2 + .8 * live);
+    g.lineWidth = 4;
+    for (let k = 0; k < 24; k++) { const a = k / 24 * 6.283; g.strokeStyle = `rgba(${r2},${g2},${b2},${(k % 3 ? .16 : .45) * (.4 + .6 * live)})`; g.beginPath(); g.arc(cx, cx, R, a, a + .17); g.stroke(); }
+    g.lineWidth = 3; g.strokeStyle = `rgba(${r},${gg},${b},${.25 + .7 * live})`; g.beginPath(); g.arc(cx, cx, R * .72, dialA, dialA + 2.2); g.stroke();
+    g.lineWidth = 1.5; g.strokeStyle = `rgba(${r},${gg},${b},${.2 + .5 * live})`; g.beginPath(); g.arc(cx, cx, R * .5, -dialA * 1.5, -dialA * 1.5 + 1.5); g.stroke();
+    const p = .5 + .5 * Math.sin(t * (2 + activity() * 6));
+    g.fillStyle = `rgba(${r},${gg},${b},${(.4 + .5 * p) * (.3 + .7 * live)})`; g.beginPath(); g.arc(cx, cx, R * (.14 + .05 * p), 0, 6.283); g.fill();
   }
 
   let sparkTick = 0;
@@ -2490,6 +2982,13 @@ form.ask.chatask { margin-top: 2px; }
     safe('scope', () => drawScope(t, dt));
     safe('chat icons', mirrorChatOrbs);
     safe('pill', () => drawPill(t));
+    safe('power', () => drawPower(t));
+    safe('telemetry', () => drawTelemetry(t, now));
+    safe('gauges', () => drawGaugeBox(t));
+    safe('stability', () => drawStab(t));
+    safe('trace', () => drawTrace(t, now));
+    safe('dial', () => drawRespDial(t, dt));
+    if (sparkTick % 3 === 0) safe('agent cores', () => drawMiniBrains(dt * 3));
     if (++sparkTick % 30 === 0) safe('spark', drawSpark);
     requestAnimationFrame(frame);
   }
@@ -2594,7 +3093,7 @@ form.ask.chatask { margin-top: 2px; }
   function waitForPowerTap(el, run) {
     return new Promise(resolve => {
       const sl = $('bootSleep');
-      sl.querySelector('.label').textContent = 'Interface standby';
+      sl.querySelector('.label').textContent = `K.I.B.I. ${KIBI_VER} · standby`;
       sl.querySelector('.hint2').textContent = 'Tap or press any key to power up';
       sl.hidden = false; el.classList.add('off-content');
       const go = e => {
@@ -2625,7 +3124,7 @@ form.ask.chatask { margin-top: 2px; }
   let poweredDown = false, sleeping = false, wakeKey = null;
   let bootRun = 0;
   // the console's panels, in power-up order (shutdown uses the reverse)
-  const panels = () => [document.querySelector('header'), document.querySelector('.roster'), ...document.querySelectorAll('.hud .box'), document.querySelector('.dock'), $('orb'), document.querySelector('.readout')].filter(Boolean);
+  const panels = () => [document.querySelector('header'), ...document.querySelectorAll('.roster > .box'), document.querySelector('.roster-foot'), ...document.querySelectorAll('.hud .box'), document.querySelector('.dock'), $('orb'), document.querySelector('.readout')].filter(el => el && el.offsetParent !== null);
   function panelsOff() { for (const el of panels()) { el.classList.remove('pwr-on', 'pwr-down'); el.classList.add('pwr-off'); } }
   function panelsShow() { for (const el of panels()) el.classList.remove('pwr-off', 'pwr-down', 'pwr-on'); }
   async function panelsUp(run, onOrb) {
@@ -2633,7 +3132,7 @@ form.ask.chatask { margin-top: 2px; }
       if (run !== bootRun) return;
       if (el.id === 'orb') onOrb?.();
       el.classList.remove('pwr-off', 'pwr-down'); el.classList.add('pwr-on'); sfx.tick();
-      await wait(reduceMotion ? 20 : 150);
+      await wait(reduceMotion ? 20 : 210);
     }
     setTimeout(() => panels().forEach(el => el.classList.remove('pwr-on')), 700);
   }
@@ -2644,75 +3143,58 @@ form.ask.chatask { margin-top: 2px; }
       await wait(reduceMotion ? 20 : 150);
     }
   }
+  // ---------- the K.I.B.I. HUD (startup and shutdown screen) ----------
+  const KIBI_VER = 'V' + (window.__KIBI_VERSION__ || '1.15');
+  document.querySelectorAll('[data-kibi-ver]').forEach(n => { n.textContent = KIBI_VER; });
   const pad4 = n => String(Math.max(0, Math.min(1000, Math.round(n)))).padStart(4, '0');
-  function setTotal(p) { $('bootBar').style.clipPath = `inset(0 ${(100 - p * 100).toFixed(2)}% 0 0)`; $('bootPct').textContent = pad4(p * 1000) + '/1000'; }
+  const PHASES = { boot: ['Boot active', 'Booting…', 'Initializing', 'Online'], shutdown: ['Shutdown active', 'Powering down', 'Terminating', 'Offline'] };
+  const hud = { mode: 'boot', p: 0, shown: 0, blocks: 0, ready: false, raf: 0, t0: 0, last: 0, row: '', stats: 0 };
+  const hudBlocks = () => [...document.querySelectorAll('#boot .kh-blk')].sort((x, y) => x.dataset.blk - y.dataset.blk);
+  // power HUD blocks on (or off) so that the first n are on; quiet = no animation or sound
+  function setBlocks(n, quiet = false) {
+    hudBlocks().forEach((el, i) => {
+      const on = i < n;
+      if (on === el.classList.contains('on')) return;
+      el.classList.remove('on', 'dn', 'quiet');
+      if (on) { el.classList.add('on'); if (quiet) el.classList.add('quiet'); else sfx.tick(); }
+      else if (!quiet) { el.classList.add('dn'); sfx.tick(false); }
+    });
+    hud.blocks = n;
+  }
+  function setPhase(i) {
+    const names = PHASES[hud.mode];
+    $('khChips').querySelectorAll('.kh-chip').forEach((c, k) => {
+      const final = i >= 3 && k === 2;
+      c.textContent = final ? names[3] : names[k];
+      c.className = 'kh-chip' + (final ? ' on' : k < i ? ' done' : k === i ? ' on' : '');
+    });
+  }
+  function setTotal(p) {
+    hud.p = clamp01(p);
+    $('bootBar').style.clipPath = `inset(0 ${(100 - hud.p * 100).toFixed(2)}% 0 0)`;
+  }
+  const dock = text => { $('khDockText').textContent = text; };
   async function typeHead(text, run) {
     const h = $('bootHead'); h.textContent = '';
-    for (let i = 1; i <= text.length; i++) { if (run !== bootRun) return; h.textContent = text.slice(0, i); await wait(reduceMotion ? 0 : 13); }
+    for (let i = 1; i <= text.length; i++) { if (run !== bootRun) return; h.textContent = text.slice(0, i); await wait(reduceMotion ? 0 : 12); }
   }
-  // one row on the boot screen: verb, system, a gradient bar, a 0000/1000 counter and a status
+  // one row of the boot sequence: a status light, verb + system, a segmented bar, a 0000 → 1000 counter, then its status
   function bootRow(verb, label) {
     const row = document.createElement('div'); row.className = 'kr';
-    row.innerHTML = '<span class="lab"><small></small><span></span></span><span class="trk"><i></i></span><span class="num">0000/1000</span><b class="pending">…</b>';
+    row.innerHTML = '<i></i><span class="lab"><small></small><span></span></span><span class="kseg"><i></i></span><b class="pending">0000</b>';
     row.querySelector('small').textContent = verb; row.querySelector('.lab span').textContent = label;
-    $('bootLog').append(row); return row;
+    const log = $('bootLog'); log.append(row); if (log.scrollHeight > log.clientHeight + 10) log.scrollTop = log.scrollHeight;
+    hud.row = label;
+    return row;
   }
   function setRow(row, v, status, cls, color) {
-    row.querySelector('.trk i').style.clipPath = `inset(0 ${(100 - v * 100).toFixed(2)}% 0 0)`;
-    row.querySelector('.num').textContent = pad4(v * 1000) + '/1000';
-    if (status != null) { const b = row.querySelector('b'); b.textContent = status; b.className = cls || 'ok'; b.style.color = color || ''; }
+    row.querySelector('.kseg i').style.clipPath = `inset(0 ${(100 - v * 100).toFixed(2)}% 0 0)`;
+    row._v = v;
+    const b = row.querySelector('b');
+    if (status != null) { b.textContent = status; b.className = cls || 'ok'; b.style.color = color || ''; row.className = 'kr ' + (cls || 'ok'); }
+    else if (b.className === 'pending') b.textContent = pad4(v * 1000);
   }
   // animate a row's bar between two levels; a slight stutter makes it read like a real load
-  // Animated background behind the K.I.B.I. screen: a perspective grid rolling toward you, rising data particles,
-  // rings turning around the title and a scan beam. Runs only while the boot screen is showing.
-  let fxRaf = 0;
-  const FX_P = Array.from({ length: 70 }, () => ({ x: Math.random(), y: Math.random(), s: .3 + Math.random() * 1.2, v: .02 + Math.random() * .07, ph: Math.random() * 6.28 }));
-  function bootFx() {
-    if (fxRaf) return;
-    const c = $('bootFx'), g = c.getContext('2d'), t0 = performance.now();
-    const loop = now => {
-      if ($('boot').hidden) { fxRaf = 0; return; }
-      fxRaf = requestAnimationFrame(loop);
-      const d = Math.min(2, devicePixelRatio || 1), w = innerWidth, h = innerHeight;
-      if (c.width !== Math.round(w * d) || c.height !== Math.round(h * d)) { c.width = Math.round(w * d); c.height = Math.round(h * d); }
-      g.setTransform(d, 0, 0, d, 0, 0); g.clearRect(0, 0, w, h);
-      const t = (now - t0) / 1000, mo = reduceMotion ? .15 : 1, R = 'rgba(255,59,77,', B = 'rgba(80,150,255,';
-      // perspective floor grid
-      const hz = h * .62;
-      g.lineWidth = 1;
-      for (let i = 0; i < 16; i++) {
-        const z = ((i + (t * .55 * mo) % 1) / 16), y = hz + (h - hz) * z * z;
-        g.strokeStyle = R + (.03 + .2 * z * z) + ')'; g.beginPath(); g.moveTo(0, y); g.lineTo(w, y); g.stroke();
-      }
-      for (let i = -14; i <= 14; i++) {
-        g.strokeStyle = B + (.05 + .06 * (1 - Math.abs(i) / 14)) + ')';
-        g.beginPath(); g.moveTo(w / 2 + i * w * .012, hz); g.lineTo(w / 2 + i * w * .16, h); g.stroke();
-      }
-      const hg = g.createLinearGradient(0, hz - 40, 0, hz + 30); hg.addColorStop(0, R + '0)'); hg.addColorStop(.6, R + '.10)'); hg.addColorStop(1, R + '0)');
-      g.fillStyle = hg; g.fillRect(0, hz - 40, w, 70);
-      // rings around the title
-      const cx = w / 2, cy = h * .32, rr = Math.min(w, h) * .26;
-      g.save(); g.translate(cx, cy);
-      g.rotate(t * .25 * mo); g.strokeStyle = R + '.16)'; g.setLineDash([2, 9]); g.beginPath(); g.arc(0, 0, rr, 0, 6.283); g.stroke();
-      g.rotate(-t * .7 * mo); g.setLineDash([]); g.strokeStyle = R + '.28)'; g.lineWidth = 2;
-      for (let k = 0; k < 3; k++) { g.beginPath(); g.arc(0, 0, rr * .82, k * 2.094, k * 2.094 + .6); g.stroke(); }
-      g.rotate(t * 1.3 * mo); g.strokeStyle = B + '.22)'; g.lineWidth = 1;
-      g.beginPath(); g.arc(0, 0, rr * 1.12, 0, 1.4); g.stroke(); g.beginPath(); g.arc(0, 0, rr * 1.12, 3.14, 4.0); g.stroke();
-      g.restore();
-      // rising data particles
-      for (const p of FX_P) {
-        p.y -= p.v * .016 * mo * 6; if (p.y < -.02) { p.y = 1.02; p.x = Math.random(); }
-        const a = (.25 + .35 * Math.sin(t * 2 + p.ph)) * (1 - Math.abs(p.x - .5));
-        g.fillStyle = (p.ph > 3 ? R : B) + Math.max(0, a) + ')';
-        g.fillRect(p.x * w, p.y * h, p.s, p.s * 5);
-      }
-      // scan beam sweeping down
-      const sy = ((t * .22 * mo) % 1.2 - .1) * h, sg = g.createLinearGradient(0, sy - 60, 0, sy + 2);
-      sg.addColorStop(0, R + '0)'); sg.addColorStop(1, R + '.10)'); g.fillStyle = sg; g.fillRect(0, sy - 60, w, 62);
-      g.fillStyle = R + '.35)'; g.fillRect(0, sy + 1, w, 1);
-    };
-    fxRaf = requestAnimationFrame(loop);
-  }
   function runRow(row, from, to, ms, isSkipped) {
     return new Promise(res => {
       const t0 = performance.now(), dur = reduceMotion ? 40 : ms;
@@ -2724,6 +3206,246 @@ form.ask.chatask { margin-top: 2px; }
       })();
     });
   }
+  function hudReset(mode) {
+    hud.mode = mode; hud.ready = mode === 'shutdown'; hud.t0 = performance.now(); hud.row = '';
+    $('bootLog').textContent = ''; $('bootHead').textContent = '';
+    setBlocks(0, true); hudBlocks().forEach(el => el.classList.remove('on', 'dn', 'quiet'));
+    setTotal(mode === 'boot' ? 0 : 1); hud.shown = hud.p;
+    setPhase(-1);
+    $('bootState').textContent = mode === 'boot' ? 'Core initialization' : 'Core power';
+    $('bootWord').textContent = mode === 'boot' ? 'complete' : 'remaining';
+    $('khCore').textContent = mode === 'boot' ? 'Standby' : 'Online'; $('khCore').className = mode === 'boot' ? '' : 'ok';
+    $('khTagA').textContent = mode === 'boot' ? 'Initializing…' : 'Releasing…'; $('khTagB').textContent = mode === 'boot' ? 'Calibrating…' : 'Parking…';
+    $('khSeqT').textContent = mode === 'boot' ? 'System boot sequence' : 'System shutdown sequence';
+    $('bootSkip').textContent = 'Tap or press any key to skip';
+    dock(mode === 'boot' ? 'Initializing system kernel — please wait…' : 'Shutting down all systems…');
+  }
+
+  // --- the HUD's live parts: one animation loop draws the background, the core globe, gauges, brain and meters ---
+  const rnd = (() => { let x = 1337; return () => (x = (x * 16807) % 2147483647) / 2147483647; })();
+  const FX_P = Array.from({ length: 60 }, () => ({ x: rnd(), y: rnd(), s: .3 + rnd() * 1.2, v: .02 + rnd() * .07, ph: rnd() * 6.28 }));
+  const RAYS = Array.from({ length: 56 }, () => ({ a: rnd() * 6.283, len: .15 + rnd() * .55, w: .5 + rnd() * 1.5, ph: rnd() * 6.28 }));
+  const DOTS = Array.from({ length: 260 }, () => ({ lat: Math.asin(rnd() * 2 - 1), lon: rnd() * 6.283, b: rnd() }));
+  const BRAIN = (() => {
+    const inside = (x, y) => (x * x + ((y + .05) / .66) ** 2 < 1 && y > -.5) || (((x - .52) / .32) ** 2 + ((y + .5) / .19) ** 2 < 1) || (x > .18 && x < .34 && y < -.4 && y > -.9);
+    const pts = [];
+    while (pts.length < 150) { const x = rnd() * 2 - 1, y = rnd() * 1.8 - .95; if (inside(x, y)) pts.push({ x, y, z: rnd() * 2 - 1 }); }
+    const edges = [];
+    pts.forEach((p, i) => pts.map((q, j) => [j, (p.x - q.x) ** 2 + (p.y - q.y) ** 2]).filter(([j]) => j !== i).sort((m, n) => m[1] - n[1]).slice(0, 3).forEach(([j]) => { if (i < j) edges.push([i, j]); }));
+    return { pts, edges, pulses: Array.from({ length: 14 }, () => ({ e: Math.floor(rnd() * edges.length), t: rnd() })) };
+  })();
+  function fitCanvas(c) {
+    const d = Math.min(2, devicePixelRatio || 1), w = c.clientWidth, h = c.clientHeight;
+    if (!w || !h) return null;
+    if (c.width !== Math.round(w * d) || c.height !== Math.round(h * d)) { c.width = Math.round(w * d); c.height = Math.round(h * d); }
+    const g = c.getContext('2d'); g.setTransform(d, 0, 0, d, 0, 0); g.clearRect(0, 0, w, h);
+    return { g, w, h };
+  }
+  // red → amber → green along 0..1
+  const loadColor = (k, a = 1) => { const stops = [[255, 59, 77], [255, 138, 61], [255, 210, 61], [62, 224, 143]], f = clamp01(k) * 3, i = Math.min(2, Math.floor(f)), u = f - i;
+    const c = stops[i].map((v, n) => Math.round(v + (stops[i + 1][n] - v) * u)); return `rgba(${c[0]},${c[1]},${c[2]},${a})`; };
+  const R_ = 'rgba(255,59,77,', O_ = 'rgba(255,138,61,', B_ = 'rgba(90,168,255,', I_ = 'rgba(127,212,255,';
+
+  function drawFx(t, mo, power) {
+    const c = fitCanvas($('bootFx')); if (!c) return; const { g, w, h } = c;
+    // light streaks
+    g.save(); g.translate(w / 2, h * .44); g.rotate(-.35);
+    for (let i = 0; i < 6; i++) { const y = (i - 3) * h * .09 + Math.sin(t * .3 + i) * 12, a = (.03 + .03 * Math.sin(t * .7 + i * 2)) * power;
+      const lg = g.createLinearGradient(-w, 0, w, 0); lg.addColorStop(0, R_ + '0)'); lg.addColorStop(.5, (i % 2 ? O_ : R_) + a + ')'); lg.addColorStop(1, R_ + '0)');
+      g.fillStyle = lg; g.fillRect(-w, y, w * 2, 1.5); }
+    g.restore();
+    // rising data particles
+    for (const p of FX_P) {
+      p.y -= p.v * .016 * mo * 6; if (p.y < -.02) { p.y = 1.02; p.x = Math.random(); }
+      const a = (.18 + .3 * Math.sin(t * 2 + p.ph)) * power;
+      g.fillStyle = (p.ph > 3 ? R_ : B_) + Math.max(0, a) + ')'; g.fillRect(p.x * w, p.y * h, p.s, p.s * 5);
+    }
+    // hex columns down both edges
+    g.font = '9px ' + getComputedStyle(document.body).getPropertyValue('--f-mono'); g.fillStyle = B_ + (.16 * power) + ')';
+    const off = (t * 14 * mo) % 12;
+    for (let y = -12; y < h + 12; y += 12) {
+      const k = Math.floor((y - off + t * 14 * mo) / 12);
+      const hx = ((k * 2654435761) >>> 0).toString(16).slice(0, 6).toUpperCase();
+      g.fillText(hx, 3, y + off); g.fillText(hx.split('').reverse().join(''), w - 40, y + off);
+    }
+    // scan beam
+    const sy = ((t * .2 * mo) % 1.2 - .1) * h, sg = g.createLinearGradient(0, sy - 60, 0, sy + 2);
+    sg.addColorStop(0, R_ + '0)'); sg.addColorStop(1, R_ + (.08 * power) + ')'); g.fillStyle = sg; g.fillRect(0, sy - 60, w, 62);
+  }
+
+  function drawGlobe(t, mo, p, power) {
+    const c = fitCanvas($('khGlobe')); if (!c) return; const { g, w, h } = c;
+    const cx = w / 2, cy = h / 2, S = Math.min(w, h * 1.1), R = S * .26;
+    // glow
+    const gl = g.createRadialGradient(cx, cy, R * .2, cx, cy, R * 1.9);
+    gl.addColorStop(0, R_ + (.32 * power) + ')'); gl.addColorStop(.45, R_ + (.08 * power) + ')'); gl.addColorStop(1, R_ + '0)');
+    g.fillStyle = gl; g.fillRect(0, 0, w, h);
+    // burst rays
+    for (const r of RAYS) {
+      const a = (.06 + .2 * (.5 + .5 * Math.sin(t * 2.4 * mo + r.ph))) * power, a0 = r.a + t * .03 * mo;
+      g.strokeStyle = (r.ph > 3 ? O_ : R_) + a + ')'; g.lineWidth = r.w;
+      g.beginPath(); g.moveTo(cx + Math.cos(a0) * R * 1.04, cy + Math.sin(a0) * R * 1.04); g.lineTo(cx + Math.cos(a0) * R * (1.15 + r.len), cy + Math.sin(a0) * R * (1.15 + r.len)); g.stroke();
+    }
+    // tick ring with bearings
+    g.lineWidth = 1;
+    for (let i = 0; i < 120; i++) {
+      const a = i / 120 * 6.283 - Math.PI / 2, long = i % 10 === 0, r0 = R * 1.66, r1 = r0 + (long ? 9 : 4);
+      g.strokeStyle = B_ + (long ? .45 : .2) * (.4 + .6 * power) + ')';
+      g.beginPath(); g.moveTo(cx + Math.cos(a) * r0, cy + Math.sin(a) * r0); g.lineTo(cx + Math.cos(a) * r1, cy + Math.sin(a) * r1); g.stroke();
+    }
+    g.fillStyle = B_ + (.45 * (.4 + .6 * power)) + ')'; g.font = '9px ' + getComputedStyle(document.body).getPropertyValue('--f-mono'); g.textAlign = 'center'; g.textBaseline = 'middle';
+    for (let k = 0; k < 12; k++) { if (k >= 2 && k <= 4) continue; const a = k / 12 * 6.283 - Math.PI / 2; g.fillText(String(k * 30).padStart(3, '0'), cx + Math.cos(a) * R * 1.82, cy + Math.sin(a) * R * 1.82); }
+    // rotating rings
+    g.save(); g.translate(cx, cy);
+    g.rotate(t * .22 * mo); g.strokeStyle = B_ + (.35 * power) + ')'; g.setLineDash([2, 8]); g.beginPath(); g.arc(0, 0, R * 1.4, 0, 6.283); g.stroke(); g.setLineDash([]);
+    g.rotate(-t * .6 * mo); g.lineWidth = 3; g.strokeStyle = R_ + (.55 * power) + ')';
+    for (let k = 0; k < 3; k++) { g.beginPath(); g.arc(0, 0, R * 1.18, k * 2.094, k * 2.094 + .75); g.stroke(); }
+    g.rotate(t * 1.1 * mo); g.lineWidth = 1.5; g.strokeStyle = O_ + (.5 * power) + ')';
+    g.beginPath(); g.arc(0, 0, R * 1.27, 0, 1.2); g.stroke(); g.beginPath(); g.arc(0, 0, R * 1.27, 3.14, 4.1); g.stroke();
+    g.restore();
+    // left: thin amber arc with ticks; right: the load arc, segment by segment
+    g.lineWidth = 1; g.strokeStyle = O_ + (.45 * power) + ')'; g.beginPath(); g.arc(cx, cy, R * 1.52, Math.PI * .68, Math.PI * 1.32); g.stroke();
+    for (let k = 0; k <= 12; k++) { const a = Math.PI * (.68 + .64 * k / 12); g.beginPath(); g.moveTo(cx + Math.cos(a) * R * 1.52, cy + Math.sin(a) * R * 1.52); g.lineTo(cx + Math.cos(a) * R * 1.47, cy + Math.sin(a) * R * 1.47); g.stroke(); }
+    const N = 40, lit = Math.round(p * N), a0 = -Math.PI * .32, a1 = Math.PI * .32;
+    g.lineWidth = Math.max(6, R * .09);
+    for (let k = 0; k < N; k++) {
+      const s0 = a1 - (k / N) * (a1 - a0), s1 = s0 - (a1 - a0) / N * .7;
+      g.strokeStyle = k < lit ? loadColor(k / (N - 1), .9) : B_ + '.14)';
+      g.beginPath(); g.arc(cx, cy, R * 1.52, s1, s0); g.stroke();
+    }
+    g.fillStyle = loadColor(p); g.font = `600 ${Math.max(11, R * .13)}px ` + getComputedStyle(document.body).getPropertyValue('--f-display');
+    g.fillText(Math.round(p * 100) + '%', cx + R * 1.82, cy);
+    // crosshair
+    g.lineWidth = 1; g.strokeStyle = B_ + (.25 * power) + ')';
+    for (const sgn of [-1, 1]) { g.beginPath(); g.moveTo(cx + sgn * R * 1.06, cy); g.lineTo(cx + sgn * R * 1.95, cy); g.stroke(); }
+    // the globe: a turning wireframe sphere, ice-blue on the left, red-orange on the right
+    const rot = t * .35 * mo * (.2 + .8 * power), tilt = .38, ct = Math.cos(tilt), st = Math.sin(tilt);
+    const proj = (lat, lon) => { const x = Math.cos(lat) * Math.sin(lon + rot), y = Math.sin(lat), z = Math.cos(lat) * Math.cos(lon + rot);
+      return [cx + x * R, cy - (y * ct - z * st) * R, y * st + z * ct, x]; };
+    const col = (x, a) => { const k = (x + 1) / 2; return `rgba(${Math.round(170 + 85 * k)},${Math.round(215 - 110 * k)},${Math.round(255 - 175 * k)},${a})`; };
+    const seg = (pa, pb) => { const z = (pa[2] + pb[2]) / 2, a = (z > 0 ? .18 + .5 * z : .05) * power; g.strokeStyle = col((pa[3] + pb[3]) / 2, a); g.beginPath(); g.moveTo(pa[0], pa[1]); g.lineTo(pb[0], pb[1]); g.stroke(); };
+    g.lineWidth = 1;
+    for (let la = -75; la <= 75; la += 15) { const lat = la * Math.PI / 180; let prev = proj(lat, 0); for (let lo = 8; lo <= 360; lo += 8) { const cur = proj(lat, lo * Math.PI / 180); seg(prev, cur); prev = cur; } }
+    for (let lo = 0; lo < 360; lo += 15) { const lon = lo * Math.PI / 180; let prev = proj(-Math.PI / 2, lon); for (let la = -84; la <= 90; la += 6) { const cur = proj(la * Math.PI / 180, lon); seg(prev, cur); prev = cur; } }
+    for (const d of DOTS) { const q = proj(d.lat, d.lon); if (q[2] <= 0) continue; g.fillStyle = col(q[3], (.25 + .6 * d.b) * q[2] * power); g.fillRect(q[0] - .8, q[1] - .8, 1.6, 1.6); }
+    // rim and core
+    g.lineWidth = 1.5; g.strokeStyle = I_ + (.5 * power) + ')'; g.beginPath(); g.arc(cx, cy, R, 0, 6.283); g.stroke();
+    const core = g.createRadialGradient(cx, cy, 0, cx, cy, R * .6);
+    core.addColorStop(0, `rgba(255,120,110,${.55 * power})`); core.addColorStop(.5, R_ + (.22 * power) + ')'); core.addColorStop(1, R_ + '0)');
+    g.fillStyle = core; g.beginPath(); g.arc(cx, cy, R * .6, 0, 6.283); g.fill();
+    g.strokeStyle = R_ + (.7 * power) + ')'; g.lineWidth = 2; g.beginPath(); g.arc(cx, cy, R * .38, 0, 6.283); g.stroke();
+    g.lineWidth = 1; g.strokeStyle = O_ + (.45 * power) + ')'; g.beginPath(); g.arc(cx, cy, R * .56, t * mo, t * mo + 4.4); g.stroke();
+  }
+
+  function drawGauges(t, p, power) {
+    const c = fitCanvas($('khGauge')); if (!c) return; const { g, w, h } = c;
+    const gauge = (x, y, r, v, color, lo, hi, mid) => {
+      const a0 = Math.PI * 1.05, a1 = Math.PI * 1.95, N = 28;
+      g.lineWidth = Math.max(5, r * .17);
+      for (let k = 0; k < N; k++) { const s = a0 + (a1 - a0) * k / N, e = s + (a1 - a0) / N * .72; g.strokeStyle = k / N < v ? color + (.55 + .45 * k / N) + ')' : B_ + '.12)'; g.beginPath(); g.arc(x, y, r, s, e); g.stroke(); }
+      const na = a0 + (a1 - a0) * v; g.lineWidth = 2; g.strokeStyle = '#fff'; g.beginPath(); g.moveTo(x, y); g.lineTo(x + Math.cos(na) * r * .82, y + Math.sin(na) * r * .82); g.stroke();
+      g.fillStyle = 'rgba(200,215,240,.7)'; g.font = '9px ' + getComputedStyle(document.body).getPropertyValue('--f-mono'); g.textAlign = 'center';
+      g.fillText(lo, x - r * .95, y + 12); g.fillText(hi, x + r * .95, y + 12); g.fillStyle = '#fff'; g.fillText(mid, x, y + 12);
+    };
+    const r = Math.min(w * .2, h * .56);
+    const v1 = clamp01(.12 + .78 * p * power + .03 * Math.sin(t * 3)), v2 = clamp01(.08 + .62 * p * power + .04 * Math.sin(t * 2.2 + 1));
+    gauge(w * .27, h * .8, r, v1, R_, '0', '500', Math.round(v1 * 500) + 'M');
+    gauge(w * .73, h * .8, r, v2, 'rgba(255,194,61,', '0', '150', Math.round(v2 * 150) + '°');
+  }
+
+  function drawBrain(t, mo, power) {
+    const c = fitCanvas($('khBrain')); if (!c) return; const { g, w, h } = c;
+    const s = Math.min(w / 2.5, h / 2.1), cx = w / 2 - s * .05, cy = h / 2 + s * .08, rot = Math.sin(t * .4 * mo) * .35;
+    const P = BRAIN.pts.map(p => { const x = p.x * Math.cos(rot) - p.z * .3 * Math.sin(rot); return [cx + x * s, cy - p.y * s]; });
+    g.lineWidth = .8; g.strokeStyle = I_ + (.22 * power) + ')';
+    g.beginPath(); for (const [i, j] of BRAIN.edges) { g.moveTo(P[i][0], P[i][1]); g.lineTo(P[j][0], P[j][1]); } g.stroke();
+    g.fillStyle = I_ + (.7 * power) + ')'; for (const q of P) g.fillRect(q[0] - .9, q[1] - .9, 1.8, 1.8);
+    for (const pu of BRAIN.pulses) {
+      pu.t += .02 * mo * (.3 + power); if (pu.t > 1) { pu.t = 0; pu.e = Math.floor(Math.random() * BRAIN.edges.length); }
+      const [i, j] = BRAIN.edges[pu.e], x = P[i][0] + (P[j][0] - P[i][0]) * pu.t, y = P[i][1] + (P[j][1] - P[i][1]) * pu.t;
+      g.fillStyle = `rgba(220,250,255,${.9 * power})`; g.shadowColor = '#7fd4ff'; g.shadowBlur = 8; g.beginPath(); g.arc(x, y, 1.8, 0, 6.283); g.fill(); g.shadowBlur = 0;
+    }
+    // callout lines
+    g.strokeStyle = I_ + (.3 * power) + ')'; g.lineWidth = 1;
+    for (const [px, py, side] of [[-.6, .35, -1], [.65, .3, 1], [-.3, -.35, -1], [.5, -.45, 1]]) {
+      const x = cx + px * s, y = cy - py * s, ex = side < 0 ? 8 : w - 8;
+      g.beginPath(); g.moveTo(x, y); g.lineTo(x + side * 14, y - 8); g.lineTo(ex, y - 8); g.stroke();
+    }
+  }
+
+  function drawDial(t, mo, power) {
+    const c = $('khDial'), g = c.getContext('2d'), W = c.width, cx = W / 2, r = W * .38;
+    g.clearRect(0, 0, W, W);
+    g.lineWidth = 6; for (let k = 0; k < 24; k++) { const a = k / 24 * 6.283; g.strokeStyle = O_ + (k % 3 ? .18 : .45) * (.3 + power) + ')'; g.beginPath(); g.arc(cx, cx, r, a, a + .18); g.stroke(); }
+    g.lineWidth = 3; g.strokeStyle = R_ + (.85 * power) + ')'; const a = t * 1.6 * mo; g.beginPath(); g.arc(cx, cx, r * .72, a, a + 2.2); g.stroke();
+    g.lineWidth = 2; g.strokeStyle = 'rgba(255,194,61,' + (.6 * power) + ')'; g.beginPath(); g.arc(cx, cx, r * .5, -a * 1.4, -a * 1.4 + 1.4); g.stroke();
+    g.fillStyle = R_ + (.8 * power) + ')'; g.beginPath(); g.arc(cx, cx, r * .16, 0, 6.283); g.fill();
+  }
+  // DOM meters, built once
+  (() => {
+    $('khEq').innerHTML = '<i></i>'.repeat(12);
+    $('khWave').innerHTML = '<i></i>'.repeat(30);
+    $('khHex').innerHTML = Array.from({ length: 15 }, () => '<span></span>').join('');
+    const hw = [['Loading', 'Address…'], ['Memory', 'Address…'], ['Memory', 'Address…'], ['Kernel', 'Vector…'], ['Memory', 'Address…'], ['Bus', 'Handshake…']];
+    $('khHw').innerHTML = hw.map(([a, b]) => `<div class="hwr"><span>${a}</span><span>${b}</span><span class="kcells">${'<i></i>'.repeat(6)}</span></div>`).join('');
+    $('khPower').innerHTML = ('<div class="rowc">' + `<span class="kcells">${'<i></i>'.repeat(4)}</span>`.repeat(4) + '</div>').repeat(2);
+  })();
+  const MODS = ['mod_gateway.ko', 'neural_core.ko', 'vec_embed.ko', 'roster.ko', 'dsp_voice.ko', 'tts_pocket.ko', 'render_holo.ko', 'shader_glass.ko', 'entropy.ko', 'lattice.ko'];
+  function hudMeters(t, p, power) {
+    const live = hud.mode === 'shutdown' || p > 0;
+    // equalizer and the waveform pill
+    $('khEq').querySelectorAll('i').forEach((b, k) => { b.style.height = (8 + (live ? 80 * power : 10) * (.35 + .65 * Math.abs(Math.sin(t * (2.1 + k * .37) + k * 1.7)) * (.6 + .4 * Math.random()))) + '%'; });
+    $('khWave').querySelectorAll('i').forEach((b, k) => { b.style.height = (18 + 70 * power * Math.abs(Math.sin(t * 5 + k * .55) * Math.sin(t * 1.3 + k * .21))) + '%'; b.style.background = k % 7 === 3 ? 'var(--kibi-ice)' : ''; });
+    // hex column next to the globe
+    const hx = $('khHex').children;
+    for (let k = 0; k < hx.length; k++) { if (!hx[k].textContent || Math.random() < .08) hx[k].textContent = '0x' + Math.floor(Math.random() * 4096).toString(16).toUpperCase().padStart(3, '0').slice(0, 3); hx[k].className = Math.random() < .04 * power ? 'hot' : ''; }
+    // hardware rows and power-core cells follow the load
+    $('khHw').querySelectorAll('.kcells').forEach((c, r) => { const n = Math.round(clamp01(p * 1.15 - r * .06) * 6); c.querySelectorAll('i').forEach((i, k) => { i.className = k < n ? (k < 2 ? 'r' : 'l') : ''; }); });
+    $('khHwPct').textContent = String(Math.round(p * 100)).padStart(3, '0') + '%';
+    const cells = $('khPower').querySelectorAll('i'), lit = Math.round(p * cells.length);
+    cells.forEach((i, k) => { i.className = k < lit ? (k < 4 || (k === lit - 1 && Math.random() < .3) ? 'r' : 'l') : ''; });
+    // labels
+    const ms = gateway?.latencyMs;
+    $('khAzm').textContent = ((t * 11) % 360).toFixed(1).padStart(5, '0') + '°';
+    $('khStr').textContent = Math.round(30 + 70 * p) + '%';
+    $('khFrm').textContent = (30 + 6 * Math.sin(t * .7)).toFixed(1) + ' pc';
+    $('khLink').textContent = hud.ready && ms != null ? ms + ' ms' : '– ms';
+    $('khBrainTg').textContent = 'Synapses ' + String(Math.round(p * 4096)).padStart(4, '0');
+    const up = Math.floor((performance.now() - hud.t0) / 1000);
+    $('khTr').innerHTML = `Uptime ${[up / 3600, up / 60 % 60, up % 60].map(v => String(Math.floor(v)).padStart(2, '0')).join(':')}<br>Sector 0x${(Math.floor(t * 97) % 65536).toString(16).toUpperCase().padStart(4, '0')}`;
+    const mod = hud.row ? hud.row.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '').slice(0, 18) + '.ko' : MODS[Math.floor(t * 2) % MODS.length];
+    $('khMod').innerHTML = `<b>${hud.mode === 'boot' ? 'Loading' : 'Unloading'} modules…</b><br>${esc(mod)} · ${hud.ready && ms != null ? ms + ' ms' : '– ms'} · ${hud.mode === 'boot' ? (p >= 1 ? 'online' : 'loading…') : (p <= 0 ? 'offline' : 'unloading…')}`;
+    // real status, once the first check is back
+    if (!hud.ready) return;
+    const on = agents.filter(a => a.online).length;
+    const set = (id, text, cls = '') => { const e = $(id); if (e.textContent !== text) e.textContent = text; e.className = cls; };
+    set('khGw', gateway.online ? 'Online' : 'No signal', gateway.online ? 'ok' : 'bad');
+    set('khLat', ms != null ? ms + ' ms' : '–');
+    set('khAg', `${on}/${agents.length}`, on ? 'ok' : 'bad');
+    const voice = DEMO ? ['Preview', ''] : engine === 'clone' && voiceInfo.ready ? ['Online', 'ok'] : voiceInfo.enabled && !voiceInfo.ready ? ['Loading', ''] : ['Browser', 'ok'];
+    const neural = DEMO ? ['Preview', ''] : linkInfo?.state === 'online' ? ['Link', 'ok'] : linkInfo?.state === 'pairing' ? ['Pairing', ''] : gateway.online ? ['Basic', 'ok'] : ['No link', 'bad'];
+    set('khVoice', ...voice); set('khV2', ...voice); set('khNeural', neural[0] === 'Link' ? 'neural · auto' : neural[0], neural[1]); set('khN2', ...neural);
+  }
+  function hudStart() {
+    if (hud.raf) return;
+    let lastDom = 0;
+    const loop = now => {
+      if ($('boot').hidden) { hud.raf = 0; return; }
+      hud.raf = requestAnimationFrame(loop);
+      const t = now / 1000, mo = reduceMotion ? .15 : 1;
+      hud.shown += (hud.p - hud.shown) * Math.min(1, (now - (hud.last || now)) / 180); hud.last = now;
+      const p = hud.shown, power = .28 + .72 * p;
+      $('bootPct').textContent = Math.round(p * 100) + '%';
+      drawFx(t, mo, power); drawGlobe(t, mo, p, power);
+      if ($('khGauge').offsetParent) drawGauges(t, p, power);
+      if ($('khBrain').offsetParent) drawBrain(t, mo, power);
+      if ($('khDial').offsetParent) drawDial(t, mo, power);
+      if (now - lastDom > 110) { lastDom = now; hudMeters(t, p, power); }
+    };
+    hud.raf = requestAnimationFrame(loop);
+  }
+  const bootFx = hudStart;
+
   // The systems on the boot screen. Rows with a check report real status; the rest are the interface's own subsystems.
   function bootSystems(ready) {
     const list = [
@@ -2760,26 +3482,25 @@ form.ask.chatask { margin-top: 2px; }
     let skipped = false, completed = false, finishing = false;
     if (wakeKey) { removeEventListener('keydown', wakeKey, { capture: true }); wakeKey = null; }
     poweredDown = false; sleeping = false;
-    el.classList.remove('fading', 'off'); $('bootSleep').hidden = true;
+    el.classList.remove('fading', 'off', 'off-content'); $('bootSleep').hidden = true;
     el.hidden = false; el.classList.remove('out');
-    $('bootLog').textContent = ''; $('bootHead').textContent = ''; setTotal(0);
-    $('bootState').textContent = 'System load'; $('bootSkip').textContent = 'Tap or press any key to skip';
+    hudReset('boot');
     panelsOff(); orbAnim = null; orbDraw = 0; boot = 0;
     ensureAudio(); await wait(120);
     if (sfxOn && !sfx.running()) { if (!(await waitForPowerTap(el, run))) return; await wait(80); }
-    el.querySelectorAll('.kb > *').forEach(n => { n.style.animation = 'none'; void n.offsetWidth; n.style.animation = ''; });
-    el.querySelector('.kb-name').classList.add('glitch'); bootFx();
-    // after the boot screen: panels power up one by one, the orb draws in, then the voice confirms
+    const nm = $('khName'); nm.classList.remove('glitch'); void nm.offsetWidth; nm.classList.add('glitch');
+    hudStart();
+    Promise.resolve(ready).then(() => { if (run === bootRun) hud.ready = true; });
+    // after the boot screen: the main interface comes up one block at a time, the orb draws in, then the voice confirms
     const finish = async () => {
       if (run !== bootRun || finishing) return;
       finishing = true; skipped = true;
       removeEventListener('keydown', onKey, { capture: true }); el.onclick = null;
-      if (!completed) sfx.complete();
+      if (!completed) { sfx.complete(); setTotal(1); setBlocks(hudBlocks().length, true); setPhase(3); }
       el.classList.add('out');
       setTimeout(() => { if (run === bootRun) el.hidden = true; }, 800);
       try { sessionStorage.setItem('orb.booted', '1'); } catch {}
       await wait(reduceMotion ? 50 : 420);
-      // when the orb's stage powers up, its rings trace in and the orb draws itself
       let drawing = null;
       await panelsUp(run, () => { startCore(); drawing = animateOrbDraw(1, 2600); });
       if (run !== bootRun) return;
@@ -2795,28 +3516,37 @@ form.ask.chatask { margin-top: 2px; }
     const fast = reduceMotion ? 0.4 : 1;
     const step = async ms => { if (!skipped) await wait(ms * fast); if (skipped || run !== bootRun) throw SKIP; };
     try {
-      await step(380);
-      await typeHead('INITIALIZING ALL SYSTEMS', run);
-      let systems = bootSystems(ready), i = 0, blips = 0;
+      setPhase(0); $('khCore').textContent = 'Connecting'; $('khCore').className = '';
+      await typeHead('Boot sequence active', run);
+      await step(420);
+      setPhase(1); await typeHead('Component blocks loading…', run);
+      let systems = bootSystems(ready), i = 0, blips = 0, phase2 = false;
+      const nBlocks = hudBlocks().length;
       while (i < systems.length) {
         const [verb, label, check] = systems[i];
+        dock(`Loading ${label}…`);
         const row = bootRow(verb, label);
-        const loading = runRow(row, 0, .62, 140 + Math.random() * 80, () => skipped);
+        const loading = runRow(row, 0, .62, 150 + Math.random() * 80, () => skipped);
         const result = check ? await check() : ['OK', 'ok'];
         await loading; if (skipped || run !== bootRun) throw SKIP;
         const [status, cls, color] = result;
-        if (cls === 'bad') { await runRow(row, .62, .42 + Math.random() * .1, 110, () => skipped); setRow(row, Number(row.querySelector('.num').textContent.slice(0, 4)) / 1000, status, cls); }
+        if (cls === 'bad') { await runRow(row, .62, .42 + Math.random() * .1, 110, () => skipped); setRow(row, row._v, status, cls); }
         else { await runRow(row, .62, 1, 90 + Math.random() * 70, () => skipped); setRow(row, 1, status, cls, color); }
         sfx.blip(Math.min(9, blips++), true, cls === 'bad');
         // once the gateway answers, the roster rows can be filled in with the real agents
         if (label.startsWith('OpenClaw gateway')) systems = [...systems.slice(0, i + 1), ...bootSystems(ready).slice(i + 1)];
         i++; setTotal(i / systems.length);
-        await step(20);
+        // each block of the HUD powers up as its share of the systems reports in
+        const want = Math.min(nBlocks, Math.floor(i / systems.length * (nBlocks + 1)));
+        if (want > hud.blocks) setBlocks(want);
+        if (!phase2 && i / systems.length >= .7) { phase2 = true; setPhase(2); typeHead('Core initialization', run); }
+        await step(30);
       }
-      completed = true; sfx.complete();
-      $('bootState').textContent = 'All systems nominal';
-      await typeHead('ALL SYSTEMS NOMINAL', run);
-      await step(420);
+      completed = true; setBlocks(nBlocks); sfx.complete();
+      setPhase(3); $('khCore').textContent = 'Online'; $('khCore').className = 'ok';
+      dock('All systems nominal — handing over to the interface');
+      await typeHead('All systems nominal', run);
+      await step(750);
       finish();
     } catch (e) {
       if (e !== SKIP) { console.error('[orb] startup sequence:', e); finish(); }
@@ -2827,9 +3557,9 @@ form.ask.chatask { margin-top: 2px; }
   $('replayBoot').addEventListener('click', () => { $('setSheet').hidden = true; runBoot(Promise.resolve()); });
 
   // ---------- shutdown sequence: the startup in exact reverse ----------
-  // "Shutting down all systems" → the orb un-draws → the panels power off last-to-first → the boot screen comes back
-  // with every system loaded and drains them bottom-to-top, 1000 → 0000, to OFF → the screen collapses like an old CRT.
-  // Shutting down signs you out on your server (the preview has no sign-in, so it just powers down). Tap or any key skips.
+  // "Shutting down all systems" → the orb un-draws → the interface powers off block by block, last to first → the
+  // K.I.B.I. HUD comes back fully loaded, then each system drains 1000 → 0000 bottom to top while the HUD's blocks power
+  // off in reverse → the core globe winds down → the screen collapses like an old CRT. On your server it also signs out.
   async function powerDown({ signOut = !!window.__ORB_SERVER__ } = {}) {
     if (poweredDown && !signOut) return;
     poweredDown = true;
@@ -2853,6 +3583,8 @@ form.ask.chatask { margin-top: 2px; }
       }
       setTimeout(() => {
         if (run !== bootRun) return;
+        $('bootSleep').querySelector('.label').textContent = `K.I.B.I. ${KIBI_VER} offline`;
+        $('bootSleep').querySelector('.hint2').textContent = 'Tap or press any key to power up';
         $('bootSleep').hidden = false;
         const wake = e => {
           if (e) { e.preventDefault(); e.stopImmediatePropagation(); }
@@ -2874,14 +3606,14 @@ form.ask.chatask { margin-top: 2px; }
       const live = cur()?.online ? cur() : agents.find(a => a.online);
       if (live) speak('Shutting down all systems.', live.id);
       await step(1600);
-      // 2. the orb un-draws, 3. the panels power off in reverse
+      // 2. the orb un-draws, 3. the interface powers off block by block in reverse
       await Promise.race([animateOrbDraw(0, 2000), new Promise(r => { const iv = setInterval(() => { if (skipped) { clearInterval(iv); r(); } }, 50); setTimeout(() => clearInterval(iv), 2100); })]);
       if (skipped || run !== bootRun) throw SKIP;
       await panelsDown(run);
       await step(250);
-      // 4. the boot screen returns with every system loaded, then drains bottom to top
+      // 4. the HUD returns with every system loaded and every block on
+      hudReset('shutdown');
       const systems = bootSystems(Promise.resolve());
-      $('bootLog').textContent = ''; $('bootHead').textContent = '';
       const rows = systems.map(([verb, label, check]) => {
         const row = bootRow(verb, label); row.style.animation = 'none';
         let status = 'OK', cls = 'ok', color;
@@ -2889,30 +3621,38 @@ form.ask.chatask { margin-top: 2px; }
         else if (check) { try { [status, cls, color] = check(); } catch {} }
         setRow(row, cls === 'bad' ? .45 : 1, status, cls, color); return row;
       });
-      setTotal(1); $('bootState').textContent = signOut ? 'System unload · sign-out' : 'System unload';
-      $('bootSkip').textContent = 'Tap or press any key to skip';
-      el.querySelectorAll('.kb > *').forEach(n => { n.style.animation = 'none'; n.style.opacity = '1'; });
-      el.classList.remove('fading', 'off'); $('bootSleep').hidden = true;
+      const nBlocks = hudBlocks().length;
+      setBlocks(nBlocks, true);
+      el.classList.remove('fading', 'off', 'off-content'); $('bootSleep').hidden = true;
       el.classList.add('out'); el.hidden = false; el.onclick = goDark;
       requestAnimationFrame(() => requestAnimationFrame(() => el.classList.remove('out')));
-      bootFx(); sfx.startHum(false);
+      hudStart(); sfx.startHum(false);
+      setPhase(0);
       await step(500);
-      await typeHead('SHUTTING DOWN ALL SYSTEMS', run);
-      let blips = 0;
+      await typeHead('Shutting down all systems', run);
+      setPhase(1);
+      // 5. each system drains bottom to top; the HUD's blocks power off in reverse as the load falls
+      let blips = 0, phase2 = false;
       for (let i = rows.length - 1; i >= 0; i--) {
-        const row = rows[i], from = Number(row.querySelector('.num').textContent.slice(0, 4)) / 1000;
-        const b = row.querySelector('b'); b.textContent = '…'; b.className = 'pending'; b.style.color = '';
-        await runRow(row, from, 0, 140 + Math.random() * 90, () => skipped);
+        const row = rows[i];
+        dock(`Unloading ${row.querySelector('.lab span').textContent}…`); hud.row = row.querySelector('.lab span').textContent;
+        const b = row.querySelector('b'); b.textContent = pad4((row._v ?? 1) * 1000); b.className = 'pending'; b.style.color = ''; row.className = 'kr';
+        await runRow(row, row._v ?? 1, 0, 150 + Math.random() * 90, () => skipped);
         if (skipped || run !== bootRun) throw SKIP;
         setRow(row, 0, 'OFF', 'off');
         sfx.blip(9 - Math.min(9, blips++), false);
         setTotal(i / rows.length);
+        const want = Math.ceil(i / rows.length * nBlocks);
+        if (want < hud.blocks) setBlocks(want);
+        if (!phase2 && i / rows.length <= .3) { phase2 = true; setPhase(2); $('khCore').textContent = 'Terminating'; $('khCore').className = ''; typeHead('Terminating core', run); }
         if (i === 2) sfx.drain(1.0);
-        await step(20);
+        await step(30);
       }
-      $('bootState').textContent = signOut ? 'Signed out' : 'All systems offline';
-      await typeHead(signOut ? 'ALL SYSTEMS OFFLINE · SIGNED OUT' : 'ALL SYSTEMS OFFLINE', run);
-      await step(800);
+      setBlocks(0); setPhase(3);
+      $('khCore').textContent = 'Offline'; $('khCore').className = 'bad';
+      dock(signOut ? 'All systems offline — signing out' : 'All systems offline');
+      await typeHead(signOut ? 'All systems offline · signed out' : 'All systems offline', run);
+      await step(900);
       el.classList.add('fading');
       await step(900);
       goDark();
@@ -2920,13 +3660,29 @@ form.ask.chatask { margin-top: 2px; }
       if (e !== SKIP) { console.error('[orb] shutdown sequence:', e); goDark(); }
       else if (skipped) goDark();
     } finally {
-      el.querySelectorAll('.kb > *').forEach(n => { n.style.animation = ''; n.style.opacity = ''; });
       removeEventListener('keydown', onKey, { capture: true });
     }
   }
   $('powerBtn').addEventListener('click', () => powerDown());
   if (!window.__ORB_SERVER__) $('powerBtn').textContent = 'Power down interface';
 
+
+  // ---------- bridge for the Voice Manager (voice-manager.js) ----------
+  window.KIBI = {
+    get agents() { return agents; }, get current() { return agent; }, get demo() { return DEMO; }, get engine() { return engine; },
+    setEngine(v) { engine = v; store.set('engine3', engine); $('engine').value = engine; renderVoiceNote(); },
+    agentColor, acronym,
+    refresh: () => poll(true),
+    stopSpeech() { stopAgentVoice(); synth?.cancel(); speakQueue = 0; if (state === 'speaking') finishTurn(); },
+    browserVoices: () => [...voices].sort((x, y) => quality(y) - quality(x) || x.name.localeCompare(y.name)).map(v => v.name),
+    browserVoiceFor: id => resolvedVoices[id] || autoVoices()[id] || '',
+    setBrowserVoice(id, name) { agentVoices[id] = name; store.set('agentVoices', agentVoices); resolvedVoices[id] = name; renderAgentVoices(); },
+    testBrowserVoice(id, text, name) {
+      if (!synth) return false;
+      synth.cancel(); const u = new SpeechSynthesisUtterance(text); const v = voices.find(x => x.name === (name || KIBI.browserVoiceFor(id))); if (v) u.voice = v; u.rate = rate; synth.speak(u); return true;
+    },
+    openSheet(id) { document.querySelectorAll('.sheet').forEach(x => x.hidden = true); $(id).hidden = false; },
+  };
 
   // ---------- go ----------
   let firstBoot = true;
@@ -2947,3 +3703,4 @@ form.ask.chatask { margin-top: 2px; }
 </script>
 <script src="/command-palette.js"></script>
 <script src="/silent-mode.js"></script>
+<script src="/voice-manager.js"></script>
