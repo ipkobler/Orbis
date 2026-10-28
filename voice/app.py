@@ -1,24 +1,33 @@
 """Kyutai Pocket TTS voice service for the Kira Orb.
 
 POST /v1/audio/speech   {"input": "...", "voice": "main"}  ->  audio/wav   (OpenAI-style)
-GET  /v1/voices         -> {"voices": ["forge", "ledger", "main"]}
+GET  /v1/voices         -> {"voices": [...], "custom": [...], "defaults": [...], "builtin": [...]}
+POST /v1/voice-prepare  {"voice": "main"}  -> analyses the voice now: {"ok": true, "kind": "custom", ...} or 404/422
+GET  /v1/voice-sample?voice=default:forge   -> the reference clip as the model hears it (audio/wav)
 GET  /health            -> {"ready": bool, ...}
 
-A voice is a reference clip in /voices named after the agent id: main.mp3, forge.wav, ledger.wav …
-(.wav or .mp3; the name's capitals don't matter). Clips are converted to clean mono WAV; they need at least 5 seconds
-of speech and anything past 15 seconds is trimmed off. Each
-voice is analysed once and kept in memory. BUILTIN_VOICES can give agents without a clip one of Pocket
-TTS's built-in voices, e.g. "scout=alba,dana=jane".
+A voice is a reference clip named after the agent id: main.mp3, forge.wav, ledger.wav … (.wav or .mp3; the name's
+capitals don't matter). Two folders are searched, in order:
+  CUSTOM_VOICES_DIR  (/custom-voices) clips chosen in the orb's Voice Manager (the orb writes them; read-only here)
+  VOICES_DIR         (/voices)        the default clips kept in the Orbis repo
+Voice names can also say exactly which voice to use (the Voice Manager uses these to try a voice before picking it):
+  default:<agent>   the repo clip only        clip:<id>   a clip in the orb's library (CUSTOM_VOICES_DIR/library)
+  builtin:<name>    one of Pocket TTS's built-in voices (alba, marius, jane …)
+Clips are converted to clean mono WAV; they need at least 5 seconds of speech and anything past 15 seconds is trimmed
+off. Each voice is analysed once and kept in memory (again if its file changes). BUILTIN_VOICES can give agents
+without a clip one of the built-in voices, e.g. "scout=alba,dana=jane".
 """
-import asyncio, io, os, re, subprocess, tempfile, threading, time, wave
+import asyncio, hashlib, io, os, re, subprocess, tempfile, threading, time, wave
+from collections import OrderedDict
 from pathlib import Path
 
 import numpy as np
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
 VOICES_DIR = Path(os.getenv("VOICES_DIR", "/voices"))
+CUSTOM_DIR = Path(os.getenv("CUSTOM_VOICES_DIR", "/custom-voices"))
 THREADS = int(os.getenv("TORCH_THREADS", "2") or 2)
 MAX_CHARS = int(os.getenv("MAX_CHARS", "600"))
 # Pocket TTS attends to the whole reference clip while speaking, so longer clips make every sentence slower.
@@ -28,12 +37,18 @@ MAX_CLIP_SECONDS = float(os.getenv("MAX_CLIP_SECONDS", "15"))
 MAX_CLIP_BYTES = int(os.getenv("MAX_CLIP_BYTES", str(10 * 1024 * 1024)))
 BUILTIN = dict(p.split("=", 1) for p in os.getenv("BUILTIN_VOICES", "").replace(" ", "").split(",") if "=" in p)
 VOICE_RE = re.compile(r"^[A-Za-z0-9._-]{1,64}$")
+CLIP_ID_RE = re.compile(r"^[a-f0-9]{8,32}$")
+# Pocket TTS's built-in English voices (the Voice Manager offers these). Override with BUILTIN_CATALOG="alba,jane".
+BUILTIN_CATALOG = [v for v in os.getenv("BUILTIN_CATALOG", "alba,anna,azelma,bill_boerst,caro_davy,charles,cosette,"
+                   "eponine,eve,fantine,george,jane,javert,jean,marius,mary,michael,paul,peter_yearsley,stuart_bell,vera"
+                   ).replace(" ", "").split(",") if VOICE_RE.match(v)]
+CACHE_MAX = int(os.getenv("VOICE_CACHE_MAX", "12"))
 AUDIO_EXT = (".wav", ".mp3")
 TMP = Path(tempfile.gettempdir()) / "voice-prompts"
 
 app = FastAPI(title="Kira Orb voice (Pocket TTS)")
 state = {"model": None, "error": None, "load_seconds": None}
-voice_cache: dict[str, tuple[float, object]] = {}           # voice -> (source mtime, voice state)
+voice_cache: "OrderedDict[str, tuple[float, object]]" = OrderedDict()   # source -> (file mtime, voice state)
 gen_lock = threading.Lock()
 
 
@@ -75,23 +90,62 @@ def startup():
     threading.Thread(target=load_model, daemon=True).start()
 
 
-def clip_for(name: str) -> Path | None:
-    if not VOICE_RE.match(name) or not VOICES_DIR.is_dir():
+def _clip_in(folder: Path, name: str) -> Path | None:
+    if not VOICE_RE.match(name) or not folder.is_dir():
         return None
     for ext in AUDIO_EXT:
-        p = VOICES_DIR / f"{name}{ext}"
+        p = folder / f"{name}{ext}"
         if p.is_file():
             return p
     # the same name with different capitals (Ledger.mp3 for agent "ledger"): Windows doesn't keep them apart
-    for p in sorted(VOICES_DIR.iterdir()):
+    for p in sorted(folder.iterdir()):
         if p.is_file() and p.suffix.lower() in AUDIO_EXT and p.stem.lower() == name.lower():
             return p
     return None
 
 
+def clip_for(name: str) -> Path | None:
+    """The clip an agent speaks with: the one picked in the Voice Manager, else the repo's default clip."""
+    return _clip_in(CUSTOM_DIR, name) or _clip_in(VOICES_DIR, name)
+
+
+def _names_in(folder: Path) -> set[str]:
+    if not folder.is_dir():
+        return set()
+    return {p.stem.lower() for p in folder.iterdir() if p.is_file() and p.suffix.lower() in AUDIO_EXT and VOICE_RE.match(p.stem)}
+
+
 def list_voices() -> list[str]:
-    clips = {p.stem.lower() for p in VOICES_DIR.iterdir() if p.suffix.lower() in AUDIO_EXT and VOICE_RE.match(p.stem)} if VOICES_DIR.is_dir() else set()
-    return sorted(clips | set(BUILTIN))
+    return sorted(_names_in(CUSTOM_DIR) | _names_in(VOICES_DIR) | set(BUILTIN))
+
+
+def resolve(name: str) -> tuple[str, object]:
+    """('custom'|'default', Path) or ('builtin', voice name) for any voice name the orb can send."""
+    if name.startswith("builtin:"):
+        b = name[8:]
+        if b in BUILTIN_CATALOG or b in BUILTIN.values():
+            return "builtin", b
+        raise HTTPException(404, f"No built-in voice named '{b}'.")
+    if name.startswith("clip:"):
+        cid = name[5:]
+        p = CUSTOM_DIR / "library" / f"{cid}.wav"
+        if CLIP_ID_RE.match(cid) and p.is_file():
+            return "custom", p
+        raise HTTPException(404, "That voice clip isn't in the library (the voice service can't see the orb's voice folder?).")
+    if name.startswith("default:"):
+        p = _clip_in(VOICES_DIR, name[8:])
+        if p:
+            return "default", p
+        raise HTTPException(404, f"No default clip named '{name[8:]}' in the voices folder.")
+    p = _clip_in(CUSTOM_DIR, name)
+    if p:
+        return "custom", p
+    p = _clip_in(VOICES_DIR, name)
+    if p:
+        return "default", p
+    if name in BUILTIN:
+        return "builtin", BUILTIN[name]
+    raise HTTPException(404, f"No voice clip named '{name}' in the voices folder.")
 
 
 def prepared_wav(src: Path) -> Path:
@@ -100,7 +154,7 @@ def prepared_wav(src: Path) -> Path:
         raise HTTPException(415, "Voice clips must be .wav or .mp3.")
     if src.stat().st_size > MAX_CLIP_BYTES:
         raise HTTPException(413, f"Voice clip exceeds the {MAX_CLIP_BYTES // (1024 * 1024)} MB limit.")
-    out = TMP / f"{src.stem}.wav"
+    out = TMP / (hashlib.sha1(str(src).encode()).hexdigest()[:16] + ".wav")   # a repo clip and a custom one can share a name
     cmd = ["ffmpeg", "-v", "error", "-y", "-i", str(src), "-t", str(MAX_CLIP_SECONDS + 3),
            "-af", "silenceremove=start_periods=1:start_threshold=-45dB", "-ac", "1", "-ar", "24000", "-sample_fmt", "s16", str(out)]
     r = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
@@ -111,7 +165,7 @@ def prepared_wav(src: Path) -> Path:
     if secs < MIN_CLIP_SECONDS:
         raise HTTPException(422, f"Voice clip '{src.name}' has {secs:.1f}s of speech; it needs at least {MIN_CLIP_SECONDS:.0f} seconds.")
     if secs > MAX_CLIP_SECONDS:   # longer clips are trimmed, not rejected (a longer reference only makes speech slower)
-        trimmed = TMP / f"{src.stem}.trim.wav"
+        trimmed = out.with_suffix(".trim.wav")
         r = subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", str(out), "-t", str(MAX_CLIP_SECONDS), str(trimmed)], capture_output=True, text=True, timeout=60)
         if r.returncode != 0 or not trimmed.exists():
             raise HTTPException(422, f"Couldn't trim voice clip '{src.name}': {r.stderr.strip()[:200]}")
@@ -120,20 +174,21 @@ def prepared_wav(src: Path) -> Path:
 
 
 def voice_state(name: str):
+    """Call with gen_lock held."""
     model = state["model"]
-    clip = clip_for(name)
-    if clip is not None:
-        key, mtime = name, clip.stat().st_mtime
-        cached = voice_cache.get(key)
-        if not cached or cached[0] != mtime:          # analyse each clip once, again if the file changes
-            voice_cache[key] = (mtime, model.get_state_for_audio_prompt(str(prepared_wav(clip))))
-        return voice_cache[key][1]
-    if name in BUILTIN:
-        key = "builtin:" + BUILTIN[name]
-        if key not in voice_cache:
-            voice_cache[key] = (0, model.get_state_for_audio_prompt(BUILTIN[name]))
-        return voice_cache[key][1]
-    raise HTTPException(404, f"No voice clip named '{name}' in the voices folder.")
+    kind, src = resolve(name)
+    if kind == "builtin":
+        key, mtime = "builtin:" + src, 0
+    else:
+        key, mtime = str(src), src.stat().st_mtime
+    cached = voice_cache.get(key)
+    if not cached or cached[0] != mtime:          # analyse each clip once, again if the file changes
+        prompt = src if kind == "builtin" else str(prepared_wav(src))
+        voice_cache[key] = (mtime, model.get_state_for_audio_prompt(prompt))
+        while len(voice_cache) > CACHE_MAX:       # voices tried in the Voice Manager don't pile up in memory
+            voice_cache.popitem(last=False)
+    voice_cache.move_to_end(key)
+    return voice_cache[key][1]
 
 
 def synthesize(text: str, voice: str) -> bytes:
@@ -177,7 +232,46 @@ async def speech(req: SpeechRequest):
 
 @app.get("/v1/voices")
 def voices():
-    return {"voices": list_voices()}
+    return {"voices": list_voices(), "custom": sorted(_names_in(CUSTOM_DIR)), "defaults": sorted(_names_in(VOICES_DIR)),
+            "builtin": BUILTIN_CATALOG, "custom_dir": CUSTOM_DIR.is_dir()}
+
+
+class VoiceRequest(BaseModel):
+    voice: str = Field(..., min_length=1, max_length=80)
+
+
+@app.post("/v1/voice-prepare")
+async def voice_prepare(req: VoiceRequest):
+    """Check and analyse a voice now (the orb calls this when a voice is uploaded or picked), so a bad clip is
+    reported straight away and the agent's first reply isn't slowed down by the analysis."""
+    if state["model"] is None:
+        raise HTTPException(503, state["error"] or "The voice model is still loading.")
+    kind, src = resolve(req.voice)
+    t0 = time.time()
+
+    def run():
+        with gen_lock:
+            voice_state(req.voice)
+            if kind == "builtin":
+                return None
+            with wave.open(str(prepared_wav(src))) as w:
+                return round(w.getnframes() / w.getframerate(), 2)
+    secs = await asyncio.to_thread(run)
+    return {"ok": True, "voice": req.voice, "kind": kind, "file": None if kind == "builtin" else src.name,
+            "clip_seconds": secs, "seconds": round(time.time() - t0, 2)}
+
+
+@app.get("/v1/voice-sample")
+async def voice_sample(voice: str = Query(..., min_length=1, max_length=80)):
+    """The reference clip as the model hears it (cleaned and trimmed), to play in the Voice Manager."""
+    kind, src = resolve(voice)
+    if kind == "builtin":
+        raise HTTPException(404, "Built-in voices have no clip to play; use Try instead.")
+    def run():
+        with gen_lock:                            # prepared_wav writes a shared temp file
+            return prepared_wav(src).read_bytes()
+    audio = await asyncio.to_thread(run)
+    return Response(audio, media_type="audio/wav", headers={"Cache-Control": "no-store"})
 
 
 @app.get("/health")

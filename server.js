@@ -17,7 +17,7 @@ import { HealthRegistry } from './health.js';
 import { NotificationCenter } from './notification-center.js';
 import { CommandRegistry } from './command-palette.js';
 import { VoiceState } from './voice-state.js';
-import { VoiceProfiles, VOICE_POLICY } from './voice-management.js';
+import { VoiceLibrary, VOICE_POLICY } from './voice-management.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC = path.join(__dirname, 'public');
@@ -132,7 +132,11 @@ const notificationAdapters = {
 const notifications = new NotificationCenter({ file: path.join(STATE_DIR, 'notifications.json'), adapters: notificationAdapters, quietHours: process.env.NOTIFICATION_QUIET_HOURS ? process.env.NOTIFICATION_QUIET_HOURS.split(',') : null, rateLimit: Number(process.env.NOTIFICATION_RATE_LIMIT || 0) || null });
 await notifications.load();
 const voiceState = new VoiceState();
-const voiceProfiles = await new VoiceProfiles(path.join(STATE_DIR, 'voice-profiles.json')).load();
+// Voice Manager: uploaded / recorded clips and each agent's voice choice. VOICE_CLIPS_DIR is shared with the voice
+// service (read-only there), which uses <agent>.wav in it before the repo's default clips.
+const VOICE_CLIPS_DIR = process.env.VOICE_CLIPS_DIR || path.join(STATE_DIR, 'voice-clips');
+const voiceLib = await new VoiceLibrary({ file: path.join(STATE_DIR, 'voice-library.json'), dir: VOICE_CLIPS_DIR }).load();
+await voiceLib.sync().catch(e => console.warn('[kira-orb] voice clips folder:', e.message));
 const link = TRANSPORT === 'http' ? null : new GatewayLink({ url: process.env.OPENCLAW_WS_URL || OPENCLAW_URL, token: TOKEN, stateDir: STATE_DIR });
 const linkStatus = () => link ? { ...link.status, transport: link.ready ? 'ws' : 'http' } : { state: 'off', transport: 'http' };
 // gateway events → the browser stream waiting on that session
@@ -349,6 +353,8 @@ async function handleColors(req, res) {
 }
 const SESSION_RE = /^[a-zA-Z0-9-]{8,64}$/;
 
+// the version shown on the startup and shutdown screens: package.json's major.minor (1.15.0 → V1.15)
+const KIBI_VERSION = JSON.parse(await readFile(path.join(__dirname, 'package.json'), 'utf8')).version.split('.').slice(0, 2).join('.');
 const SKELETON = `<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -357,7 +363,7 @@ const SKELETON = `<!doctype html>
 <meta name="mobile-web-app-capable" content="yes">
 <link rel="manifest" href="/manifest.webmanifest">
 <style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}[hidden]{display:none!important}</style>
-<script>window.__ORB_SERVER__ = true;</script>
+<script>window.__ORB_SERVER__ = true; window.__KIBI_VERSION__ = ${JSON.stringify(KIBI_VERSION)};</script>
 </head><body>
 `;
 
@@ -442,7 +448,7 @@ async function agentStatus(force = false) {
     const lv = liveness.snapshot().find(x => x.agent === id) || { state: 'UNKNOWN', mode: 'probe', heartbeatAgeS: null };
     if (online && NOT_REACHABLE.has(lv.state)) { online = false; reason = lv.state === 'STALLED' ? (lv.heartbeatAgeS == null ? 'Stalled: no heartbeat yet' : `Stalled: no heartbeat for ${lv.heartbeatAgeS} s`) : 'Offline: missed heartbeats'; }
     return { id, liveness: { state: lv.state, mode: lv.mode, heartbeatAgeS: lv.heartbeatAgeS }, label: prettyName(id), title: souls[id] || TITLES[id] || null, color: pickedColors[id]?.color || COLORS[id] || null, accent: pickedColors[id]?.accent || null, online, reason,
-      voice: voice.ready && voice.voices.includes(id) };
+      voice: agentHasVoice(id, voice), voiceSource: voiceLib.choice(id).source };
   });
   statusCache = { gateway: { online: !!gatewayIds, latencyMs, error: gatewayError }, link: linkStatus(), conversations, voice, user: { icon: userProfile.icon || null }, alerts: alerts.recent.slice(-20), agents, default: DEFAULT_AGENT, checkedAt: new Date().toISOString() };
   statusAt = Date.now();
@@ -878,12 +884,16 @@ async function handleTts(req, res) {
   const agent = String(payload.agent || ''), text = String(payload.text || '').trim();
   if (!AGENT_RE.test(agent)) return send(res, 400, { error: 'Unknown agent.' });
   if (!text || text.length > 600) return send(res, 400, { error: 'Text must be 1 to 600 characters.' });
+  // the agent's chosen voice, or (Voice Manager "Try") a voice it hasn't been given yet
+  let voice;
+  try { voice = payload.try ? VoiceLibrary.tryVoice(agent, payload.try) : voiceLib.ttsVoice(agent); } catch (e) { return send(res, 400, { error: e.message }); }
+  if (!voice) return send(res, 409, { error: 'This agent is set to the browser voice.' });
   const abort = new AbortController();
   res.on('close', () => abort.abort());
   try {
     const r = await fetch(`${VOICE_URL}/v1/audio/speech`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model: 'pocket-tts', voice: agent, input: text, response_format: 'wav' }),
+      body: JSON.stringify({ model: 'pocket-tts', voice, input: text, response_format: 'wav' }),
       signal: abort.signal,
     });
     if (!r.ok) { const j = await r.json().catch(() => ({})); return send(res, r.status, { error: j.detail || `Voice service returned ${r.status}.` }); }
@@ -895,14 +905,124 @@ async function handleTts(req, res) {
   }
 }
 
-async function handleVoices(req, res) {
-  if (req.method === 'GET') return send(res, 200, { policy: VOICE_POLICY, profiles: voiceProfiles.list() });
-  let body; try { body = JSON.parse(await readBody(req, 32 * 1024)); } catch { return send(res, 400, { error: 'Bad request body.' }); }
+// ---- Voice Manager ------------------------------------------------------------------------------
+function agentHasVoice(id, voice) {
+  if (!voice.ready) return false;
+  const c = voiceLib.choice(id);
+  if (c.source === 'browser') return false;
+  if (c.source === 'builtin') return true;
+  return voice.voices.includes(id.toLowerCase());
+}
+async function voiceService(pathname, init = {}, timeoutMs = 5000) {
+  if (!VOICE_URL) return { status: 0, error: 'No voice service configured.' };
   try {
-    const agent = String(body.agent || ''), action = String(body.action || '');
-    const profile = action ? voiceProfiles.action(agent, action) : voiceProfiles.upsert(agent, String(body.source || 'local'), body);
-    await voiceProfiles.save(); return send(res, 200, { policy: VOICE_POLICY, profile });
-  } catch (e) { return send(res, 400, { error: e.message }); }
+    const r = await fetch(`${VOICE_URL}${pathname}`, { ...init, signal: AbortSignal.timeout(timeoutMs) });
+    const type = r.headers.get('content-type') || '';
+    if (type.includes('json')) { const j = await r.json().catch(() => ({})); return { status: r.status, json: j, error: r.ok ? null : (typeof j.detail === 'string' ? j.detail : `Voice service returned ${r.status}.`) }; }
+    return { status: r.status, body: Buffer.from(await r.arrayBuffer()), type, error: r.ok ? null : `Voice service returned ${r.status}.` };
+  } catch (e) { return { status: 0, error: e.name === 'TimeoutError' ? 'The voice service took too long.' : 'Voice service unreachable.' }; }
+}
+// Check (and analyse) a voice on the voice service now. ok: true/false, or null when it can't be checked yet.
+async function prepareVoice(voice) {
+  const r = await voiceService('/v1/voice-prepare', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ voice }) }, 90000);
+  if (r.status === 200) return { ok: true, kind: r.json.kind, clipSeconds: r.json.clip_seconds };
+  if (r.status === 404 && /Not Found/i.test(r.error || '')) return { ok: null, warning: 'Rebuild the voice service to check voices (docker compose up -d --build voice).' };
+  if (r.status === 404 || r.status === 422 || r.status === 413 || r.status === 415) return { ok: false, error: r.error };
+  return { ok: null, warning: r.status === 503 ? 'The voice model is still loading; the voice is checked on its first reply.' : r.error };
+}
+const FOLDER_HINT = "The voice service can't see the orb's voice folder. Mount data/voice-clips into both containers (README → Voice Manager).";
+function voicesChanged() { statusAt = 0; voiceCache.at = 0; }
+
+async function handleVoices(req, res, url) {
+  const parts = url.pathname.split('/').filter(Boolean);      // api, voices, …
+  const sub = parts[2] || '', id = parts[3] || '';
+  const json = async (limit = 8 * 1024) => JSON.parse(await readBody(req, limit));
+
+  if (!sub && req.method === 'GET') {
+    const v = await voiceService('/v1/voices');
+    const info = await voiceStatus(true);
+    const service = { enabled: !!VOICE_URL, ready: !!info.ready, error: info.error || null,
+      managed: !!v.json?.builtin, builtin: v.json?.builtin || [], defaults: v.json?.defaults || [], custom: v.json?.custom || [], sharedFolder: v.json?.custom_dir ?? null };
+    return send(res, 200, { policy: VOICE_POLICY, service, ...voiceLib.list() });
+  }
+
+  if (sub === 'clips' && !id && req.method === 'POST') {
+    const agent = url.searchParams.get('agent') || '';
+    if (!AGENT_RE.test(agent)) return send(res, 400, { error: 'Unknown agent.' });
+    let wav; try { wav = await readBody(req, VOICE_POLICY.maxBytes + 1024, true); } catch { return send(res, 413, { error: 'Voice clips must be under 10 MB.' }); }
+    let added;
+    try { added = await voiceLib.addClip(agent, wav, { name: url.searchParams.get('name'), origin: url.searchParams.get('origin') || 'upload' }); }
+    catch (e) { return send(res, /EACCES|EROFS|EPERM/.test(e.code || '') ? 500 : 400, { error: /EACCES|EROFS|EPERM/.test(e.code || '') ? `The orb can't write to its voice folder (${VOICE_CLIPS_DIR}). On the VPS: mkdir -p data/voice-clips && chown 1000:1000 data/voice-clips` : e.message }); }
+    const { clip } = added;
+    // let the voice service judge it too (it trims silence, so a quiet clip can still come up short)
+    const check = await prepareVoice(`clip:${clip.id}`);
+    if (check.ok === false) {
+      if (!/library|can't see/i.test(check.error || '')) { await voiceLib.deleteClip(clip.id); await voiceLib.save(); return send(res, 422, { error: check.error }); }
+      check.warning = FOLDER_HINT;      // the clip is fine as far as the orb can tell; the folder isn't shared yet
+    }
+    let warning = check.warning || null;
+    if (url.searchParams.get('activate') === '1') {
+      const r = await selectVoice(agent, { source: 'custom', clipId: clip.id });
+      if (r.error) warning = r.error; else warning = r.warning || warning;
+    }
+    await voiceLib.save(); voicesChanged();
+    return send(res, 201, { clip: { ...clip, usedBy: voiceLib.usedBy(clip.id) }, warning, ...voiceLib.list() });
+  }
+
+  if (sub === 'clips' && id) {
+    const clip = voiceLib.clip(id);
+    if (!clip) return send(res, 404, { error: 'Voice clip not found.' });
+    if (req.method === 'GET') {
+      let audio; try { audio = await readFile(voiceLib.clipPath(id)); } catch { return send(res, 404, { error: 'The clip file is missing.' }); }
+      res.writeHead(200, { 'Content-Type': 'audio/wav', 'Content-Length': audio.length, 'Cache-Control': 'no-store', ...SECURITY_HEADERS });
+      return res.end(audio);
+    }
+    if (req.method === 'PATCH') {
+      let body; try { body = await json(); } catch { return send(res, 400, { error: 'Bad request body.' }); }
+      voiceLib.renameClip(id, body.name); await voiceLib.save();
+      return send(res, 200, voiceLib.list());
+    }
+    if (req.method === 'DELETE') {
+      const agents = await voiceLib.deleteClip(id); await voiceLib.save(); voicesChanged();
+      for (const a of agents) prepareVoice(a).catch(() => {});        // warm the default voice they went back to
+      return send(res, 200, { reverted: agents, ...voiceLib.list() });
+    }
+  }
+
+  if (sub === 'select' && req.method === 'POST') {
+    let body; try { body = await json(); } catch { return send(res, 400, { error: 'Bad request body.' }); }
+    const agent = String(body.agent || '');
+    if (!AGENT_RE.test(agent)) return send(res, 400, { error: 'Unknown agent.' });
+    const r = await selectVoice(agent, { source: String(body.source || ''), clipId: body.clipId, builtin: body.builtin });
+    await voiceLib.save(); voicesChanged();
+    if (r.error) return send(res, r.status || 422, { error: r.error, ...voiceLib.list() });
+    return send(res, 200, { warning: r.warning || null, ...voiceLib.list() });
+  }
+
+  if (sub === 'sample' && req.method === 'GET') {        // the repo's default clip for an agent, as the model hears it
+    const agent = url.searchParams.get('agent') || '';
+    if (!AGENT_RE.test(agent)) return send(res, 400, { error: 'Unknown agent.' });
+    const r = await voiceService('/v1/voice-sample?voice=' + encodeURIComponent(`default:${agent}`), {}, 30000);
+    if (r.status !== 200 || !r.body) return send(res, r.status || 502, { error: r.error || 'No sample.' });
+    res.writeHead(200, { 'Content-Type': 'audio/wav', 'Content-Length': r.body.length, 'Cache-Control': 'no-store', ...SECURITY_HEADERS });
+    return res.end(r.body);
+  }
+  return send(res, 405, { error: 'Method not allowed.' });
+}
+
+// Pick an agent's voice, check it on the voice service, and put the old one back if the service refuses it.
+async function selectVoice(agent, choice) {
+  let previous;
+  try { previous = await voiceLib.select(agent, choice); } catch (e) { return { status: 400, error: e.message }; }
+  if (choice.source === 'browser') return {};
+  const check = await prepareVoice(voiceLib.ttsVoice(agent));
+  const undo = async () => { try { await voiceLib.select(agent, previous); } catch {} };
+  if (check.ok === false) {
+    if (choice.source === 'default' && /No voice clip/i.test(check.error || '')) return { warning: 'This agent has no default clip in the repo, so it uses the browser voice.' };
+    await undo(); return { error: check.error };
+  }
+  if (check.ok && choice.source === 'custom' && check.kind !== 'custom') { await undo(); return { error: FOLDER_HINT }; }
+  return { warning: check.warning };
 }
 
 const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.webmanifest': 'application/manifest+json', '.png': 'image/png' };
@@ -1062,7 +1182,7 @@ http.createServer(async (req, res) => {
     if (pathname === '/api/agents' && req.method === 'GET') return send(res, 200, await agentStatus(new URL(req.url, 'http://x').searchParams.has('refresh')));
     if (pathname === '/api/chat' && req.method === 'POST') return await handleChat(req, res);
     if (pathname === '/api/tts' && req.method === 'POST') return await handleTts(req, res);
-    if (pathname === '/api/voices' && ['GET', 'POST', 'PATCH'].includes(req.method)) return await handleVoices(req, res);
+    if (pathname === '/api/voices' || pathname.startsWith('/api/voices/')) return await handleVoices(req, res, new URL(req.url, 'http://x'));
     if (pathname === '/api/upload' && req.method === 'POST') return await handleUpload(req, res, new URL(req.url, 'http://x'));
     if (pathname === '/api/conversation' && req.method === 'POST') return await handleConversation(req, res);
     if (pathname === '/api/colors' && req.method === 'POST') return await handleColors(req, res);

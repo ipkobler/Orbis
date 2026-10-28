@@ -192,11 +192,12 @@ nano voice.env                       # paste the token after HF_TOKEN=
 mkdir -p data/voice-cache
 ```
 
-**2. Voice clips** live in the repo's `voices/` folder, named after the agent id: `main.mp3` (K.I.R.A.), `forge.mp3`,
-`ledger.wav` (`.wav`, `.mp3`, `.m4a`, `.flac`, `.ogg`). 5–20 seconds of one person speaking clearly, with no music or
-background noise. Only the first 10 seconds are used (`CLIP_SECONDS`), because longer clips make every sentence slower, so put the cleanest speech at the start. Kyutai's terms require the speaker's consent, so use your own
-recordings or voices you have the rights to. To add or change one: commit, push, then `git pull` on the VPS. No restart.
-Agents without a clip can use a built-in Pocket TTS voice (alba, jane, marius, george…) via `BUILTIN_VOICES` in the stack file.
+**2. Voices.** The easiest way is the **Voice Manager** in the orb (Settings → *Manage voices*), see below. The repo's
+`voices/` folder holds each agent's *default* clip, named after the agent id: `main.mp3` (K.I.R.K.), `forge.mp3`,
+`ledger.mp3` (`.wav` or `.mp3`). 5–15 seconds of one person speaking clearly, with no music or background noise; longer
+clips are trimmed to 15 seconds, because a longer reference makes every sentence slower. Kyutai's terms require the
+speaker's consent, so use your own recordings or voices you have the rights to. To change a default clip: commit, push,
+then `git pull` on the VPS. No restart.
 
 **3. Start it:** `docker compose up -d --build voice`, then `docker compose logs -f voice` until `[voice] ready`.
 
@@ -207,8 +208,50 @@ docker compose exec kira-orb wget -S -O /dev/null -T 120 --post-data='{"voice":"
   --header='Content-Type: application/json' http://voice:8000/v1/audio/speech 2>&1 | grep -iE "x-gen|x-audio"
 ```
 
+### Voice Manager
+
+Settings → **Manage voices** opens it. For each agent you can:
+
+- **Pick its voice:** one of your clips, its default clip from the repo, one of Pocket TTS's 21 built-in voices
+  (Alba, Jane, Marius, George…), or the browser voice. The pick is saved on the server, so every device uses it.
+- **Try before you pick:** *Try* has the agent say a sentence in that voice; *Test voice* plays its current voice.
+- **Upload a voice:** any audio file the browser can play (WAV, MP3, M4A, OGG…). Drag the box over the 5–15 seconds you
+  want to keep.
+- **Record a voice** with the microphone: read the lines on screen; it stops by itself at 15 seconds.
+- **Change it before saving:** tone (deeper or higher; the pace changes with it), even out the volume, remove rumble
+  and hum. *Preview changes* plays the result.
+- **Rename and delete clips.** Deleting the clip an agent uses puts that agent back on its default voice. Each agent
+  keeps up to 12 clips; past that the oldest unused one is removed.
+
+The voice service checks every new clip and every pick straight away (and analyses it, so the next reply isn't
+slowed down). A clip it can't use is refused with the reason, and a pick it can't use is undone.
+
+**Setup (one time).** Clips are saved in `data/voice-clips`, which both containers share (the voice service only reads
+it). On the VPS:
+
+```bash
+cd /docker/agent-stack
+mkdir -p data/voice-clips && chown 1000:1000 data/voice-clips
+```
+
+and in `docker-compose.override.yml` (see `deploy/docker-compose.override.yml`):
+
+```yaml
+  kira-orb:
+    volumes:
+      - ./data/voice-clips:/voice-clips
+    environment:
+      VOICE_CLIPS_DIR: /voice-clips
+  voice:
+    volumes:
+      - ./data/voice-clips:/custom-voices:ro
+```
+
+then `docker compose up -d --build kira-orb voice`. If the folder isn't shared, the Voice Manager says so, and uploaded
+clips can't be picked until it is.
+
 **Good to know**
-- Settings → Agent voices switches between cloned voices and the per-agent browser voices.
+- Settings → Agent voices switches between cloned voices and the per-agent browser voices on that device.
 - If a sentence's cloned audio is late, that sentence is spoken with the browser voice instead, so the agent is never silent.
 
 ## Using it
@@ -238,13 +281,17 @@ docker compose exec kira-orb wget -S -O /dev/null -T 120 --post-data='{"voice":"
   such as `**Name:** FORGE — Federated Operations, Runtime & Graph Engineer`, `## K.I.R.A. - ...` or
   `... stands for ...`. The words must spell the acronym. Agents without one show "AI Core".
 - **Startup sequence** plays the first time the app opens in a browser tab or as the phone app (a reload skips it).
-  The K.I.B.I. screen loads each system from 0000 to 1000 on a red-to-green bar, then the console's panels power
-  up one at a time, the orb draws itself in the middle, and the live agent says "Startup sequence complete,
-  Kira online". Tap or press any key to skip; **Settings → Replay startup sequence** plays it again. The gateway,
-  agent tools, roster, each agent, voice input and speech rows are real checks.
+  The K.I.B.I. console boots block by block: the boot sequence on the left loads each system from 0000 to 1000 on a
+  red-to-green bar, the core globe in the middle counts the load ("Core initialization: 42% complete"), and each
+  block of the console (hardware, gauges, power core, meters, voice and link status, response, neural map) powers
+  up as its share of the systems reports in. Then the main interface comes up one block at a time, the orb draws
+  itself in the middle, and the home agent says "Startup sequence complete, K.I.R.K. online". Tap or press any key
+  to skip; **Settings → Replay startup sequence** plays it again. The gateway, agent tools, roster, each agent, voice
+  input and speech rows, and the gateway, latency, agents-online, voice and link readouts are real.
 - **Shutdown** (Settings → Shut down & sign out, or say "Power down the interface") is the startup in reverse:
-  "Shutting down all systems", the orb un-draws, the panels switch off last to first, and the K.I.B.I. screen
-  drains every system from 1000 to 0000 before the screen collapses.
+  "Shutting down all systems", the orb un-draws, the main interface switches off block by block, last to first, then
+  the K.I.B.I. console returns fully loaded and drains every system from 1000 to 0000 while its blocks power off in
+  reverse and the core winds down, before the screen collapses.
 - **Agent colours:** Settings → Agent colours has a main and an accent colour for each agent. Choices are saved
   on the server (`state/colors.json`) per agent id, so every device matches and renaming an agent keeps them.
   Reset goes back to `AGENT_COLORS`. New agents get a colour automatically until you pick one.
@@ -257,7 +304,8 @@ docker compose exec kira-orb wget -S -O /dev/null -T 120 --post-data='{"voice":"
   names count, so "call my wife" still goes to the agent as a request. Works even while the current agent is offline.
 - **Startup and shutdown belong to the home agent** (`DEFAULT_AGENT`, K.I.R.K.): shutting down switches back to him
   first and he says "Shutting down all systems", so he's the one there when you power up again.
-- **Version:** the startup and shutdown screens show **V1**.
+- **Version:** the startup and shutdown screens show the version from `package.json` (major.minor: `1.15.0` → **V1.15**).
+  To release a new version, change it there.
 - **Chat Mode:** in the chat window, **Full screen** turns it into a ChatGPT-style page: a centred conversation, the
   agent's live glass orb at the top and as its icon beside each reply, agent switcher pills, and a large message bar
   with attach, mic and send. Esc or **Exit full screen** goes back. On phones the chat always opens this way.
