@@ -23,3 +23,8 @@ test('light mode uses shared semantic tokens and preserves dark defaults', () =>
   assert.match(page, /--void: #f2f6fb/);
   assert.match(page, /color-scheme: dark/);
 });
+
+test('boot console keeps its dark palette in light mode', () => {
+  assert.match(page, /:root\[data-theme="light"\] \.boot \{[^}]*--void-lo: #020814/);
+  assert.doesNotMatch(page, /\[data-theme="light"\] \.kh-name \{ color: var\(--ink\)/);
+});
