@@ -1,10 +1,10 @@
-// K.I.B.I. Voice Manager: pick each agent's voice, upload or record a new one, try voices out, rename and delete clips.
-// Server side: /api/voices (server.js + voice-management.js). The page bridge is window.KIBI (index.html).
+// K.O.R.A. Voice Manager: pick each agent's voice, upload or record a new one, try voices out, rename and delete clips.
+// Server side: /api/voices (server.js + voice-management.js). The page bridge is window.KORA (index.html).
 //
 // Any audio the browser can play (wav, mp3, m4a, ogg, webm…) or a microphone recording is decoded here, trimmed to the
 // part you select (5–15 s), optionally changed (tone, clean-up), and sent to the orb as a 24 kHz mono 16-bit WAV.
 (() => {
-  const K = window.KIBI;
+  const K = window.KORA;
   if (!K) return;
   const MIN = 5, MAX = 15, RATE = 24000;
   const SCRIPT = 'Good morning. All systems are online and standing by. I checked the overnight reports, and everything looks steady. Tell me what you would like to work on first, and I will get started right away.';
@@ -614,5 +614,5 @@
 
   // re-render when the agent list changes (renames, colours)
   setInterval(() => { if (!sheet.hidden && !adding && !renaming && !S.playing && document.activeElement?.tagName !== 'INPUT') render(); }, 15000);
-  window.KIBI.openVoiceManager = open;
+  window.KORA.openVoiceManager = open;
 })();
