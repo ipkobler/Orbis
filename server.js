@@ -55,7 +55,9 @@ const OPENCLAW_DATA = process.env.OPENCLAW_DATA || '/openclaw';
 // Pocket TTS voice service (optional). Blank = the orb uses browser voices only.
 const VOICE_URL = (process.env.VOICE_URL || '').replace(/\/+$/, '');
 const LOCATION_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
+const LOCATION_CONSENT_VERSION = '2026-10-30';
 const sessionLocations = new Map();
+const locationAudits = [];
 const locationWrites = new Map();
 const LOCATION_RATE_WINDOW_MS = 60 * 1000;
 const LOCATION_RATE_LIMIT = 6;
@@ -385,9 +387,15 @@ async function handleLocation(req, res) {
   const agent = String(body.agent || DEFAULT_AGENT), session = String(body.session || '');
   if (!AGENT_RE.test(agent) || !SESSION_RE.test(session)) return send(res, 400, { error: 'Bad agent or session.' });
   const key = `${agent}:${session}`;
-  if (req.method === 'DELETE') { sessionLocations.delete(key); return send(res, 200, { ok: true }); }
+  if (req.method === 'DELETE') {
+    sessionLocations.delete(key);
+    locationAudits.push({ agent, session, action: 'revoked', consentVersion: LOCATION_CONSENT_VERSION, at: Date.now() });
+    if (locationAudits.length > 1000) locationAudits.shift();
+    return send(res, 200, { ok: true });
+  }
   if (req.method !== 'POST') return send(res, 405, { error: 'Method not allowed.' });
   const now = Date.now();
+  if (body.consentVersion !== LOCATION_CONSENT_VERSION) return send(res, 403, { error: 'Location consent is required or outdated.' });
   const recent = (locationWrites.get(key) || []).filter(at => now - at < LOCATION_RATE_WINDOW_MS);
   if (recent.length >= LOCATION_RATE_LIMIT) return send(res, 429, { error: 'Location updates are temporarily rate limited.' });
   recent.push(now); locationWrites.set(key, recent);
@@ -396,6 +404,8 @@ async function handleLocation(req, res) {
   if (capturedAt > now + 60 * 1000 || now - capturedAt > LOCATION_RETENTION_MS) return send(res, 400, { error: 'Location is stale.' });
   const expiresAt = now + LOCATION_RETENTION_MS;
   sessionLocations.set(key, { latitude, longitude, accuracy, capturedAt, source: 'browser', expiresAt });
+  locationAudits.push({ agent, session, action: 'granted', consentVersion: LOCATION_CONSENT_VERSION, at: now, expiresAt });
+  if (locationAudits.length > 1000) locationAudits.shift();
   return send(res, 200, { ok: true, source: 'browser', capturedAt, expiresAt });
 }
 

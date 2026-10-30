@@ -10,6 +10,8 @@ test('location capture is explicitly initiated and privacy-scoped', () => {
   assert.match(page, /navigator\.geolocation\.getCurrentPosition/);
   assert.match(server, /source: 'browser'/);
   assert.match(page, /locationState === 'shared'/);
+  assert.match(page, /LOCATION_CONSENT_VERSION/);
+  assert.match(page, /consentVersion: LOCATION_CONSENT_VERSION/);
 });
 
 test('location endpoint validates and limits session coordinates', () => {
@@ -20,4 +22,8 @@ test('location endpoint validates and limits session coordinates', () => {
   assert.match(server, /geolocation=\(self\)/);
   assert.match(server, /LOCATION_RATE_LIMIT = 6/);
   assert.match(server, /capturedAt > now \+ 60 \* 1000/);
+  assert.match(server, /Location consent is required or outdated/);
+  assert.match(server, /action: 'granted'/);
+  assert.match(server, /action: 'revoked'/);
+  assert.doesNotMatch(server, /locationAudits\.push\(\{[^}]*latitude/);
 });
