@@ -789,7 +789,7 @@ body.keyboard-open .dock { padding-bottom: 2px; }
   <div class="kh" id="kh">
     <div class="kh-top">
       <div class="kh-brand"><i></i>Finnesey &amp; Kobler <em>· The Model Shop</em></div>
-      <div class="kh-chips" id="khChips"><span class="kh-chip"></span><span class="kh-chip"></span><span class="kh-chip"></span><span class="kh-ver" data-kora-ver>V1.5</span></div>
+      <div class="kh-chips" id="khChips"><span class="kh-chip"></span><span class="kh-chip"></span><span class="kh-chip"></span><span class="kh-ver" data-kora-ver>V2.0</span></div>
     </div>
 
     <div class="kh-col kh-left">
@@ -817,7 +817,7 @@ body.keyboard-open .dock { padding-bottom: 2px; }
       <div class="kh-name-box">
         <div class="kh-wave" id="khWave" aria-hidden="true"></div>
         <div class="kh-name" id="khName">K.O.R.A.</div>
-        <div class="kh-sub">Kobler Operational Robotic Agents · <b data-kora-ver>V1.5</b></div>
+        <div class="kh-sub">Kobler Operational Robotic Agents · <b data-kora-ver>V2.0</b></div>
         <div class="kh-core"><span id="bootState">Core initialization</span>: <b id="bootPct">0%</b> <span id="bootWord">complete</span></div>
         <div class="kh-pill" id="bootHead"></div>
       </div>
@@ -858,7 +858,7 @@ body.keyboard-open .dock { padding-bottom: 2px; }
   </div>
   <div class="boot-sleep" id="bootSleep" hidden>
     <i></i>
-    <div class="label">K.O.R.A. <span data-kora-ver>V1.5</span> offline</div>
+    <div class="label">K.O.R.A. <span data-kora-ver>V2.0</span> offline</div>
     <div class="hint2">Tap or press any key to power up</div>
   </div>
 </div>
@@ -3184,7 +3184,7 @@ body.keyboard-open .dock { padding-bottom: 2px; }
     }
   }
   // ---------- the K.O.R.A. HUD (startup and shutdown screen) ----------
-  const KORA_VER = 'V' + (window.__KORA_VERSION__ || '1.5');
+  const KORA_VER = 'V' + (window.__KORA_VERSION__ || '2.0');
   document.querySelectorAll('[data-kora-ver]').forEach(n => { n.textContent = KORA_VER; });
   const pad4 = n => String(Math.max(0, Math.min(1000, Math.round(n)))).padStart(4, '0');
   const PHASES = { boot: ['Boot active', 'Booting…', 'Initializing', 'Online'], shutdown: ['Shutdown active', 'Powering down', 'Terminating', 'Offline'] };
