@@ -8,7 +8,7 @@ const server = await readFile(new URL('../server.js', import.meta.url), 'utf8');
 test('location capture is explicitly initiated and privacy-scoped', () => {
   assert.match(page, /Allow Location Permission\?/);
   assert.match(page, /navigator\.geolocation\.getCurrentPosition/);
-  assert.match(page, /source: 'browser'/);
+  assert.match(server, /source: 'browser'/);
   assert.match(page, /locationState === 'shared'/);
 });
 
@@ -18,4 +18,6 @@ test('location endpoint validates and limits session coordinates', () => {
   assert.match(server, /longitude < -180 \|\| longitude > 180/);
   assert.match(server, /sessionLocations\.delete\(key\)/);
   assert.match(server, /geolocation=\(self\)/);
+  assert.match(server, /LOCATION_RATE_LIMIT = 6/);
+  assert.match(server, /capturedAt > now \+ 60 \* 1000/);
 });

@@ -56,6 +56,9 @@ const OPENCLAW_DATA = process.env.OPENCLAW_DATA || '/openclaw';
 const VOICE_URL = (process.env.VOICE_URL || '').replace(/\/+$/, '');
 const LOCATION_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
 const sessionLocations = new Map();
+const locationWrites = new Map();
+const LOCATION_RATE_WINDOW_MS = 60 * 1000;
+const LOCATION_RATE_LIMIT = 6;
 
 // ---- voice service status --------------------------------------------------------------------
 let voiceCache = { at: 0, info: { enabled: !!VOICE_URL, ready: false, voices: [], error: VOICE_URL ? null : 'Not configured' } };
@@ -384,11 +387,16 @@ async function handleLocation(req, res) {
   const key = `${agent}:${session}`;
   if (req.method === 'DELETE') { sessionLocations.delete(key); return send(res, 200, { ok: true }); }
   if (req.method !== 'POST') return send(res, 405, { error: 'Method not allowed.' });
+  const now = Date.now();
+  const recent = (locationWrites.get(key) || []).filter(at => now - at < LOCATION_RATE_WINDOW_MS);
+  if (recent.length >= LOCATION_RATE_LIMIT) return send(res, 429, { error: 'Location updates are temporarily rate limited.' });
+  recent.push(now); locationWrites.set(key, recent);
   const latitude = Number(body.latitude), longitude = Number(body.longitude), accuracy = Number(body.accuracy), capturedAt = Number(body.capturedAt);
   if (!Number.isFinite(latitude) || latitude < -90 || latitude > 90 || !Number.isFinite(longitude) || longitude < -180 || longitude > 180 || !Number.isFinite(accuracy) || accuracy < 0 || accuracy > 100000 || !Number.isFinite(capturedAt)) return send(res, 400, { error: 'Invalid location.' });
-  if (Math.abs(Date.now() - capturedAt) > LOCATION_RETENTION_MS) return send(res, 400, { error: 'Location is stale.' });
-  sessionLocations.set(key, { latitude, longitude, accuracy, capturedAt, source: 'browser', expiresAt: Date.now() + LOCATION_RETENTION_MS });
-  return send(res, 200, { ok: true, source: 'browser', capturedAt, expiresAt: Date.now() + LOCATION_RETENTION_MS });
+  if (capturedAt > now + 60 * 1000 || now - capturedAt > LOCATION_RETENTION_MS) return send(res, 400, { error: 'Location is stale.' });
+  const expiresAt = now + LOCATION_RETENTION_MS;
+  sessionLocations.set(key, { latitude, longitude, accuracy, capturedAt, source: 'browser', expiresAt });
+  return send(res, 200, { ok: true, source: 'browser', capturedAt, expiresAt });
 }
 
 function send(res, status, body, type = 'application/json') {
