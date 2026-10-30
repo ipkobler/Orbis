@@ -18,7 +18,7 @@ function wav(seconds, { rate = 24000, channels = 1, extraChunk = false } = {}) {
   return Buffer.concat([h, list, dh, data]);
 }
 async function lib() {
-  const dir = await mkdtemp(path.join(os.tmpdir(), 'kibi-voice-'));
+  const dir = await mkdtemp(path.join(os.tmpdir(), 'kora-voice-'));
   return new VoiceLibrary({ file: path.join(dir, 'state', 'voice-library.json'), dir: path.join(dir, 'clips') }).load();
 }
 const exists = p => stat(p).then(() => true, () => false);

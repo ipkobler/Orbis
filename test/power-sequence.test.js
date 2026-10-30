@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
 await import('../public/power-sequence.js');
-const P = globalThis.KIBIPower;
+const P = globalThis.KORAPower;
 const page = await readFile(new URL('../public/index.html', import.meta.url), 'utf8');
 
 // the main script's startup & shutdown code, from the sound engine to the end of powerDown()
@@ -12,7 +12,7 @@ const sfxEngine = flow.slice(0, flow.indexOf('// Browsers only allow sound after
 const bootFn = flow.slice(flow.indexOf('async function runBoot('), flow.indexOf("$('replayBoot')"));
 const shutdownFn = flow.slice(flow.indexOf('async function powerDown('));
 // the boot console's CSS
-const bootCss = page.slice(page.indexOf('/* ---------- startup & shutdown: K.I.B.I. HUD ---------- */'), page.indexOf('/* shorter screens: fewer blocks */'));
+const bootCss = page.slice(page.indexOf('/* ---------- startup & shutdown: K.O.R.A. HUD ---------- */'), page.indexOf('/* shorter screens: fewer blocks */'));
 
 // ---- theme selection ----
 test('Light, Dark and System resolve to the theme the console is drawn in', () => {
@@ -21,22 +21,22 @@ test('Light, Dark and System resolve to the theme the console is drawn in', () =
   assert.equal(P.resolveTheme('system', true), 'light');
   assert.equal(P.resolveTheme('system', false), 'dark');
   assert.equal(P.resolveTheme('bogus', true), 'light');
-  assert.match(page, /const resolved = KIBIPower\.resolveTheme\(chosen, themeQuery\.matches\)/);
+  assert.match(page, /const resolved = KORAPower\.resolveTheme\(chosen, themeQuery\.matches\)/);
 });
 
 test('each theme has its own console palette, and the canvas follows theme changes', () => {
   assert.notDeepEqual(P.palette('light').accent, P.palette('dark').accent);
   assert.deepEqual(P.palette('system-unknown'), P.palette('dark'));
-  assert.match(page, /dispatchEvent\(new CustomEvent\('kibi-theme'/);
-  assert.match(page, /addEventListener\('kibi-theme', hudPalette\)/);
-  assert.match(page, /PAL = KIBIPower\.palette\(document\.documentElement\.dataset\.theme\)/);
+  assert.match(page, /dispatchEvent\(new CustomEvent\('kora-theme'/);
+  assert.match(page, /addEventListener\('kora-theme', hudPalette\)/);
+  assert.match(page, /PAL = KORAPower\.palette\(document\.documentElement\.dataset\.theme\)/);
   assert.doesNotMatch(page, /const R_ = 'rgba\(255,59,77,'/);
 });
 
 test('boot and shutdown visuals use semantic theme tokens, with no hard-coded colours', () => {
   assert.match(page, /:root \{[^}]*--boot-accent: #ff4d5e/);
   assert.match(page, /:root\[data-theme="light"\] \{[^}]*--boot-accent: #c62f3e/);
-  assert.match(bootCss, /--kibi: var\(--boot-accent\)/);
+  assert.match(bootCss, /--kora: var\(--boot-accent\)/);
   assert.match(bootCss, /--kp: color-mix\(in srgb, var\(--panel\) 82%, transparent\)/);
   assert.match(bootCss, /background: radial-gradient\(ellipse 60% 55% at 50% 44%, var\(--void-hi\) 0%, var\(--void\) 42%, var\(--void-lo\) 100%\)/);
   assert.match(bootCss, /\.boot\.off \{ background: var\(--void-lo\)/);
@@ -62,7 +62,7 @@ test('shutdown completes faster than boot, overall and stage by stage', () => {
   assert.ok(P.voomPlan('down').dur < P.voomPlan('up').dur);
 });
 
-test('the sequences take their timings from KIBIPower.TIMING', () => {
+test('the sequences take their timings from KORAPower.TIMING', () => {
   for (const key of ['intro', 'settle', 'handoff', 'orbDraw', 'speechDelay', 'step', 'panel']) assert.match(flow, new RegExp(`T\\.boot\\.${key}\\b`), key);
   for (const key of ['speechLead', 'orbUndraw', 'handoff', 'hudIn', 'step', 'hold', 'fade', 'dark', 'panel']) assert.match(flow, new RegExp(`T\\.shutdown\\.${key}\\b`), key);
 });
@@ -102,9 +102,9 @@ test('sound is never forced: the setting and silent mode both suppress it', () =
   assert.equal(P.soundAllowed({ sfxOn: false, silent: false }), false);
   assert.equal(P.soundAllowed({ sfxOn: true, silent: true }), false);
   assert.equal(P.soundAllowed({ sfxOn: false, silent: true }), false);
-  assert.match(sfxEngine, /const soundAllowed = \(\) => KIBIPower\.soundAllowed\(\{ sfxOn, silent: voiceSilenced\(\) \}\)/);
+  assert.match(sfxEngine, /const soundAllowed = \(\) => KORAPower\.soundAllowed\(\{ sfxOn, silent: voiceSilenced\(\) \}\)/);
   assert.match(sfxEngine, /const c = ctx\(\); if \(!c \|\| !soundAllowed\(\)\) return false;/);
-  assert.match(sfxEngine, /addEventListener\('kibi-voice', e => \{ if \(e\.detail\?\.silent\) sfx\.stop\(\); \}\)/);
+  assert.match(sfxEngine, /addEventListener\('kora-voice', e => \{ if \(e\.detail\?\.silent\) sfx\.stop\(\); \}\)/);
   assert.match(sfxEngine, /if \(!sfxOn\) sfx\.stop\(\)/);
   // with sound off there is no "tap to power up" prompt to unlock audio
   assert.match(bootFn, /if \(soundAllowed\(\) && !sfx\.running\(\)\) \{ if \(!\(await waitForPowerTap/);
