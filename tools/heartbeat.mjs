@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Reference heartbeat sender for the K.I.B.I. orb (docs/heartbeat.md). No dependencies; Node 18+.
+// Reference heartbeat sender for the K.O.R.A. orb (docs/heartbeat.md). No dependencies; Node 18+.
 //
 //   HEARTBEAT_TOKEN=obk_xxxxxxxx_... AGENT=forge ORB_URL=http://kira-orb:8080 node tools/heartbeat.mjs
 //   ... node tools/heartbeat.mjs --once        # send one beat, exit 0 if accepted

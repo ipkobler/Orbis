@@ -1,4 +1,4 @@
-<title>K.I.B.I.</title>
+<title>K.O.R.A.</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -23,7 +23,7 @@
   --f-display: "Chakra Petch", "Rajdhani", "Segoe UI", system-ui, sans-serif;
   --f-body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
   --f-mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
-  /* startup & shutdown console (kept in step with KIBIPower.palette in power-sequence.js) */
+  /* startup & shutdown console (kept in step with KORAPower.palette in power-sequence.js) */
   --boot-accent: #ff4d5e; --boot-accent-2: #ff9a4d; --boot-accent-3: #ffc75a; --boot-ok: #3ee08f; --boot-ice: #7fd4ff;
   --boot-line: #5aa8ff; --boot-shade: rgba(0, 0, 0, .18); --boot-glow: 1;
 }
@@ -82,12 +82,12 @@ header { grid-area: head; display: flex; align-items: center; gap: 10px; flex-wr
 .mark em { font: 500 11px/1 var(--f-display); font-style: normal; letter-spacing: .22em; color: var(--dim); opacity: .7; }
 .mark em::before { content: "·"; margin-right: 8px; }
 
-/* ---------- startup & shutdown: K.I.B.I. HUD ---------- */
+/* ---------- startup & shutdown: K.O.R.A. HUD ---------- */
 /* A full-screen console that boots block by block: the boot sequence runs down the left (real checks), each block of
    the HUD powers up as its systems report in, and the core globe in the middle counts the load. Shutdown is the reverse. */
 .boot {
   /* every colour comes from the active theme's tokens (Light, Dark, or System resolved) */
-  --kibi: var(--boot-accent); --kibi-2: var(--boot-accent-2); --kibi-3: var(--boot-accent-3); --kibi-ok: var(--boot-ok); --kibi-ice: var(--boot-ice);
+  --kora: var(--boot-accent); --kora-2: var(--boot-accent-2); --kora-3: var(--boot-accent-3); --kora-ok: var(--boot-ok); --kora-ice: var(--boot-ice);
   --kp: color-mix(in srgb, var(--panel) 82%, transparent);              /* panel fill */
   --kl: color-mix(in srgb, var(--boot-line) 34%, transparent);          /* panel line */
   position: fixed; inset: 0; z-index: 50; cursor: pointer; overflow: hidden;
@@ -114,27 +114,27 @@ header { grid-area: head; display: flex; align-items: center; gap: 10px; flex-wr
 /* top bar */
 .kh-top { grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; gap: 12px; min-width: 0; }
 .kh-brand { display: flex; align-items: center; gap: 9px; font: 600 12px/1 var(--f-display); letter-spacing: .26em; text-transform: uppercase; white-space: nowrap; overflow: hidden; }
-.kh-brand i { width: 8px; height: 8px; border-radius: 50%; background: var(--kibi); box-shadow: 0 0 10px var(--kibi); animation: breathe 3.2s ease-in-out infinite; flex: none; }
+.kh-brand i { width: 8px; height: 8px; border-radius: 50%; background: var(--kora); box-shadow: 0 0 10px var(--kora); animation: breathe 3.2s ease-in-out infinite; flex: none; }
 .kh-brand em { font-style: normal; color: var(--dim); font-weight: 500; letter-spacing: .2em; }
 .kh-chips { display: flex; gap: 8px; align-items: center; flex: none; }
 .kh-chip { font: 500 10.5px/1 var(--f-display); letter-spacing: .14em; text-transform: uppercase; color: var(--dim); padding: 8px 13px; border-radius: 999px;
   border: 1px dashed color-mix(in srgb, var(--kl) 80%, transparent); background: var(--kp); transition: color .3s, border-color .3s, box-shadow .3s, background .3s; white-space: nowrap; }
-.kh-chip.done { color: var(--ink); border-style: dashed; border-color: color-mix(in srgb, var(--kibi-ice) 55%, transparent); }
-.kh-chip.on { color: var(--ink); border: 1px solid var(--kibi); background: color-mix(in srgb, var(--kibi) 22%, var(--kp)); box-shadow: 0 0 16px -3px var(--kibi), inset 0 0 12px -4px var(--kibi); }
-.kh-ver { font: 600 11px/1 var(--f-mono); letter-spacing: .24em; padding: 8px 10px 8px calc(10px + .24em); border-radius: 999px; color: var(--kibi);
-  border: 1px solid color-mix(in srgb, var(--kibi) 70%, transparent); background: color-mix(in srgb, var(--kibi) 10%, transparent); box-shadow: 0 0 14px -4px var(--kibi); }
+.kh-chip.done { color: var(--ink); border-style: dashed; border-color: color-mix(in srgb, var(--kora-ice) 55%, transparent); }
+.kh-chip.on { color: var(--ink); border: 1px solid var(--kora); background: color-mix(in srgb, var(--kora) 22%, var(--kp)); box-shadow: 0 0 16px -3px var(--kora), inset 0 0 12px -4px var(--kora); }
+.kh-ver { font: 600 11px/1 var(--f-mono); letter-spacing: .24em; padding: 8px 10px 8px calc(10px + .24em); border-radius: 999px; color: var(--kora);
+  border: 1px solid color-mix(in srgb, var(--kora) 70%, transparent); background: color-mix(in srgb, var(--kora) 10%, transparent); box-shadow: 0 0 14px -4px var(--kora); }
 
 /* panels ("blocks") */
 .kh-p { position: relative; min-width: 0; background: var(--kp); border: 1px solid var(--kl); border-radius: 10px; padding: 10px 12px;
   box-shadow: inset 0 0 22px -12px var(--boot-line), 0 0 0 1px var(--boot-shade); }
 .kh-p::before { content: ""; position: absolute; inset: -1px; border-radius: inherit; pointer-events: none;
-  background: linear-gradient(var(--kibi-ice), var(--kibi-ice)) left top / 14px 1px no-repeat, linear-gradient(var(--kibi-ice), var(--kibi-ice)) left top / 1px 14px no-repeat,
-              linear-gradient(var(--kibi-ice), var(--kibi-ice)) right bottom / 14px 1px no-repeat, linear-gradient(var(--kibi-ice), var(--kibi-ice)) right bottom / 1px 14px no-repeat; opacity: .8; }
+  background: linear-gradient(var(--kora-ice), var(--kora-ice)) left top / 14px 1px no-repeat, linear-gradient(var(--kora-ice), var(--kora-ice)) left top / 1px 14px no-repeat,
+              linear-gradient(var(--kora-ice), var(--kora-ice)) right bottom / 14px 1px no-repeat, linear-gradient(var(--kora-ice), var(--kora-ice)) right bottom / 1px 14px no-repeat; opacity: .8; }
 .kh-p h4 { margin: 0 0 8px; display: flex; justify-content: space-between; align-items: center; gap: 8px; font: 600 11px/1.1 var(--f-display); letter-spacing: .14em; text-transform: uppercase; color: var(--ink); }
-.kh-p h4 em { font-style: normal; color: var(--kibi-3); font-weight: 500; }
-.kh-p h4 .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--kibi); box-shadow: 0 0 8px var(--kibi); flex: none; }
-.kh-p.red { border-color: color-mix(in srgb, var(--kibi) 50%, transparent); box-shadow: inset 0 0 22px -12px var(--kibi); }
-.kh-p.amber { border-color: color-mix(in srgb, var(--kibi-3) 55%, transparent); box-shadow: inset 0 0 22px -12px var(--kibi-3); }
+.kh-p h4 em { font-style: normal; color: var(--kora-3); font-weight: 500; }
+.kh-p h4 .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--kora); box-shadow: 0 0 8px var(--kora); flex: none; }
+.kh-p.red { border-color: color-mix(in srgb, var(--kora) 50%, transparent); box-shadow: inset 0 0 22px -12px var(--kora); }
+.kh-p.amber { border-color: color-mix(in srgb, var(--kora-3) 55%, transparent); box-shadow: inset 0 0 22px -12px var(--kora-3); }
 /* a block that hasn't powered up yet: a dim outline */
 .kh-blk { transition: opacity .3s; }
 .kh-blk:not(.on) { opacity: .16; filter: grayscale(.8); }
@@ -148,18 +148,18 @@ header { grid-area: head; display: flex; align-items: center; gap: 10px; flex-wr
 .kh-seq { flex: 1 1 auto; min-height: 120px; display: flex; flex-direction: column; overflow: hidden; }
 .kb-rows { display: grid; gap: 4px; align-content: start; overflow: hidden; min-height: 0; }
 .kr { display: grid; grid-template-columns: 7px minmax(0, 1fr) 50px 7.4em; gap: 8px; align-items: center; font-size: 10.5px; animation: rise .22s ease both; }
-.kr > i { width: 7px; height: 7px; border-radius: 50%; background: var(--kibi-3); box-shadow: 0 0 6px var(--kibi-3); }
-.kr.ok > i { background: var(--kibi-ok); box-shadow: 0 0 6px var(--kibi-ok); } .kr.warn > i { background: var(--amber); } .kr.bad > i, .kr.off > i { background: var(--kibi); box-shadow: 0 0 6px var(--kibi); }
+.kr > i { width: 7px; height: 7px; border-radius: 50%; background: var(--kora-3); box-shadow: 0 0 6px var(--kora-3); }
+.kr.ok > i { background: var(--kora-ok); box-shadow: 0 0 6px var(--kora-ok); } .kr.warn > i { background: var(--amber); } .kr.bad > i, .kr.off > i { background: var(--kora); box-shadow: 0 0 6px var(--kora); }
 .kr .lab { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; letter-spacing: .03em; text-transform: uppercase; }
 .kr .lab small { color: var(--dim); font-size: 9px; margin-right: 6px; letter-spacing: .08em; }
 /* segmented bar: the gradient spans the whole track and the fill reveals it, so each bar climbs red → amber → green */
 .kseg { position: relative; height: 8px; display: block;
   -webkit-mask: repeating-linear-gradient(90deg, #000 0 4px, transparent 4px 6px); mask: repeating-linear-gradient(90deg, #000 0 4px, transparent 4px 6px); }
 .kseg::before { content: ""; position: absolute; inset: 0; background: color-mix(in srgb, var(--kl) 55%, transparent); }
-.kseg i { position: absolute; inset: 0; background: linear-gradient(90deg, var(--kibi) 0%, var(--kibi-2) 33%, var(--kibi-3) 60%, var(--kibi-ok) 100%); clip-path: inset(0 100% 0 0); }
+.kseg i { position: absolute; inset: 0; background: linear-gradient(90deg, var(--kora) 0%, var(--kora-2) 33%, var(--kora-3) 60%, var(--kora-ok) 100%); clip-path: inset(0 100% 0 0); }
 .kr b { font-weight: 500; text-align: right; letter-spacing: .06em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--dim); font-variant-numeric: tabular-nums; }
-.kr b.pending { color: var(--kibi-3); }
-.kr b.ok { color: var(--kibi-ok); } .kr b.warn { color: var(--amber); } .kr b.bad, .kr b.off { color: var(--alert); }
+.kr b.pending { color: var(--kora-3); }
+.kr b.ok { color: var(--kora-ok); } .kr b.warn { color: var(--amber); } .kr b.bad, .kr b.off { color: var(--alert); }
 .kr b.ok, .kr b.bad, .kr b.warn, .kr b.off { animation: pop .28s ease-out; }
 @keyframes pop { from { opacity: .35; } to { opacity: 1; } }
 
@@ -169,67 +169,67 @@ header { grid-area: head; display: flex; align-items: center; gap: 10px; flex-wr
 .kh-hw .hwr span:nth-child(2) { color: var(--dim); }
 .kcells { display: grid; grid-template-columns: repeat(6, 1fr); gap: 2px; height: 8px; }
 .kcells i { background: color-mix(in srgb, var(--kl) 45%, transparent); }
-.kcells i.l { background: var(--kibi-3); box-shadow: 0 0 6px -1px var(--kibi-3); }
-.kcells i.r { background: var(--kibi); }
-.kh-foot { display: flex; justify-content: space-between; margin-top: 8px; font: 500 9.5px/1 var(--f-display); letter-spacing: .16em; color: var(--kibi-ok); }
+.kcells i.l { background: var(--kora-3); box-shadow: 0 0 6px -1px var(--kora-3); }
+.kcells i.r { background: var(--kora); }
+.kh-foot { display: flex; justify-content: space-between; margin-top: 8px; font: 500 9.5px/1 var(--f-display); letter-spacing: .16em; color: var(--kora-ok); }
 /* neural brain (left) */
 .kh-brain { flex: 0 0 auto; height: clamp(130px, 25vh, 240px); padding: 0; overflow: hidden; }
 .kh-brain canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
-.kh-brain .tg { position: absolute; top: 8px; font: 500 9.5px/1 var(--f-display); letter-spacing: .16em; color: var(--kibi-ok); }
+.kh-brain .tg { position: absolute; top: 8px; font: 500 9.5px/1 var(--f-display); letter-spacing: .16em; color: var(--kora-ok); }
 .kh-brain .tg.l { left: 10px; } .kh-brain .tg.r { right: 10px; }
 
 /* core (middle) */
 .kh-mid { display: grid; grid-template-rows: minmax(0, 1fr) auto; justify-items: center; min-height: 0; min-width: 0; }
 .kh-globe { position: relative; width: 100%; height: 100%; min-height: 200px; }
 .kh-globe canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
-.kh-hex { position: absolute; left: 4%; top: 50%; transform: translateY(-50%); display: grid; gap: 3px; font: 10px/1 var(--f-mono); color: color-mix(in srgb, var(--kibi-2) 70%, var(--dim)); opacity: .75; }
-.kh-hex span.hot { color: var(--ink); text-shadow: 0 0 8px var(--kibi-2); }
+.kh-hex { position: absolute; left: 4%; top: 50%; transform: translateY(-50%); display: grid; gap: 3px; font: 10px/1 var(--f-mono); color: color-mix(in srgb, var(--kora-2) 70%, var(--dim)); opacity: .75; }
+.kh-hex span.hot { color: var(--ink); text-shadow: 0 0 8px var(--kora-2); }
 .kh-lbl { position: absolute; font: 10px/1.25 var(--f-mono); color: var(--dim); text-transform: uppercase; }
 .kh-lbl b { display: block; color: var(--ink); font-weight: 500; }
 .kh-name-box { display: grid; justify-items: center; gap: 7px; text-align: center; padding-bottom: 4px; }
-.kh-wave { display: flex; gap: 2px; align-items: center; height: 22px; padding: 0 16px; border-radius: 999px; border: 1px solid color-mix(in srgb, var(--kibi) 45%, transparent); background: var(--kp); }
-.kh-wave i { width: 2px; height: 30%; border-radius: 1px; background: var(--kibi-2); transition: height .12s; }
+.kh-wave { display: flex; gap: 2px; align-items: center; height: 22px; padding: 0 16px; border-radius: 999px; border: 1px solid color-mix(in srgb, var(--kora) 45%, transparent); background: var(--kp); }
+.kh-wave i { width: 2px; height: 30%; border-radius: 1px; background: var(--kora-2); transition: height .12s; }
 .kh-name { font: 600 clamp(28px, 4.6vw, 46px)/1 var(--f-display); letter-spacing: .32em; padding-left: .32em; color: var(--ink);
-  text-shadow: 0 0 calc(22px * var(--boot-glow)) color-mix(in srgb, var(--kibi) 55%, transparent); }
+  text-shadow: 0 0 calc(22px * var(--boot-glow)) color-mix(in srgb, var(--kora) 55%, transparent); }
 /* the name resolves out of a soft blur as the letters settle: one slow, deliberate move */
 .kh-name.reveal { animation: nameReveal 1.4s .15s cubic-bezier(.2, .7, .2, 1) both; }
 @keyframes nameReveal { from { opacity: 0; letter-spacing: .6em; filter: blur(6px); } to { opacity: 1; letter-spacing: .32em; filter: none; } }
 .kh-sub { font: 500 10px/1.3 var(--f-display); letter-spacing: .34em; padding-left: .34em; color: var(--dim); text-transform: uppercase; }
-.kh-sub b { color: var(--kibi); font-weight: 600; }
-.kh-core { font: 500 clamp(13px, 1.9vw, 19px)/1.2 var(--f-display); letter-spacing: .12em; text-transform: uppercase; color: var(--kibi-3); text-shadow: 0 0 14px color-mix(in srgb, var(--kibi-2) 60%, transparent); }
+.kh-sub b { color: var(--kora); font-weight: 600; }
+.kh-core { font: 500 clamp(13px, 1.9vw, 19px)/1.2 var(--f-display); letter-spacing: .12em; text-transform: uppercase; color: var(--kora-3); text-shadow: 0 0 14px color-mix(in srgb, var(--kora-2) 60%, transparent); }
 .kh-core b { font-weight: 600; font-variant-numeric: tabular-nums; }
 .kh-pill { font: 500 11px/1 var(--f-display); letter-spacing: .16em; text-transform: uppercase; color: var(--ink); padding: 9px 16px; border-radius: 999px; min-height: 11px;
-  border: 1px solid color-mix(in srgb, var(--kibi) 60%, transparent); background: color-mix(in srgb, var(--kibi) 10%, var(--kp)); box-shadow: 0 0 16px -6px var(--kibi); }
-.kh-pill::after { content: "▌"; color: var(--kibi); animation: blink .8s steps(2) infinite; margin-left: 3px; }
+  border: 1px solid color-mix(in srgb, var(--kora) 60%, transparent); background: color-mix(in srgb, var(--kora) 10%, var(--kp)); box-shadow: 0 0 16px -6px var(--kora); }
+.kh-pill::after { content: "▌"; color: var(--kora); animation: blink .8s steps(2) infinite; margin-left: 3px; }
 
 /* right column */
 .kh-gauge { height: clamp(96px, 15vh, 140px); padding: 0; }
 .kh-gauge canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
-.kh-power h4 { color: var(--kibi-2); justify-content: center; letter-spacing: .2em; }
+.kh-power h4 { color: var(--kora-2); justify-content: center; letter-spacing: .2em; }
 .kh-power .rowc { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
 .kh-power .rowc + .rowc { margin-top: 5px; }
 .kh-power .kcells { grid-template-columns: repeat(4, 1fr); height: 9px; }
 .kh-eq .bars { display: grid; grid-template-columns: repeat(12, 1fr); gap: 4px; height: clamp(44px, 8vh, 70px); align-items: end; }
-.kh-eq .bars i { display: block; height: 20%; background: linear-gradient(to top, var(--kibi), var(--kibi-2) 60%, var(--kibi-3)); opacity: .85; transition: height .12s; }
+.kh-eq .bars i { display: block; height: 20%; background: linear-gradient(to top, var(--kora), var(--kora-2) 60%, var(--kora-3)); opacity: .85; transition: height .12s; }
 .kh-eq .lbls { display: grid; grid-template-columns: repeat(12, 1fr); gap: 4px; margin-top: 4px; font-size: 7.5px; color: var(--dim); text-align: center; }
 .kh-eq .tags { display: flex; gap: 6px; margin-top: 8px; }
-.kh-eq .tags span { flex: 1; text-align: center; font: 500 9.5px/1 var(--f-display); letter-spacing: .12em; padding: 6px 4px; border-radius: 6px; border: 1px solid color-mix(in srgb, var(--kibi) 55%, transparent); color: var(--kibi-2); }
-.kh-eq .tags span + span { border-color: color-mix(in srgb, var(--kibi-ice) 45%, transparent); color: var(--kibi-ice); }
+.kh-eq .tags span { flex: 1; text-align: center; font: 500 9.5px/1 var(--f-display); letter-spacing: .12em; padding: 6px 4px; border-radius: 6px; border: 1px solid color-mix(in srgb, var(--kora) 55%, transparent); color: var(--kora-2); }
+.kh-eq .tags span + span { border-color: color-mix(in srgb, var(--kora-ice) 45%, transparent); color: var(--kora-ice); }
 .kh-stat { display: grid; gap: 6px; padding: 0; background: none; border: 0; box-shadow: none; }
 .kh-stat::before { display: none; }
-.kh-stat .sr { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 8px 12px; border: 1px solid color-mix(in srgb, var(--kibi-3) 45%, transparent); border-radius: 8px; background: var(--kp); font: 500 10.5px/1 var(--f-display); letter-spacing: .14em; }
-.kh-stat .sr b { font: 500 10.5px/1 var(--f-mono); letter-spacing: .06em; color: var(--kibi-3); }
-.kh-stat .sr b.ok { color: var(--kibi-ok); } .kh-stat .sr b.bad { color: var(--alert); }
+.kh-stat .sr { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 8px 12px; border: 1px solid color-mix(in srgb, var(--kora-3) 45%, transparent); border-radius: 8px; background: var(--kp); font: 500 10.5px/1 var(--f-display); letter-spacing: .14em; }
+.kh-stat .sr b { font: 500 10.5px/1 var(--f-mono); letter-spacing: .06em; color: var(--kora-3); }
+.kh-stat .sr b.ok { color: var(--kora-ok); } .kh-stat .sr b.bad { color: var(--alert); }
 .kh-resp { display: grid; grid-template-columns: minmax(0, 1fr) 70px; gap: 6px 10px; align-items: center; }
-.kh-resp h4 { grid-column: 1 / -1; margin: 0; color: var(--kibi-3); }
+.kh-resp h4 { grid-column: 1 / -1; margin: 0; color: var(--kora-3); }
 .kh-resp .kv { display: grid; gap: 5px; font-size: 10.5px; }
 .kh-resp .kv div { display: flex; justify-content: space-between; gap: 8px; }
 .kh-resp .kv span { color: var(--dim); }
 .kh-resp canvas { width: 70px; height: 70px; }
-.boot b.ok { color: var(--kibi-ok); } .boot b.bad { color: var(--alert); }
+.boot b.ok { color: var(--kora-ok); } .boot b.bad { color: var(--alert); }
 .kh-c3 .sr { display: flex; justify-content: space-between; gap: 8px; font: 500 10.5px/1.7 var(--f-display); letter-spacing: .14em; }
-.kh-c3 .sr b { font: 500 10.5px/1.7 var(--f-mono); color: var(--kibi-3); }
-.kh-c3 .sr b.ok { color: var(--kibi-ok); } .kh-c3 .sr b.bad { color: var(--alert); }
+.kh-c3 .sr b { font: 500 10.5px/1.7 var(--f-mono); color: var(--kora-3); }
+.kh-c3 .sr b.ok { color: var(--kora-ok); } .kh-c3 .sr b.bad { color: var(--alert); }
 
 /* bottom */
 .kh-bot { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(0, 24%) minmax(0, 1fr) minmax(0, 22%); gap: 18px; align-items: end; }
@@ -237,7 +237,7 @@ header { grid-area: head; display: flex; align-items: center; gap: 10px; flex-wr
 .kh-mod b { color: var(--ink); font-weight: 500; }
 .kh-dockwrap { display: grid; gap: 7px; justify-items: center; }
 .kh-dock { width: min(560px, 100%); display: grid; grid-template-columns: 34px 34px minmax(0, 1fr) 34px; gap: 8px; align-items: center; padding: 6px; box-sizing: border-box;
-  border: 1px solid color-mix(in srgb, var(--kibi) 55%, transparent); border-radius: 14px; background: var(--kp); box-shadow: 0 0 22px -10px var(--kibi); }
+  border: 1px solid color-mix(in srgb, var(--kora) 55%, transparent); border-radius: 14px; background: var(--kp); box-shadow: 0 0 22px -10px var(--kora); }
 .kh-dock > span { height: 34px; display: grid; place-items: center; border-radius: 10px; border: 1px solid var(--kl); color: var(--dim); font-size: 13px; }
 .kh-prog { position: relative; height: 34px; display: grid; grid-template-columns: minmax(0, 1fr) 30%; align-items: center; gap: 8px; padding: 0 8px 0 12px; border-radius: 10px; border: 1px solid var(--kl); overflow: hidden; }
 .kh-prog span { font: 500 10.5px/1 var(--f-display); letter-spacing: .12em; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -254,7 +254,7 @@ header { grid-area: head; display: flex; align-items: center; gap: 10px; flex-wr
 .boot.off .kh { animation: settleOff .5s cubic-bezier(.4, 0, .2, 1) forwards; }
 @keyframes settleOff { from { opacity: 1; transform: none; filter: none; } to { opacity: 0; transform: scale(.985); filter: blur(3px); } }
 .boot-sleep { position: fixed; inset: 0; z-index: 4; display: grid; place-content: center; justify-items: center; gap: 18px; text-align: center; animation: rise 1.2s ease both; font: 500 12px/1 var(--f-display); text-transform: uppercase; }
-.boot-sleep i { width: 6px; height: 6px; border-radius: 50%; background: var(--kibi); box-shadow: 0 0 14px var(--kibi); animation: standby 3.2s ease-in-out infinite; }
+.boot-sleep i { width: 6px; height: 6px; border-radius: 50%; background: var(--kora); box-shadow: 0 0 14px var(--kora); animation: standby 3.2s ease-in-out infinite; }
 .boot-sleep .label { color: var(--dim); letter-spacing: .32em; padding-left: .32em; }
 .boot-sleep .hint2 { font: 500 10px/1.5 var(--f-display); letter-spacing: .2em; text-transform: uppercase; color: var(--dim); opacity: .55; }
 @keyframes standby { 0%, 100% { opacity: .15; transform: scale(.8); } 50% { opacity: .75; transform: scale(1); } }
@@ -784,12 +784,12 @@ body.keyboard-open .dock { padding-bottom: 2px; }
 <div class="drop" id="drop" hidden>Drop files for the agent</div>
 <div class="toasts" id="toasts" aria-live="assertive"></div>
 
-<div class="boot" id="boot" role="status" aria-label="K.I.B.I. startup">
+<div class="boot" id="boot" role="status" aria-label="K.O.R.A. startup">
   <canvas class="boot-fx" id="bootFx" aria-hidden="true"></canvas>
   <div class="kh" id="kh">
     <div class="kh-top">
       <div class="kh-brand"><i></i>Finnesey &amp; Kobler <em>· The Model Shop</em></div>
-      <div class="kh-chips" id="khChips"><span class="kh-chip"></span><span class="kh-chip"></span><span class="kh-chip"></span><span class="kh-ver" data-kibi-ver>V1.5</span></div>
+      <div class="kh-chips" id="khChips"><span class="kh-chip"></span><span class="kh-chip"></span><span class="kh-chip"></span><span class="kh-ver" data-kora-ver>V1.5</span></div>
     </div>
 
     <div class="kh-col kh-left">
@@ -816,8 +816,8 @@ body.keyboard-open .dock { padding-bottom: 2px; }
       </div>
       <div class="kh-name-box">
         <div class="kh-wave" id="khWave" aria-hidden="true"></div>
-        <div class="kh-name" id="khName">K.I.B.I.</div>
-        <div class="kh-sub">Kobler Interactive Bot Interface · <b data-kibi-ver>V1.5</b></div>
+        <div class="kh-name" id="khName">K.O.R.A.</div>
+        <div class="kh-sub">Kobler Operational Robotic Agents · <b data-kora-ver>V1.5</b></div>
         <div class="kh-core"><span id="bootState">Core initialization</span>: <b id="bootPct">0%</b> <span id="bootWord">complete</span></div>
         <div class="kh-pill" id="bootHead"></div>
       </div>
@@ -858,7 +858,7 @@ body.keyboard-open .dock { padding-bottom: 2px; }
   </div>
   <div class="boot-sleep" id="bootSleep" hidden>
     <i></i>
-    <div class="label">K.I.B.I. <span data-kibi-ver>V1.5</span> offline</div>
+    <div class="label">K.O.R.A. <span data-kora-ver>V1.5</span> offline</div>
     <div class="hint2">Tap or press any key to power up</div>
   </div>
 </div>
@@ -875,11 +875,11 @@ body.keyboard-open .dock { padding-bottom: 2px; }
   const themeQuery = matchMedia('(prefers-color-scheme: light)');
   function applyTheme(mode = store.get('themeMode', 'system')) {
     const chosen = ['light', 'dark', 'system'].includes(mode) ? mode : 'system';
-    const resolved = KIBIPower.resolveTheme(chosen, themeQuery.matches);
+    const resolved = KORAPower.resolveTheme(chosen, themeQuery.matches);
     document.documentElement.dataset.theme = resolved;
     document.documentElement.style.colorScheme = resolved;
     const select = $('themeMode'); if (select) select.value = chosen;
-    dispatchEvent(new CustomEvent('kibi-theme', { detail: { mode: chosen, theme: resolved } }));   // the startup/shutdown console re-reads its colours
+    dispatchEvent(new CustomEvent('kora-theme', { detail: { mode: chosen, theme: resolved } }));   // the startup/shutdown console re-reads its colours
   }
   applyTheme();
   themeQuery.addEventListener?.('change', () => { if (store.get('themeMode', 'system') === 'system') applyTheme('system'); });
@@ -1828,9 +1828,9 @@ body.keyboard-open .dock { padding-bottom: 2px; }
     t = t.replace(/(^|[.!?]\s+)([a-z])/g, (_, p, c) => p + c.toUpperCase());   // capitalised sentence starts sound more natural
     return applyPronunciationLexicon(t);
   }
-  const voiceSilenced = () => { try { return sessionStorage.getItem('kibi.voice.preference') === 'silent'; } catch { return false; } };
+  const voiceSilenced = () => { try { return sessionStorage.getItem('kora.voice.preference') === 'silent'; } catch { return false; } };
   // the Voice toggle in the header (silent-mode.js): going silent stops whatever is being said now, too
-  addEventListener('kibi-voice', e => {
+  addEventListener('kora-voice', e => {
     if (!e.detail?.silent) return;
     stopAgentVoice(); synth?.cancel(); speakQueue = 0;
     if (state === 'speaking') finishTurn();
@@ -2889,7 +2889,7 @@ body.keyboard-open .dock { padding-bottom: 2px; }
     }
   }
 
-  // ---------- K.I.B.I. console panels: mini cores, power, telemetry, gauges, stability, traces ----------
+  // ---------- K.O.R.A. console panels: mini cores, power, telemetry, gauges, stability, traces ----------
   function sized(c) {
     const d = Math.min(2, devicePixelRatio || 1), w = c.clientWidth, h = c.clientHeight;
     if (c.width !== Math.round(w * d) || c.height !== Math.round(h * d)) { c.width = Math.round(w * d); c.height = Math.round(h * d); }
@@ -3077,12 +3077,12 @@ body.keyboard-open .dock { padding-bottom: 2px; }
   // ---------- startup & shutdown sounds ----------
   // One smooth swept "voom" per sequence, synthesised live with Web Audio (no audio files): it rises as the
   // console boots and falls, faster, as it shuts down. No beeps, blips, chimes or clicks. Sound plays only when the
-  // "Startup & shutdown sounds" setting is on and silent mode is off (KIBIPower.soundAllowed).
+  // "Startup & shutdown sounds" setting is on and silent mode is off (KORAPower.soundAllowed).
   let sfxOn = store.get('sfxOn', true);
-  const soundAllowed = () => KIBIPower.soundAllowed({ sfxOn, silent: voiceSilenced() });
+  const soundAllowed = () => KORAPower.soundAllowed({ sfxOn, silent: voiceSilenced() });
   $('sfxOn').value = sfxOn ? '1' : '0';
   $('sfxOn').addEventListener('change', e => { sfxOn = e.target.value === '1'; store.set('sfxOn', sfxOn); if (!sfxOn) sfx.stop(); });
-  addEventListener('kibi-voice', e => { if (e.detail?.silent) sfx.stop(); });   // going silent cuts a voom that's playing
+  addEventListener('kora-voice', e => { if (e.detail?.silent) sfx.stop(); });   // going silent cuts a voom that's playing
   const sfx = (() => {
     let bus = null, voice = null;
     const ctx = () => { ensureAudio(); return audioCtx && audioCtx.state === 'running' ? audioCtx : null; };
@@ -3103,7 +3103,7 @@ body.keyboard-open .dock { padding-bottom: 2px; }
     function voom(direction) {
       const c = ctx(); if (!c || !soundAllowed()) return false;
       stop(0.08);
-      const v = KIBIPower.voomPlan(direction), t = c.currentTime, end = t + v.dur;
+      const v = KORAPower.voomPlan(direction), t = c.currentTime, end = t + v.dur;
       const g = c.createGain(), f = c.createBiquadFilter();
       f.type = 'lowpass'; f.Q.value = 0.9;
       f.frequency.setValueAtTime(v.cutoff0, t); f.frequency.exponentialRampToValueAtTime(v.cutoff1, end);
@@ -3131,7 +3131,7 @@ body.keyboard-open .dock { padding-bottom: 2px; }
   function waitForPowerTap(el, run) {
     return new Promise(resolve => {
       const sl = $('bootSleep');
-      sl.querySelector('.label').textContent = `K.I.B.I. ${KIBI_VER} · standby`;
+      sl.querySelector('.label').textContent = `K.O.R.A. ${KORA_VER} · standby`;
       sl.querySelector('.hint2').textContent = 'Tap or press any key to power up';
       sl.hidden = false; el.classList.add('off-content');
       const go = e => {
@@ -3145,14 +3145,14 @@ body.keyboard-open .dock { padding-bottom: 2px; }
   }
   // K.I.R.K. (the home agent) speaks the approved lines: once when a boot completes, once when shutdown starts.
   // speak() already honours silent mode, so a silenced console stays quiet.
-  const T = KIBIPower.TIMING, PHRASES = KIBIPower.PHRASES;
+  const T = KORAPower.TIMING, PHRASES = KORAPower.PHRASES;
   const kirk = () => agents.find(a => a.id === homeAgent());
   function kirkSays(text, run) {
     const k = kirk(); if (!k) return false;
     if (run !== bootRun) return false;
     speak(text, k.id); return true;
   }
-  // ---------- startup sequence: K.I.B.I. ----------
+  // ---------- startup sequence: K.O.R.A. ----------
   // The boot screen loads each system 0000 → 1000 (red → green). The gateway, tools, roster, agents and voice rows
   // are real checks. Then the console's panels power up one by one, the orb draws itself in the middle, and the
   // live agent says "Startup sequence complete". Plays the first time the app opens in a tab (reloads skip it).
@@ -3183,9 +3183,9 @@ body.keyboard-open .dock { padding-bottom: 2px; }
       await wait(reduceMotion ? 20 : T.shutdown.panel);
     }
   }
-  // ---------- the K.I.B.I. HUD (startup and shutdown screen) ----------
-  const KIBI_VER = 'V' + (window.__KIBI_VERSION__ || '1.5');
-  document.querySelectorAll('[data-kibi-ver]').forEach(n => { n.textContent = KIBI_VER; });
+  // ---------- the K.O.R.A. HUD (startup and shutdown screen) ----------
+  const KORA_VER = 'V' + (window.__KORA_VERSION__ || '1.5');
+  document.querySelectorAll('[data-kora-ver]').forEach(n => { n.textContent = KORA_VER; });
   const pad4 = n => String(Math.max(0, Math.min(1000, Math.round(n)))).padStart(4, '0');
   const PHASES = { boot: ['Boot active', 'Booting…', 'Initializing', 'Online'], shutdown: ['Shutdown active', 'Powering down', 'Terminating', 'Offline'] };
   const hud = { mode: 'boot', p: 0, shown: 0, blocks: 0, ready: false, raf: 0, t0: 0, last: 0, row: '', stats: 0 };
@@ -3281,17 +3281,17 @@ body.keyboard-open .dock { padding-bottom: 2px; }
     const g = c.getContext('2d'); g.setTransform(d, 0, 0, d, 0, 0); g.clearRect(0, 0, w, h);
     return { g, w, h };
   }
-  // The console's canvas colours follow the active theme (KIBIPower.palette mirrors the CSS --boot-* tokens).
+  // The console's canvas colours follow the active theme (KORAPower.palette mirrors the CSS --boot-* tokens).
   // Each is an open 'rgba(r,g,b,' prefix: add the alpha and ')'.
-  let PAL = KIBIPower.palette('dark'), R_, O_, A3_, B_, I_, INK, DIM;
+  let PAL = KORAPower.palette('dark'), R_, O_, A3_, B_, I_, INK, DIM;
   const rgbaOpen = c => `rgba(${c[0]},${c[1]},${c[2]},`;
   function hudPalette() {
-    PAL = KIBIPower.palette(document.documentElement.dataset.theme);
+    PAL = KORAPower.palette(document.documentElement.dataset.theme);
     R_ = rgbaOpen(PAL.accent); O_ = rgbaOpen(PAL.accent2); A3_ = rgbaOpen(PAL.accent3); B_ = rgbaOpen(PAL.line); I_ = rgbaOpen(PAL.ice);
     INK = `rgb(${PAL.ink.join(',')})`; DIM = rgbaOpen(PAL.dim) + '.75)';
   }
   hudPalette();
-  addEventListener('kibi-theme', hudPalette);
+  addEventListener('kora-theme', hudPalette);
   // accent → amber → ok along 0..1
   const loadColor = (k, a = 1) => { const stops = [PAL.accent, PAL.accent2, PAL.accent3, PAL.ok], f = clamp01(k) * 3, i = Math.min(2, Math.floor(f)), u = f - i;
     const c = stops[i].map((v, n) => Math.round(v + (stops[i + 1][n] - v) * u)); return `rgba(${c[0]},${c[1]},${c[2]},${a})`; };
@@ -3445,7 +3445,7 @@ body.keyboard-open .dock { padding-bottom: 2px; }
     const live = hud.mode === 'shutdown' || p > 0;
     // equalizer and the waveform pill
     $('khEq').querySelectorAll('i').forEach((b, k) => { b.style.height = (8 + (live ? 80 * power : 10) * (.35 + .65 * Math.abs(Math.sin(t * (2.1 + k * .37) + k * 1.7)) * (.6 + .4 * Math.random()))) + '%'; });
-    $('khWave').querySelectorAll('i').forEach((b, k) => { b.style.height = (18 + 70 * power * Math.abs(Math.sin(t * 5 + k * .55) * Math.sin(t * 1.3 + k * .21))) + '%'; b.style.background = k % 7 === 3 ? 'var(--kibi-ice)' : ''; });
+    $('khWave').querySelectorAll('i').forEach((b, k) => { b.style.height = (18 + 70 * power * Math.abs(Math.sin(t * 5 + k * .55) * Math.sin(t * 1.3 + k * .21))) + '%'; b.style.background = k % 7 === 3 ? 'var(--kora-ice)' : ''; });
     // hex column next to the globe
     const hx = $('khHex').children;
     for (let k = 0; k < hx.length; k++) { if (!hx[k].textContent || Math.random() < .08) hx[k].textContent = '0x' + Math.floor(Math.random() * 4096).toString(16).toUpperCase().padStart(3, '0').slice(0, 3); hx[k].className = Math.random() < .04 * power ? 'hot' : ''; }
@@ -3608,7 +3608,7 @@ body.keyboard-open .dock { padding-bottom: 2px; }
 
   // ---------- shutdown sequence: the startup in exact reverse ----------
   // "Shutting down all systems" → the orb un-draws → the interface powers off block by block, last to first → the
-  // K.I.B.I. HUD comes back fully loaded, then each system drains 1000 → 0000 bottom to top while the HUD's blocks power
+  // K.O.R.A. HUD comes back fully loaded, then each system drains 1000 → 0000 bottom to top while the HUD's blocks power
   // off in reverse → the core globe winds down → the screen collapses like an old CRT. On your server it also signs out.
   async function powerDown({ signOut = !!window.__ORB_SERVER__ } = {}) {
     if (poweredDown && !signOut) return;
@@ -3633,7 +3633,7 @@ body.keyboard-open .dock { padding-bottom: 2px; }
       }
       setTimeout(() => {
         if (run !== bootRun) return;
-        $('bootSleep').querySelector('.label').textContent = `K.I.B.I. ${KIBI_VER} offline`;
+        $('bootSleep').querySelector('.label').textContent = `K.O.R.A. ${KORA_VER} offline`;
         $('bootSleep').querySelector('.hint2').textContent = 'Tap or press any key to power up';
         $('bootSleep').hidden = false;
         const wake = e => {
@@ -3715,7 +3715,7 @@ body.keyboard-open .dock { padding-bottom: 2px; }
 
 
   // ---------- bridge for the Voice Manager (voice-manager.js) ----------
-  window.KIBI = {
+  window.KORA = {
     get agents() { return agents; }, get current() { return agent; }, get demo() { return DEMO; }, get engine() { return engine; },
     setEngine(v) { engine = v; store.set('engine3', engine); $('engine').value = engine; renderVoiceNote(); },
     agentColor, acronym,
@@ -3726,7 +3726,7 @@ body.keyboard-open .dock { padding-bottom: 2px; }
     setBrowserVoice(id, name) { agentVoices[id] = name; store.set('agentVoices', agentVoices); resolvedVoices[id] = name; renderAgentVoices(); },
     testBrowserVoice(id, text, name) {
       if (!synth) return false;
-      synth.cancel(); const u = new SpeechSynthesisUtterance(text); const v = voices.find(x => x.name === (name || KIBI.browserVoiceFor(id))); if (v) u.voice = v; u.rate = rate; synth.speak(u); return true;
+      synth.cancel(); const u = new SpeechSynthesisUtterance(text); const v = voices.find(x => x.name === (name || KORA.browserVoiceFor(id))); if (v) u.voice = v; u.rate = rate; synth.speak(u); return true;
     },
     openSheet(id) { document.querySelectorAll('.sheet').forEach(x => x.hidden = true); $(id).hidden = false; },
   };

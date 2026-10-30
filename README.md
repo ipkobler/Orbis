@@ -1,4 +1,4 @@
-# K.I.B.I. — Kobler Interactive Bot Interface
+# K.O.R.A. — Kobler Operational Robotic Agents
 
 A Jarvis-style talking orb for your OpenClaw agents (the project started as "Kira Orb"). Talk to it, it answers
 out loud, and the glass orb reacts: light ribbons turn inside it in each agent's own two colours (Kira pink,
@@ -281,7 +281,7 @@ clips can't be picked until it is.
   such as `**Name:** FORGE — Federated Operations, Runtime & Graph Engineer`, `## K.I.R.A. - ...` or
   `... stands for ...`. The words must spell the acronym. Agents without one show "AI Core".
 - **Startup sequence** plays the first time the app opens in a browser tab or as the phone app (a reload skips it).
-  The K.I.B.I. console boots block by block: the boot sequence on the left loads each system from 0000 to 1000 on a
+  The K.O.R.A. console boots block by block: the boot sequence on the left loads each system from 0000 to 1000 on a
   red-to-green bar, the core globe in the middle counts the load ("Core initialization: 42% complete"), and each
   block of the console (hardware, gauges, power core, meters, voice and link status, response, neural map) powers
   up as its share of the systems reports in. Then the main interface comes up one block at a time, the orb draws
@@ -290,7 +290,7 @@ clips can't be picked until it is.
   input and speech rows, and the gateway, latency, agents-online, voice and link readouts are real.
 - **Shutdown** (Settings → Shut down & sign out, or say "Power down the interface") is the startup in reverse:
   "Shutting down all systems", the orb un-draws, the main interface switches off block by block, last to first, then
-  the K.I.B.I. console returns fully loaded and drains every system from 1000 to 0000 while its blocks power off in
+  the K.O.R.A. console returns fully loaded and drains every system from 1000 to 0000 while its blocks power off in
   reverse and the core winds down, before the screen collapses.
 - **Agent colours:** Settings → Agent colours has a main and an accent colour for each agent. Choices are saved
   on the server (`state/colors.json`) per agent id, so every device matches and renaming an agent keeps them.

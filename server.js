@@ -354,7 +354,7 @@ async function handleColors(req, res) {
 const SESSION_RE = /^[a-zA-Z0-9-]{8,64}$/;
 
 // the version shown on the startup and shutdown screens: package.json's major.minor (1.15.0 → V1.15)
-const KIBI_VERSION = JSON.parse(await readFile(path.join(__dirname, 'package.json'), 'utf8')).version.split('.').slice(0, 2).join('.');
+const KORA_VERSION = JSON.parse(await readFile(path.join(__dirname, 'package.json'), 'utf8')).version.split('.').slice(0, 2).join('.');
 const SKELETON = `<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -363,7 +363,7 @@ const SKELETON = `<!doctype html>
 <meta name="mobile-web-app-capable" content="yes">
 <link rel="manifest" href="/manifest.webmanifest">
 <style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}[hidden]{display:none!important}</style>
-<script>window.__ORB_SERVER__ = true; window.__KIBI_VERSION__ = ${JSON.stringify(KIBI_VERSION)};</script>
+<script>window.__ORB_SERVER__ = true; window.__KORA_VERSION__ = ${JSON.stringify(KORA_VERSION)};</script>
 </head><body>
 `;
 
@@ -1095,7 +1095,7 @@ function loginPage(error = '', email = '') {
   return `<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#06112b"><link rel="manifest" href="/manifest.webmanifest"><link rel="icon" href="/icon.svg">
-<title>Sign in · K.I.B.I.</title>
+<title>Sign in · K.O.R.A.</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600&family=IBM+Plex+Sans:wght@400;500&display=swap">
 <style>
 :root{--void:#06112b;--hi:#0f2350;--lo:#020814;--panel:#0b1a38;--line:#1b3058;--ink:#e2ecf4;--dim:#8ea3c6;--arc:#ff3b4d;--alert:#ff8a8a;color-scheme:dark}
@@ -1126,7 +1126,7 @@ ${error ? `<p class="err" role="alert">${esc(error)}</p>` : ''}
 <label>Password<input type="password" name="password" autocomplete="current-password" required></label>
 <button type="submit">Sign in</button>
 </form>
-<div class="foot">K.I.B.I. · Kobler Interactive Bot Interface</div>
+<div class="foot">K.O.R.A. · Kobler Operational Robotic Agents</div>
 </main></body></html>`;
 }
 async function handleLogin(req, res) {

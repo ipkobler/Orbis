@@ -1,5 +1,5 @@
-// K.I.B.I. startup and shutdown: the shared rules for both sequences.
-// The page loads this as a plain script (window.KIBIPower); the tests import it in Node (globalThis.KIBIPower).
+// K.O.R.A. startup and shutdown: the shared rules for both sequences.
+// The page loads this as a plain script (window.KORAPower); the tests import it in Node (globalThis.KORAPower).
 // Everything here is pure data or pure functions, so the timing, sound, wording and theme rules can be tested
 // without a browser.
 (function (root) {
@@ -71,5 +71,5 @@
   });
   const palette = theme => PALETTES[theme === 'light' ? 'light' : 'dark'];
 
-  root.KIBIPower = Object.freeze({ PHRASES, TIMING, nominalDuration, voomPlan, soundAllowed, resolveTheme, palette });
+  root.KORAPower = Object.freeze({ PHRASES, TIMING, nominalDuration, voomPlan, soundAllowed, resolveTheme, palette });
 })(typeof window !== 'undefined' ? window : globalThis);
