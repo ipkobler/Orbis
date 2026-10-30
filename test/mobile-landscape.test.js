@@ -12,7 +12,8 @@ test('mobile layout uses the visual viewport for the app height', () => {
 
 test('landscape layout keeps the dock and stage within the reduced viewport', () => {
   assert.match(page, /@media \(orientation: landscape\) and \(max-width: 1000px\)/);
-  assert.match(page, /\.stage \{ min-height: 120px; \}/);
+  assert.match(page, /grid-template-rows: auto auto minmax\(0, 1fr\) auto; gap: 6px/);
+  assert.doesNotMatch(page, /body \{ overflow: auto; \}/);
   assert.match(page, /form\.ask \{ padding-bottom: env\(safe-area-inset-bottom/);
 });
 

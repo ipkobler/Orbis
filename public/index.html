@@ -592,10 +592,11 @@ form.ask.chatask { margin-top: 2px; }
 /* Mobile landscape has very little vertical room. Keep the talk dock visible and let the
    stage absorb the available space instead of allowing the keyboard to cover the controls. */
 @media (orientation: landscape) and (max-width: 1000px) {
-  body { overflow: auto; }
-  .app { min-height: var(--app-height, 100%); height: auto; grid-template-rows: auto minmax(120px, 1fr) auto; gap: 8px; padding-top: max(8px, env(safe-area-inset-top, 0px)); padding-bottom: max(8px, env(safe-area-inset-bottom, 0px)); }
+  /* four rows to match the "head" "roster" "stage" "dock" areas from the 1000px layout; the
+     stage row is the only flexible one, so it shrinks and the dock stays on screen */
+  .app { height: var(--app-height, 100%); grid-template-rows: auto auto minmax(0, 1fr) auto; gap: 6px; padding-top: max(8px, env(safe-area-inset-top, 0px)); padding-bottom: max(8px, env(safe-area-inset-bottom, 0px)); }
   header { min-height: 32px; }
-  .stage { min-height: 120px; }
+  .stage { min-height: 0; }
   #orbBtn { width: min(38svh, 260px); }
   .readout { bottom: 1%; gap: 4px; }
   .agent-name { font-size: clamp(17px, 4svh, 26px); }
@@ -606,7 +607,7 @@ form.ask.chatask { margin-top: 2px; }
 }
 /* While the software keyboard is open, the viewport controller adds this class. Do not
    let the decorative stage consume the reduced visual viewport. */
-body.keyboard-open .stage { min-height: 96px; }
+body.keyboard-open .stage { min-height: 0; }
 body.keyboard-open .caption { max-height: 2.8em; }
 body.keyboard-open .dock { padding-bottom: 2px; }
 @media (max-width: 700px) { .mark em { display: none; } }
