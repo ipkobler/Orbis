@@ -1683,6 +1683,20 @@ form.ask.chatask { margin-top: 2px; }
   const DIRS = { n: 'North', s: 'South', e: 'East', w: 'West', ne: 'Northeast', nw: 'Northwest', se: 'Southeast', sw: 'Southwest' };
   const US_STATES = { AL: 'Alabama', AK: 'Alaska', AZ: 'Arizona', AR: 'Arkansas', CA: 'California', CO: 'Colorado', CT: 'Connecticut', DE: 'Delaware', DC: 'D C', FL: 'Florida', GA: 'Georgia', HI: 'Hawaii', ID: 'Idaho', IL: 'Illinois', IN: 'Indiana', IA: 'Iowa', KS: 'Kansas', KY: 'Kentucky', LA: 'Louisiana', ME: 'Maine', MD: 'Maryland', MA: 'Massachusetts', MI: 'Michigan', MN: 'Minnesota', MS: 'Mississippi', MO: 'Missouri', MT: 'Montana', NE: 'Nebraska', NV: 'Nevada', NH: 'New Hampshire', NJ: 'New Jersey', NM: 'New Mexico', NY: 'New York', NC: 'North Carolina', ND: 'North Dakota', OH: 'Ohio', OK: 'Oklahoma', OR: 'Oregon', PA: 'Pennsylvania', RI: 'Rhode Island', SC: 'South Carolina', SD: 'South Dakota', TN: 'Tennessee', TX: 'Texas', UT: 'Utah', VT: 'Vermont', VA: 'Virginia', WA: 'Washington', WV: 'West Virginia', WI: 'Wisconsin', WY: 'Wyoming', PR: 'Puerto Rico' };
   const AMBIG_US_STATES = new Set(['OK', 'IN', 'ME', 'OR', 'HI', 'OH', 'ID', 'PA', 'MA', 'CO', 'DE', 'LA', 'MO', 'NE', 'AL', 'MI']);   // ordinary words or common abbreviations: only with a ZIP code
+  // Provider-neutral pronunciation overrides affect speech output only; the
+  // transcript and visible UI keep the original spelling.
+  const PRONUNCIATION_LEXICON = [
+    [/(?<![\w'-])ready(?![\w'-])/gi, 'reh-dee'],
+    [/(?<![\w'-])agent(?![\w'-])/gi, 'ay-jent'],
+    [/(?<![\w'-])KORA(?![\w'-])/g, 'K O R A'],
+    [/(?<![\w'-])KIRK(?![\w'-])/g, 'Kirk'],
+    [/(?<![\w'-])FORGE(?![\w'-])/g, 'Forge'],
+    [/(?<![\w'-])LEDGER(?![\w'-])/g, 'Ledger'],
+    [/(?<![\w'-])KANE(?![\w'-])/g, 'Kane']
+  ];
+  function applyPronunciationLexicon(text) {
+    return PRONUNCIATION_LEXICON.reduce((spoken, [pattern, replacement]) => spoken.replace(pattern, replacement), text);
+  }
   const digits = s => [...s].map(d => ONES[d]).join(' ');
   function houseNumber(s) {            // said the way people say street numbers: 8787 → eighty-seven eighty-seven, 405 → four oh five
     const pair = p => +p === 0 ? 'hundred' : +p < 10 ? 'oh ' + num(+p) : num(+p);
@@ -1768,7 +1782,8 @@ form.ask.chatask { margin-top: 2px; }
          .replace(/\s*(?:->|→|=>)\s*/g, ', ').replace(/[#~^|<>{}\[\]]/g, ' ');
     t = t.replace(/\s+([,.;:!?])/g, '$1').replace(/,\s*,/g, ',').replace(/([.!?])\s*,/g, '$1').replace(/,([.!?;:])/g, '$1').replace(/\s{2,}/g, ' ').trim();
     t = t.replace(/[,;:]+$/, '.');
-    return t.replace(/(^|[.!?]\s+)([a-z])/g, (_, p, c) => p + c.toUpperCase());   // capitalised sentence starts sound more natural
+    t = t.replace(/(^|[.!?]\s+)([a-z])/g, (_, p, c) => p + c.toUpperCase());   // capitalised sentence starts sound more natural
+    return applyPronunciationLexicon(t);
   }
   const voiceSilenced = () => { try { return sessionStorage.getItem('kibi.voice.preference') === 'silent'; } catch { return false; } };
   // the Voice toggle in the header (silent-mode.js): going silent stops whatever is being said now, too
