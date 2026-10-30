@@ -626,6 +626,7 @@ body.keyboard-open .dock { padding-bottom: 2px; }
     <div class="mark" id="mark"><i></i><span>Finnesey &amp; Kobler</span><em>The Model Shop</em></div>
     <span class="demo-tag" id="demoTag" hidden>Preview mode</span>
     <button class="chip" id="handsFree" aria-pressed="false" type="button">Hands-free</button>
+    <button class="chip" id="locationBtn" type="button" aria-pressed="false">Use my location</button>
     <button class="chip" id="logBtn" type="button">Chat</button>
     <button class="chip" id="setBtn" type="button">Settings</button>
   </header>
@@ -1402,6 +1403,34 @@ body.keyboard-open .dock { padding-bottom: 2px; }
     $('hAvg').textContent = s.times.length ? secs(s.times.reduce((a, b) => a + b, 0) / s.times.length) : '–';
   }
   function caption(html) { $('caption').innerHTML = html; $('caption').scrollTop = $('caption').scrollHeight; }
+
+  // Location is opt-in and session-scoped. The browser permission prompt is never
+  // triggered on page load, and the server receives only after explicit confirmation.
+  let locationState = store.get('locationState', 'off');
+  function renderLocation() {
+    const b = $('locationBtn'); if (!b) return;
+    b.textContent = locationState === 'shared' ? 'Location on' : 'Use my location';
+    b.setAttribute('aria-pressed', String(locationState === 'shared'));
+  }
+  async function forgetLocation() {
+    try { await fetch('/api/location', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ agent, session: convId() }) }); } catch {}
+    locationState = 'off'; store.set('locationState', locationState); renderLocation(); caption('<span class="you">Location sharing stopped and the session location was cleared.</span>');
+  }
+  async function useLocation() {
+    if (locationState === 'shared') return forgetLocation();
+    if (!window.isSecureContext || !navigator.geolocation) { locationState = 'unavailable'; renderLocation(); caption('<span class="err">Location requires a secure browser session with geolocation support.</span>'); return; }
+    if (!confirm('Allow Location Permission?')) return;
+    locationState = 'loading'; renderLocation(); caption('<span class="you">Requesting location permission…</span>');
+    navigator.geolocation.getCurrentPosition(async p => {
+      try {
+        const r = await fetch('/api/location', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ agent, session: convId(), latitude: p.coords.latitude, longitude: p.coords.longitude, accuracy: p.coords.accuracy, capturedAt: Date.now() }) });
+        if (!r.ok) throw new Error((await r.json()).error || 'Location was rejected.');
+        locationState = 'shared'; store.set('locationState', locationState); renderLocation(); caption('<span class="you">Location permission granted for this session.</span>');
+      } catch (e) { locationState = 'error'; renderLocation(); caption(`<span class="err">Location could not be shared: ${esc(e.message)}</span>`); }
+    }, e => { locationState = e.code === 1 ? 'denied' : e.code === 3 ? 'timeout' : 'unavailable'; renderLocation(); caption(`<span class="err">Location unavailable: ${esc(e.message || 'permission denied')}.</span>`); }, { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 });
+  }
+  $('locationBtn')?.addEventListener('click', useLocation);
+  renderLocation();
 
   // ---------- speech out ----------
   const synth = window.speechSynthesis;

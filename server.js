@@ -54,6 +54,8 @@ const SESSION_PREFIX = process.env.SESSION_PREFIX || 'orb';
 const OPENCLAW_DATA = process.env.OPENCLAW_DATA || '/openclaw';
 // Pocket TTS voice service (optional). Blank = the orb uses browser voices only.
 const VOICE_URL = (process.env.VOICE_URL || '').replace(/\/+$/, '');
+const LOCATION_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
+const sessionLocations = new Map();
 
 // ---- voice service status --------------------------------------------------------------------
 let voiceCache = { at: 0, info: { enabled: !!VOICE_URL, ready: false, voices: [], error: VOICE_URL ? null : 'Not configured' } };
@@ -371,8 +373,23 @@ const SECURITY_HEADERS = {
   'X-Content-Type-Options': 'nosniff',
   'Referrer-Policy': 'no-referrer',
   'X-Frame-Options': 'DENY',
-  'Permissions-Policy': 'microphone=(self)',
+  'Permissions-Policy': 'microphone=(self), geolocation=(self)',
 };
+
+async function handleLocation(req, res) {
+  let body;
+  try { body = JSON.parse(await readBody(req, 8192)); } catch { return send(res, 400, { error: 'Bad request body.' }); }
+  const agent = String(body.agent || DEFAULT_AGENT), session = String(body.session || '');
+  if (!AGENT_RE.test(agent) || !SESSION_RE.test(session)) return send(res, 400, { error: 'Bad agent or session.' });
+  const key = `${agent}:${session}`;
+  if (req.method === 'DELETE') { sessionLocations.delete(key); return send(res, 200, { ok: true }); }
+  if (req.method !== 'POST') return send(res, 405, { error: 'Method not allowed.' });
+  const latitude = Number(body.latitude), longitude = Number(body.longitude), accuracy = Number(body.accuracy), capturedAt = Number(body.capturedAt);
+  if (!Number.isFinite(latitude) || latitude < -90 || latitude > 90 || !Number.isFinite(longitude) || longitude < -180 || longitude > 180 || !Number.isFinite(accuracy) || accuracy < 0 || accuracy > 100000 || !Number.isFinite(capturedAt)) return send(res, 400, { error: 'Invalid location.' });
+  if (Math.abs(Date.now() - capturedAt) > LOCATION_RETENTION_MS) return send(res, 400, { error: 'Location is stale.' });
+  sessionLocations.set(key, { latitude, longitude, accuracy, capturedAt, source: 'browser', expiresAt: Date.now() + LOCATION_RETENTION_MS });
+  return send(res, 200, { ok: true, source: 'browser', capturedAt, expiresAt: Date.now() + LOCATION_RETENTION_MS });
+}
 
 function send(res, status, body, type = 'application/json') {
   res.writeHead(status, { 'Content-Type': type, 'Cache-Control': 'no-store', ...SECURITY_HEADERS });
@@ -1180,6 +1197,7 @@ http.createServer(async (req, res) => {
     if (pathname === '/api/heartbeat/keys') return await handleHeartbeatKeys(req, res, new URL(req.url, 'http://x'));
     if (pathname === '/api/presence' && req.method === 'GET') { const status = await agentStatus(new URL(req.url, 'http://x').searchParams.has('refresh')); return send(res, 200, { revision: status.checkedAt, agents: status.agents.map(a => ({ ...a, presence: { state: a.online ? (a.liveness?.state === 'HEALTHY' ? 'online' : 'stale') : 'offline', available: a.online, reason: a.reason } })) }); }
     if (pathname === '/api/agents' && req.method === 'GET') return send(res, 200, await agentStatus(new URL(req.url, 'http://x').searchParams.has('refresh')));
+    if (pathname === '/api/location' && ['POST', 'DELETE'].includes(req.method)) return await handleLocation(req, res);
     if (pathname === '/api/chat' && req.method === 'POST') return await handleChat(req, res);
     if (pathname === '/api/tts' && req.method === 'POST') return await handleTts(req, res);
     if (pathname === '/api/voices' || pathname.startsWith('/api/voices/')) return await handleVoices(req, res, new URL(req.url, 'http://x'));
