@@ -25,6 +25,7 @@
   --f-mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
 }
 html, body { height: 100%; }
+html { height: var(--app-height, 100%); }
 [hidden] { display: none !important; }
 body {
   background: var(--void);
@@ -32,11 +33,12 @@ body {
   background-attachment: fixed;
   color: var(--ink);
   font: 15px/1.5 var(--f-body);
+  min-height: var(--app-height, 100%);
   overflow: hidden;
   -webkit-tap-highlight-color: transparent;
 }
 .app {
-  height: 100%; box-sizing: border-box; position: relative;
+  height: var(--app-height, 100%); box-sizing: border-box; position: relative;
   display: grid; gap: 14px 18px;
   grid-template-columns: 272px minmax(0, 1fr) 268px;
   grid-template-rows: auto minmax(0, 1fr) auto;
@@ -587,6 +589,26 @@ form.ask.chatask { margin-top: 2px; }
   .agent .st { display: none; }
   .agent .nm { font-size: 13px; }
 }
+/* Mobile landscape has very little vertical room. Keep the talk dock visible and let the
+   stage absorb the available space instead of allowing the keyboard to cover the controls. */
+@media (orientation: landscape) and (max-width: 1000px) {
+  body { overflow: auto; }
+  .app { min-height: var(--app-height, 100%); height: auto; grid-template-rows: auto minmax(120px, 1fr) auto; gap: 8px; padding-top: max(8px, env(safe-area-inset-top, 0px)); padding-bottom: max(8px, env(safe-area-inset-bottom, 0px)); }
+  header { min-height: 32px; }
+  .stage { min-height: 120px; }
+  #orbBtn { width: min(38svh, 260px); }
+  .readout { bottom: 1%; gap: 4px; }
+  .agent-name { font-size: clamp(17px, 4svh, 26px); }
+  .dock { gap: 6px; }
+  .caption { min-height: 1.5em; max-height: 3em; font-size: 13px; }
+  .hint { display: none; }
+  form.ask { padding-bottom: env(safe-area-inset-bottom, 0px); }
+}
+/* While the software keyboard is open, the viewport controller adds this class. Do not
+   let the decorative stage consume the reduced visual viewport. */
+body.keyboard-open .stage { min-height: 96px; }
+body.keyboard-open .caption { max-height: 2.8em; }
+body.keyboard-open .dock { padding-bottom: 2px; }
 @media (max-width: 700px) { .mark em { display: none; } }
 @media (max-width: 520px) { .hint { display: none; } .core { letter-spacing: .2em; padding-left: .2em; } .core::before, .core::after { display: none; } .boot-log { font-size: 11px; } }
 @media (prefers-reduced-motion: reduce) { .agent.on.busy .dot, .stage::before { animation: none; } }
@@ -2161,6 +2183,28 @@ form.ask.chatask { margin-top: 2px; }
   const wait = (ms, sig) => new Promise((res, rej) => { const t = setTimeout(res, ms); sig?.addEventListener('abort', () => { clearTimeout(t); rej(new DOMException('', 'AbortError')); }); });
 
   // ---------- controls ----------
+  // Keep the shell sized to the visible viewport. Mobile browsers resize the visual
+  // viewport when the keyboard opens, but leave layout-viewport units unchanged.
+  // Using the visual viewport prevents the dock from disappearing behind the keyboard.
+  const viewport = window.visualViewport;
+  let viewportBaseHeight = Math.max(document.documentElement.clientHeight, innerHeight);
+  function syncViewport() {
+    const height = Math.round(viewport?.height || innerHeight);
+    if (height > 0) document.documentElement.style.setProperty('--app-height', `${height}px`);
+    const keyboardOpen = height < viewportBaseHeight - 120 && document.activeElement?.matches('textarea, input');
+    document.body.classList.toggle('keyboard-open', keyboardOpen);
+  }
+  function resetViewportBase() {
+    viewportBaseHeight = Math.max(viewportBaseHeight, document.documentElement.clientHeight, innerHeight);
+    syncViewport();
+  }
+  viewport?.addEventListener('resize', syncViewport, { passive: true });
+  viewport?.addEventListener('scroll', syncViewport, { passive: true });
+  addEventListener('resize', resetViewportBase, { passive: true });
+  addEventListener('orientationchange', () => setTimeout(resetViewportBase, 250), { passive: true });
+  document.addEventListener('focusin', syncViewport, { passive: true });
+  document.addEventListener('focusout', () => setTimeout(resetViewportBase, 120), { passive: true });
+  syncViewport();
   function orbTap() {
     if (state === 'offline') { caption(`<span class="you">${esc(currentLabel())} is offline. Checking again…</span>`); poll(true); return; }
     if (state === 'listening') return stopListening();
