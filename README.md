@@ -304,7 +304,7 @@ clips can't be picked until it is.
   names count, so "call my wife" still goes to the agent as a request. Works even while the current agent is offline.
 - **Startup and shutdown belong to the home agent** (`DEFAULT_AGENT`, K.I.R.K.): shutting down switches back to him
   first and he says "Shutting down all systems", so he's the one there when you power up again.
-- **Version:** the startup and shutdown screens show the version from `package.json` (major.minor: `1.15.0` → **V1.15**).
+- **Version:** the startup and shutdown screens show the version from `package.json` (major.minor: `1.5.0` → **V1.5**).
   To release a new version, change it there.
 - **Chat Mode:** in the chat window, **Full screen** turns it into a ChatGPT-style page: a centred conversation, the
   agent's live glass orb at the top and as its icon beside each reply, agent switcher pills, and a large message bar
