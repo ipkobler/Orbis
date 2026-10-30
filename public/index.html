@@ -24,6 +24,23 @@
   --f-body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
   --f-mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
 }
+:root[data-theme="light"] {
+  color-scheme: light;
+  --void: #f2f6fb; --void-hi: #ffffff; --void-lo: #d9e4f1;
+  --panel: #ffffff; --line: #9db2c9; --ink: #10233d; --dim: #47627f; --off: #71839a;
+  --amber: #9a5b00; --alert: #b42318;
+}
+:root[data-theme="light"] body { background-image: radial-gradient(ellipse 80% 70% at 50% 42%, var(--void-hi) 0%, var(--void) 58%, var(--void-lo) 100%); }
+[data-theme="light"] .sheet { background: color-mix(in srgb, var(--panel) 96%, transparent); }
+/* The power-up / standby / shutdown console is a dark CRT scene in every theme: its panels,
+   scanlines and canvas effects are drawn for a dark ground. Pin the dark tokens inside it so
+   light mode doesn't leave a dark blob on a pale background; light mode starts after power-up. */
+:root[data-theme="light"] .boot {
+  color-scheme: dark;
+  --void: #06112b; --void-hi: #0f2350; --void-lo: #020814;
+  --panel: #0b1a38; --line: #1b3058; --ink: #e2ecf4; --dim: #8ea3c6; --off: #5a6b88;
+  --amber: #ffb547; --alert: #ff6b6b;
+}
 html, body { height: 100%; }
 [hidden] { display: none !important; }
 body {
@@ -724,6 +741,7 @@ form.ask.chatask { margin-top: 2px; }
 
   <aside class="sheet" id="setSheet" hidden>
     <h2>Settings <button class="close" data-close="setSheet" aria-label="Close">×</button></h2>
+    <div class="field"><label for="themeMode">Theme</label><select id="themeMode" aria-describedby="themeNote"><option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option></select><p class="note" id="themeNote">System follows your device preference. Light and Dark override it.</p></div>
     <div class="field"><label for="engine">Agent voices</label><select id="engine"><option value="clone">Cloned agent voices (Pocket TTS)</option><option value="browser">Browser voice</option></select></div>
     <p class="note" id="voiceNote"></p>
     <div class="field"><span class="label">Voice Manager</span>
@@ -841,6 +859,17 @@ form.ask.chatask { margin-top: 2px; }
     set(k, v) { try { localStorage.setItem('orb.' + k, JSON.stringify(v)); } catch {} },
   };
   const $ = id => document.getElementById(id);
+  const themeQuery = matchMedia('(prefers-color-scheme: light)');
+  function applyTheme(mode = store.get('themeMode', 'system')) {
+    const chosen = ['light', 'dark', 'system'].includes(mode) ? mode : 'system';
+    const resolved = chosen === 'system' ? (themeQuery.matches ? 'light' : 'dark') : chosen;
+    document.documentElement.dataset.theme = resolved;
+    document.documentElement.style.colorScheme = resolved;
+    const select = $('themeMode'); if (select) select.value = chosen;
+  }
+  applyTheme();
+  themeQuery.addEventListener?.('change', () => { if (store.get('themeMode', 'system') === 'system') applyTheme('system'); });
+  $('themeMode')?.addEventListener('change', e => { store.set('themeMode', e.target.value); applyTheme(e.target.value); });
   const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
   const hex = h => { h = String(h).replace('#', ''); return [0, 2, 4].map(i => parseInt(h.slice(i, i + 2), 16)); };
