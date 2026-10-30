@@ -23,24 +23,20 @@
   --f-display: "Chakra Petch", "Rajdhani", "Segoe UI", system-ui, sans-serif;
   --f-body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
   --f-mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  /* startup & shutdown console (kept in step with KIBIPower.palette in power-sequence.js) */
+  --boot-accent: #ff4d5e; --boot-accent-2: #ff9a4d; --boot-accent-3: #ffc75a; --boot-ok: #3ee08f; --boot-ice: #7fd4ff;
+  --boot-line: #5aa8ff; --boot-shade: rgba(0, 0, 0, .18); --boot-glow: 1;
 }
 :root[data-theme="light"] {
   color-scheme: light;
   --void: #f2f6fb; --void-hi: #ffffff; --void-lo: #d9e4f1;
   --panel: #ffffff; --line: #9db2c9; --ink: #10233d; --dim: #47627f; --off: #71839a;
   --amber: #9a5b00; --alert: #b42318;
+  --boot-accent: #c62f3e; --boot-accent-2: #b4561c; --boot-accent-3: #8a6100; --boot-ok: #157a47; --boot-ice: #2a6aa3;
+  --boot-line: #3d6896; --boot-shade: rgba(16, 35, 61, .05); --boot-glow: 0;
 }
 :root[data-theme="light"] body { background-image: radial-gradient(ellipse 80% 70% at 50% 42%, var(--void-hi) 0%, var(--void) 58%, var(--void-lo) 100%); }
 [data-theme="light"] .sheet { background: color-mix(in srgb, var(--panel) 96%, transparent); }
-/* The power-up / standby / shutdown console is a dark CRT scene in every theme: its panels,
-   scanlines and canvas effects are drawn for a dark ground. Pin the dark tokens inside it so
-   light mode doesn't leave a dark blob on a pale background; light mode starts after power-up. */
-:root[data-theme="light"] .boot {
-  color-scheme: dark;
-  --void: #06112b; --void-hi: #0f2350; --void-lo: #020814;
-  --panel: #0b1a38; --line: #1b3058; --ink: #e2ecf4; --dim: #8ea3c6; --off: #5a6b88;
-  --amber: #ffb547; --alert: #ff6b6b;
-}
 html, body { height: 100%; }
 html { height: var(--app-height, 100%); }
 [hidden] { display: none !important; }
@@ -90,22 +86,24 @@ header { grid-area: head; display: flex; align-items: center; gap: 10px; flex-wr
 /* A full-screen console that boots block by block: the boot sequence runs down the left (real checks), each block of
    the HUD powers up as its systems report in, and the core globe in the middle counts the load. Shutdown is the reverse. */
 .boot {
-  --kibi: #ff3b4d; --kibi-2: #ff8a3d; --kibi-3: #ffc23d; --kibi-ok: #3ee08f; --kibi-ice: #7fd4ff;
-  --kp: color-mix(in srgb, #0a1530 82%, transparent);       /* panel fill */
-  --kl: color-mix(in srgb, #5aa8ff 34%, transparent);        /* panel line */
+  /* every colour comes from the active theme's tokens (Light, Dark, or System resolved) */
+  --kibi: var(--boot-accent); --kibi-2: var(--boot-accent-2); --kibi-3: var(--boot-accent-3); --kibi-ok: var(--boot-ok); --kibi-ice: var(--boot-ice);
+  --kp: color-mix(in srgb, var(--panel) 82%, transparent);              /* panel fill */
+  --kl: color-mix(in srgb, var(--boot-line) 34%, transparent);          /* panel line */
   position: fixed; inset: 0; z-index: 50; cursor: pointer; overflow: hidden;
-  background: radial-gradient(ellipse 60% 55% at 50% 44%, #1a0f22 0%, #0a0d22 38%, var(--void-lo) 100%);
+  background: radial-gradient(ellipse 60% 55% at 50% 44%, var(--void-hi) 0%, var(--void) 42%, var(--void-lo) 100%);
   transition: opacity .75s ease, transform .75s ease, filter .75s ease;
   color: var(--ink);
 }
 .boot.out { opacity: 0; transform: scale(1.06); filter: blur(5px); pointer-events: none; }
 .boot::after { /* fine scanlines */
-  content: ""; position: fixed; inset: 0; pointer-events: none; opacity: .3; z-index: 3;
-  background: repeating-linear-gradient(to bottom, transparent 0 2px, rgba(0, 0, 0, .18) 2px 3px);
+  content: ""; position: fixed; inset: 0; pointer-events: none; opacity: .2; z-index: 3;
+  background: repeating-linear-gradient(to bottom, transparent 0 2px, var(--boot-shade) 2px 3px);
 }
 .boot-fx { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none; }
 @keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 @keyframes blink { 50% { opacity: .2; } }
+@keyframes breathe { 0%, 100% { opacity: .45; } 50% { opacity: 1; } }
 
 .kh { position: relative; z-index: 1; height: 100%; box-sizing: border-box; display: grid;
   grid-template-columns: minmax(270px, 24%) minmax(0, 1fr) minmax(240px, 22%); grid-template-rows: auto minmax(0, 1fr) auto;
@@ -116,19 +114,19 @@ header { grid-area: head; display: flex; align-items: center; gap: 10px; flex-wr
 /* top bar */
 .kh-top { grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; gap: 12px; min-width: 0; }
 .kh-brand { display: flex; align-items: center; gap: 9px; font: 600 12px/1 var(--f-display); letter-spacing: .26em; text-transform: uppercase; white-space: nowrap; overflow: hidden; }
-.kh-brand i { width: 8px; height: 8px; border-radius: 50%; background: var(--kibi); box-shadow: 0 0 10px var(--kibi); animation: blink 1.6s steps(2) infinite; flex: none; }
+.kh-brand i { width: 8px; height: 8px; border-radius: 50%; background: var(--kibi); box-shadow: 0 0 10px var(--kibi); animation: breathe 3.2s ease-in-out infinite; flex: none; }
 .kh-brand em { font-style: normal; color: var(--dim); font-weight: 500; letter-spacing: .2em; }
 .kh-chips { display: flex; gap: 8px; align-items: center; flex: none; }
 .kh-chip { font: 500 10.5px/1 var(--f-display); letter-spacing: .14em; text-transform: uppercase; color: var(--dim); padding: 8px 13px; border-radius: 999px;
   border: 1px dashed color-mix(in srgb, var(--kl) 80%, transparent); background: var(--kp); transition: color .3s, border-color .3s, box-shadow .3s, background .3s; white-space: nowrap; }
 .kh-chip.done { color: var(--ink); border-style: dashed; border-color: color-mix(in srgb, var(--kibi-ice) 55%, transparent); }
-.kh-chip.on { color: #fff; border: 1px solid var(--kibi); background: color-mix(in srgb, var(--kibi) 22%, var(--kp)); box-shadow: 0 0 16px -3px var(--kibi), inset 0 0 12px -4px var(--kibi); }
+.kh-chip.on { color: var(--ink); border: 1px solid var(--kibi); background: color-mix(in srgb, var(--kibi) 22%, var(--kp)); box-shadow: 0 0 16px -3px var(--kibi), inset 0 0 12px -4px var(--kibi); }
 .kh-ver { font: 600 11px/1 var(--f-mono); letter-spacing: .24em; padding: 8px 10px 8px calc(10px + .24em); border-radius: 999px; color: var(--kibi);
   border: 1px solid color-mix(in srgb, var(--kibi) 70%, transparent); background: color-mix(in srgb, var(--kibi) 10%, transparent); box-shadow: 0 0 14px -4px var(--kibi); }
 
 /* panels ("blocks") */
 .kh-p { position: relative; min-width: 0; background: var(--kp); border: 1px solid var(--kl); border-radius: 10px; padding: 10px 12px;
-  box-shadow: inset 0 0 22px -12px #5aa8ff, 0 0 0 1px rgba(0,0,0,.25); }
+  box-shadow: inset 0 0 22px -12px var(--boot-line), 0 0 0 1px var(--boot-shade); }
 .kh-p::before { content: ""; position: absolute; inset: -1px; border-radius: inherit; pointer-events: none;
   background: linear-gradient(var(--kibi-ice), var(--kibi-ice)) left top / 14px 1px no-repeat, linear-gradient(var(--kibi-ice), var(--kibi-ice)) left top / 1px 14px no-repeat,
               linear-gradient(var(--kibi-ice), var(--kibi-ice)) right bottom / 14px 1px no-repeat, linear-gradient(var(--kibi-ice), var(--kibi-ice)) right bottom / 1px 14px no-repeat; opacity: .8; }
@@ -140,11 +138,11 @@ header { grid-area: head; display: flex; align-items: center; gap: 10px; flex-wr
 /* a block that hasn't powered up yet: a dim outline */
 .kh-blk { transition: opacity .3s; }
 .kh-blk:not(.on) { opacity: .16; filter: grayscale(.8); }
-.kh-blk.on { animation: khOn .7s ease-out both; }
+.kh-blk.on { animation: khOn .7s cubic-bezier(.2, .7, .2, 1) both; }
 .kh-blk.quiet { animation: none; }
-.kh-blk.dn { animation: khDown .45s ease-in both; }
-@keyframes khOn { 0% { opacity: .16; clip-path: inset(0 0 100% 0); filter: brightness(2.2); } 35% { opacity: .9; } 45% { opacity: .3; } 60% { opacity: 1; clip-path: inset(0 0 0 0); } 100% { opacity: 1; clip-path: inset(0 0 0 0); filter: none; } }
-@keyframes khDown { 0% { opacity: 1; filter: none; } 40% { opacity: .8; filter: brightness(1.8); } 55% { opacity: .2; } 70% { opacity: .55; } 100% { opacity: .16; filter: grayscale(.8); } }
+.kh-blk.dn { animation: khDown .3s ease-in both; }
+@keyframes khOn { from { opacity: .16; transform: translateY(4px); filter: grayscale(.8); } to { opacity: 1; transform: none; filter: none; } }
+@keyframes khDown { from { opacity: 1; filter: none; } to { opacity: .16; filter: grayscale(.8); } }
 
 /* boot sequence (left): one row per system */
 .kh-seq { flex: 1 1 auto; min-height: 120px; display: flex; flex-direction: column; overflow: hidden; }
@@ -158,12 +156,12 @@ header { grid-area: head; display: flex; align-items: center; gap: 10px; flex-wr
 .kseg { position: relative; height: 8px; display: block;
   -webkit-mask: repeating-linear-gradient(90deg, #000 0 4px, transparent 4px 6px); mask: repeating-linear-gradient(90deg, #000 0 4px, transparent 4px 6px); }
 .kseg::before { content: ""; position: absolute; inset: 0; background: color-mix(in srgb, var(--kl) 55%, transparent); }
-.kseg i { position: absolute; inset: 0; background: linear-gradient(90deg, #ff3b4d 0%, #ff8a3d 33%, #ffd23d 60%, #3ee08f 100%); clip-path: inset(0 100% 0 0); }
+.kseg i { position: absolute; inset: 0; background: linear-gradient(90deg, var(--kibi) 0%, var(--kibi-2) 33%, var(--kibi-3) 60%, var(--kibi-ok) 100%); clip-path: inset(0 100% 0 0); }
 .kr b { font-weight: 500; text-align: right; letter-spacing: .06em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--dim); font-variant-numeric: tabular-nums; }
 .kr b.pending { color: var(--kibi-3); }
-.kr b.ok { color: var(--kibi-ok); } .kr b.warn { color: var(--amber); } .kr b.bad, .kr b.off { color: #ff5a6a; }
+.kr b.ok { color: var(--kibi-ok); } .kr b.warn { color: var(--amber); } .kr b.bad, .kr b.off { color: var(--alert); }
 .kr b.ok, .kr b.bad, .kr b.warn, .kr b.off { animation: pop .28s ease-out; }
-@keyframes pop { 0% { transform: scale(1.3); filter: brightness(2); } 100% { transform: none; filter: none; } }
+@keyframes pop { from { opacity: .35; } to { opacity: 1; } }
 
 /* hardware initialization (left) */
 .kh-hw .hwr { display: grid; grid-template-columns: minmax(0, 1fr) auto 48px; gap: 8px; align-items: center; font-size: 10px; text-transform: uppercase; }
@@ -185,22 +183,17 @@ header { grid-area: head; display: flex; align-items: center; gap: 10px; flex-wr
 .kh-globe { position: relative; width: 100%; height: 100%; min-height: 200px; }
 .kh-globe canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
 .kh-hex { position: absolute; left: 4%; top: 50%; transform: translateY(-50%); display: grid; gap: 3px; font: 10px/1 var(--f-mono); color: color-mix(in srgb, var(--kibi-2) 70%, var(--dim)); opacity: .75; }
-.kh-hex span.hot { color: #fff; text-shadow: 0 0 8px var(--kibi-2); }
+.kh-hex span.hot { color: var(--ink); text-shadow: 0 0 8px var(--kibi-2); }
 .kh-lbl { position: absolute; font: 10px/1.25 var(--f-mono); color: var(--dim); text-transform: uppercase; }
 .kh-lbl b { display: block; color: var(--ink); font-weight: 500; }
 .kh-name-box { display: grid; justify-items: center; gap: 7px; text-align: center; padding-bottom: 4px; }
 .kh-wave { display: flex; gap: 2px; align-items: center; height: 22px; padding: 0 16px; border-radius: 999px; border: 1px solid color-mix(in srgb, var(--kibi) 45%, transparent); background: var(--kp); }
 .kh-wave i { width: 2px; height: 30%; border-radius: 1px; background: var(--kibi-2); transition: height .12s; }
-.kh-name { font: 600 clamp(28px, 4.6vw, 46px)/1 var(--f-display); letter-spacing: .32em; padding-left: .32em; color: #fff; text-shadow: 0 0 24px color-mix(in srgb, var(--kibi) 75%, transparent); }
-.kh-name.glitch { animation: glitch 1.1s .2s steps(1) 1; }
-@keyframes glitch {
-  0%, 100% { text-shadow: 0 0 24px color-mix(in srgb, var(--kibi) 75%, transparent); transform: none; }
-  10% { text-shadow: -3px 0 #ff3b4d, 3px 0 #3ee0ff; transform: translateX(2px) skewX(-6deg); }
-  14% { text-shadow: 3px 0 #ff3b4d, -3px 0 #3ee0ff; transform: translateX(-2px); }
-  18% { text-shadow: 0 0 24px color-mix(in srgb, var(--kibi) 75%, transparent); transform: none; }
-  52% { text-shadow: -2px 0 #ff3b4d, 2px 0 #3ee0ff; transform: translateX(-1px) skewX(4deg); }
-  56% { text-shadow: 0 0 24px color-mix(in srgb, var(--kibi) 75%, transparent); transform: none; }
-}
+.kh-name { font: 600 clamp(28px, 4.6vw, 46px)/1 var(--f-display); letter-spacing: .32em; padding-left: .32em; color: var(--ink);
+  text-shadow: 0 0 calc(22px * var(--boot-glow)) color-mix(in srgb, var(--kibi) 55%, transparent); }
+/* the name resolves out of a soft blur as the letters settle: one slow, deliberate move */
+.kh-name.reveal { animation: nameReveal 1.4s .15s cubic-bezier(.2, .7, .2, 1) both; }
+@keyframes nameReveal { from { opacity: 0; letter-spacing: .6em; filter: blur(6px); } to { opacity: 1; letter-spacing: .32em; filter: none; } }
 .kh-sub { font: 500 10px/1.3 var(--f-display); letter-spacing: .34em; padding-left: .34em; color: var(--dim); text-transform: uppercase; }
 .kh-sub b { color: var(--kibi); font-weight: 600; }
 .kh-core { font: 500 clamp(13px, 1.9vw, 19px)/1.2 var(--f-display); letter-spacing: .12em; text-transform: uppercase; color: var(--kibi-3); text-shadow: 0 0 14px color-mix(in srgb, var(--kibi-2) 60%, transparent); }
@@ -226,17 +219,17 @@ header { grid-area: head; display: flex; align-items: center; gap: 10px; flex-wr
 .kh-stat::before { display: none; }
 .kh-stat .sr { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 8px 12px; border: 1px solid color-mix(in srgb, var(--kibi-3) 45%, transparent); border-radius: 8px; background: var(--kp); font: 500 10.5px/1 var(--f-display); letter-spacing: .14em; }
 .kh-stat .sr b { font: 500 10.5px/1 var(--f-mono); letter-spacing: .06em; color: var(--kibi-3); }
-.kh-stat .sr b.ok { color: var(--kibi-ok); } .kh-stat .sr b.bad { color: #ff5a6a; }
+.kh-stat .sr b.ok { color: var(--kibi-ok); } .kh-stat .sr b.bad { color: var(--alert); }
 .kh-resp { display: grid; grid-template-columns: minmax(0, 1fr) 70px; gap: 6px 10px; align-items: center; }
 .kh-resp h4 { grid-column: 1 / -1; margin: 0; color: var(--kibi-3); }
 .kh-resp .kv { display: grid; gap: 5px; font-size: 10.5px; }
 .kh-resp .kv div { display: flex; justify-content: space-between; gap: 8px; }
 .kh-resp .kv span { color: var(--dim); }
 .kh-resp canvas { width: 70px; height: 70px; }
-.boot b.ok { color: var(--kibi-ok); } .boot b.bad { color: #ff5a6a; }
+.boot b.ok { color: var(--kibi-ok); } .boot b.bad { color: var(--alert); }
 .kh-c3 .sr { display: flex; justify-content: space-between; gap: 8px; font: 500 10.5px/1.7 var(--f-display); letter-spacing: .14em; }
 .kh-c3 .sr b { font: 500 10.5px/1.7 var(--f-mono); color: var(--kibi-3); }
-.kh-c3 .sr b.ok { color: var(--kibi-ok); } .kh-c3 .sr b.bad { color: #ff5a6a; }
+.kh-c3 .sr b.ok { color: var(--kibi-ok); } .kh-c3 .sr b.bad { color: var(--alert); }
 
 /* bottom */
 .kh-bot { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(0, 24%) minmax(0, 1fr) minmax(0, 22%); gap: 18px; align-items: end; }
@@ -253,17 +246,13 @@ header { grid-area: head; display: flex; align-items: center; gap: 10px; flex-wr
 .kh-tr { font: 10px/1.5 var(--f-mono); color: var(--dim); text-align: right; text-transform: uppercase; white-space: nowrap; overflow: hidden; }
 
 /* switching off */
-.boot.fading .kh { transition: opacity 1s ease; opacity: .12; }
-.boot.off { background: #01040a; transition: background .6s ease .3s; }
+.boot.fading .kh { transition: opacity .35s ease; opacity: .12; }
+.boot.off { background: var(--void-lo); transition: background .4s ease .1s; }
 .boot.off-content .kh { visibility: hidden; }
 .boot.off .boot-fx { opacity: 0; transition: opacity .3s; }
-.boot.off .kh { animation: crt .75s cubic-bezier(.7,0,.3,1) forwards; }
-@keyframes crt {
-  0%   { transform: scale(1, 1); filter: brightness(1); opacity: 1; }
-  45%  { transform: scale(1, .006); filter: brightness(4); opacity: 1; }
-  75%  { transform: scale(.02, .006); filter: brightness(6); opacity: 1; }
-  100% { transform: scale(0, 0); filter: brightness(8); opacity: 0; }
-}
+/* the console settles away: a short fade with a slight recede, no CRT collapse */
+.boot.off .kh { animation: settleOff .5s cubic-bezier(.4, 0, .2, 1) forwards; }
+@keyframes settleOff { from { opacity: 1; transform: none; filter: none; } to { opacity: 0; transform: scale(.985); filter: blur(3px); } }
 .boot-sleep { position: fixed; inset: 0; z-index: 4; display: grid; place-content: center; justify-items: center; gap: 18px; text-align: center; animation: rise 1.2s ease both; font: 500 12px/1 var(--f-display); text-transform: uppercase; }
 .boot-sleep i { width: 6px; height: 6px; border-radius: 50%; background: var(--kibi); box-shadow: 0 0 14px var(--kibi); animation: standby 3.2s ease-in-out infinite; }
 .boot-sleep .label { color: var(--dim); letter-spacing: .32em; padding-left: .32em; }
@@ -272,10 +261,10 @@ header { grid-area: head; display: flex; align-items: center; gap: 10px; flex-wr
 
 /* the console's panels power up one block at a time after the boot screen, and off in reverse */
 .pwr-off { opacity: 0 !important; pointer-events: none; }
-.pwr-on { animation: pwrOn .6s ease-out both; }
-@keyframes pwrOn { 0% { opacity: 0; transform: translateY(6px); clip-path: inset(0 0 100% 0); filter: brightness(2.4); } 30% { opacity: .55; } 45% { opacity: .15; } 60% { opacity: 1; clip-path: inset(0 0 0 0); } 100% { opacity: 1; transform: none; clip-path: inset(0 0 0 0); filter: none; } }
-.pwr-down { animation: pwrDown .42s ease-in both; pointer-events: none; }
-@keyframes pwrDown { 0% { opacity: 1; clip-path: inset(0 0 0 0); } 40% { opacity: .85; clip-path: inset(0 0 0 0); filter: brightness(1.8); } 55% { opacity: .15; } 70% { opacity: .5; } 100% { opacity: 0; transform: translateY(6px); clip-path: inset(0 0 100% 0); } }
+.pwr-on { animation: pwrOn .6s cubic-bezier(.2, .7, .2, 1) both; }
+@keyframes pwrOn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.pwr-down { animation: pwrDown .26s ease-in both; pointer-events: none; }
+@keyframes pwrDown { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateY(4px); } }
 
 /* shorter screens: fewer blocks */
 @media (max-height: 820px) and (min-width: 821px) { .kh-brain, .kh-c3 { display: none; } }
@@ -800,7 +789,7 @@ body.keyboard-open .dock { padding-bottom: 2px; }
   <div class="kh" id="kh">
     <div class="kh-top">
       <div class="kh-brand"><i></i>Finnesey &amp; Kobler <em>· The Model Shop</em></div>
-      <div class="kh-chips" id="khChips"><span class="kh-chip"></span><span class="kh-chip"></span><span class="kh-chip"></span><span class="kh-ver" data-kibi-ver>V1.15</span></div>
+      <div class="kh-chips" id="khChips"><span class="kh-chip"></span><span class="kh-chip"></span><span class="kh-chip"></span><span class="kh-ver" data-kibi-ver>V1.5</span></div>
     </div>
 
     <div class="kh-col kh-left">
@@ -828,7 +817,7 @@ body.keyboard-open .dock { padding-bottom: 2px; }
       <div class="kh-name-box">
         <div class="kh-wave" id="khWave" aria-hidden="true"></div>
         <div class="kh-name" id="khName">K.I.B.I.</div>
-        <div class="kh-sub">Kobler Interactive Bot Interface · <b data-kibi-ver>V1.15</b></div>
+        <div class="kh-sub">Kobler Interactive Bot Interface · <b data-kibi-ver>V1.5</b></div>
         <div class="kh-core"><span id="bootState">Core initialization</span>: <b id="bootPct">0%</b> <span id="bootWord">complete</span></div>
         <div class="kh-pill" id="bootHead"></div>
       </div>
@@ -869,11 +858,12 @@ body.keyboard-open .dock { padding-bottom: 2px; }
   </div>
   <div class="boot-sleep" id="bootSleep" hidden>
     <i></i>
-    <div class="label">K.I.B.I. <span data-kibi-ver>V1.15</span> offline</div>
+    <div class="label">K.I.B.I. <span data-kibi-ver>V1.5</span> offline</div>
     <div class="hint2">Tap or press any key to power up</div>
   </div>
 </div>
 
+<script src="/power-sequence.js"></script>
 <script>
 (() => {
   // ---------- helpers ----------
@@ -885,10 +875,11 @@ body.keyboard-open .dock { padding-bottom: 2px; }
   const themeQuery = matchMedia('(prefers-color-scheme: light)');
   function applyTheme(mode = store.get('themeMode', 'system')) {
     const chosen = ['light', 'dark', 'system'].includes(mode) ? mode : 'system';
-    const resolved = chosen === 'system' ? (themeQuery.matches ? 'light' : 'dark') : chosen;
+    const resolved = KIBIPower.resolveTheme(chosen, themeQuery.matches);
     document.documentElement.dataset.theme = resolved;
     document.documentElement.style.colorScheme = resolved;
     const select = $('themeMode'); if (select) select.value = chosen;
+    dispatchEvent(new CustomEvent('kibi-theme', { detail: { mode: chosen, theme: resolved } }));   // the startup/shutdown console re-reads its colours
   }
   applyTheme();
   themeQuery.addEventListener?.('change', () => { if (store.get('themeMode', 'system') === 'system') applyTheme('system'); });
@@ -3084,96 +3075,54 @@ body.keyboard-open .dock { padding-bottom: 2px; }
   requestAnimationFrame(frame);
 
   // ---------- startup & shutdown sounds ----------
-  // Original digital effects, synthesised live with Web Audio (no audio files): a powering-up hum and
-  // sweep, a data blip as each system reports in, a confirmation chord; and the reverse for shutdown.
+  // One smooth swept "voom" per sequence, synthesised live with Web Audio (no audio files): it rises as the
+  // console boots and falls, faster, as it shuts down. No beeps, blips, chimes or clicks. Sound plays only when the
+  // "Startup & shutdown sounds" setting is on and silent mode is off (KIBIPower.soundAllowed).
   let sfxOn = store.get('sfxOn', true);
+  const soundAllowed = () => KIBIPower.soundAllowed({ sfxOn, silent: voiceSilenced() });
   $('sfxOn').value = sfxOn ? '1' : '0';
-  $('sfxOn').addEventListener('change', e => { sfxOn = e.target.value === '1'; store.set('sfxOn', sfxOn); if (!sfxOn) sfx.stopHum(); });
+  $('sfxOn').addEventListener('change', e => { sfxOn = e.target.value === '1'; store.set('sfxOn', sfxOn); if (!sfxOn) sfx.stop(); });
+  addEventListener('kibi-voice', e => { if (e.detail?.silent) sfx.stop(); });   // going silent cuts a voom that's playing
   const sfx = (() => {
-    let bus = null, hum = null;
+    let bus = null, voice = null;
     const ctx = () => { ensureAudio(); return audioCtx && audioCtx.state === 'running' ? audioCtx : null; };
     function out(c) {
       if (bus && bus.context === c) return bus;
-      const comp = c.createDynamicsCompressor(); comp.threshold.value = -18; comp.ratio.value = 4;
+      const comp = c.createDynamicsCompressor(); comp.threshold.value = -18; comp.ratio.value = 3;
       bus = c.createGain(); bus.gain.value = 0.32; bus.connect(comp); comp.connect(c.destination);
       return bus;
     }
-    function tone({ f0, f1 = f0, dur = 0.12, type = 'sine', vol = 0.3, at = 0, attack = 0.005, q = 0, cutoff0 = 0, cutoff1 = 0, detune = 0 }) {
-      const c = ctx(); if (!c || !sfxOn) return;
-      const t = c.currentTime + at, o = c.createOscillator(), g = c.createGain();
-      o.type = type; o.detune.value = detune;
-      o.frequency.setValueAtTime(f0, t); if (f1 !== f0) o.frequency.exponentialRampToValueAtTime(Math.max(20, f1), t + dur);
-      g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + attack); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-      let node = o;
-      if (cutoff0) { const f = c.createBiquadFilter(); f.type = 'lowpass'; f.Q.value = q || 6; f.frequency.setValueAtTime(cutoff0, t); f.frequency.exponentialRampToValueAtTime(cutoff1 || cutoff0, t + dur); o.connect(f); node = f; }
-      node.connect(g); g.connect(out(c)); o.start(t); o.stop(t + dur + 0.05);
+    function stop(fade = 0.25) {
+      if (!voice || !audioCtx) { voice = null; return; }
+      const t = audioCtx.currentTime, v = voice; voice = null;
+      v.g.gain.cancelScheduledValues(t); v.g.gain.setValueAtTime(Math.max(0.0001, v.g.gain.value), t); v.g.gain.exponentialRampToValueAtTime(0.0001, t + fade);
+      v.oscs.forEach(o => { try { o.stop(t + fade + 0.05); } catch {} });
     }
-    function noise({ dur = 0.08, vol = 0.2, at = 0, freq = 2000, q = 1 }) {
-      const c = ctx(); if (!c || !sfxOn) return;
-      const t = c.currentTime + at, b = c.createBuffer(1, Math.ceil(c.sampleRate * dur), c.sampleRate), d = b.getChannelData(0);
-      for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / d.length);
-      const s = c.createBufferSource(), f = c.createBiquadFilter(), g = c.createGain();
-      s.buffer = b; f.type = 'bandpass'; f.frequency.value = freq; f.Q.value = q; g.gain.value = vol;
-      s.connect(f); f.connect(g); g.connect(out(c)); s.start(t);
+    // the voom: detuned sine + triangle (and a sub an octave down) gliding together through a low-pass filter
+    // that opens on the way up and closes on the way down; a soft attack and a long tail
+    function voom(direction) {
+      const c = ctx(); if (!c || !soundAllowed()) return false;
+      stop(0.08);
+      const v = KIBIPower.voomPlan(direction), t = c.currentTime, end = t + v.dur;
+      const g = c.createGain(), f = c.createBiquadFilter();
+      f.type = 'lowpass'; f.Q.value = 0.9;
+      f.frequency.setValueAtTime(v.cutoff0, t); f.frequency.exponentialRampToValueAtTime(v.cutoff1, end);
+      g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(v.gain, t + v.attack);
+      g.gain.setValueAtTime(v.gain, Math.max(t + v.attack, end - v.release)); g.gain.exponentialRampToValueAtTime(0.0001, end);
+      const parts = [...v.waves.map((type, k) => [type, 1, k ? v.detune : 0]), ['sine', 0.5, 0]];
+      const oscs = parts.map(([type, ratio, detune]) => {
+        const o = c.createOscillator(); o.type = type; o.detune.value = detune;
+        o.frequency.setValueAtTime(v.f0 * ratio, t); o.frequency.exponentialRampToValueAtTime(v.f1 * ratio, end);
+        o.connect(f); o.start(t); o.stop(end + 0.05); return o;
+      });
+      f.connect(g); g.connect(out(c));
+      voice = { g, oscs }; oscs[0].onended = () => { if (voice?.oscs === oscs) voice = null; };
+      return true;
     }
-    const PENT = [0, 3, 5, 7, 10, 12, 15, 17, 19, 22];
     return {
-      startHum(rise = true) {
-        const c = ctx(); if (!c || !sfxOn || hum) return;
-        const t = c.currentTime, g = c.createGain(), f = c.createBiquadFilter(), a = c.createOscillator(), b = c.createOscillator(), lfo = c.createOscillator(), lg = c.createGain();
-        a.type = 'sawtooth'; b.type = 'sawtooth'; a.frequency.value = 55; b.frequency.value = 55.6;
-        f.type = 'lowpass'; f.Q.value = 8; f.frequency.setValueAtTime(rise ? 90 : 900, t); f.frequency.exponentialRampToValueAtTime(rise ? 700 : 900, t + 4);
-        lfo.frequency.value = 0.35; lg.gain.value = 120; lfo.connect(lg); lg.connect(f.frequency);
-        g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.09, t + 1.2);
-        a.connect(f); b.connect(f); f.connect(g); g.connect(out(c)); a.start(t); b.start(t); lfo.start(t);
-        hum = { a, b, lfo, g, f };
-      },
-      stopHum(fall = 0.8, drop = false) {
-        if (!hum || !audioCtx) { hum = null; return; }
-        const t = audioCtx.currentTime, h = hum; hum = null;
-        if (drop) { h.a.frequency.exponentialRampToValueAtTime(22, t + fall); h.b.frequency.exponentialRampToValueAtTime(21, t + fall); h.f.frequency.exponentialRampToValueAtTime(60, t + fall); }
-        h.g.gain.cancelScheduledValues(t); h.g.gain.setValueAtTime(Math.max(0.0001, h.g.gain.value), t); h.g.gain.exponentialRampToValueAtTime(0.0001, t + fall);
-        [h.a, h.b, h.lfo].forEach(o => o.stop(t + fall + 0.05));
-      },
-      // power-on: bass thump and a rising filtered sweep
-      powerOn() {
-        tone({ f0: 70, f1: 38, dur: 0.5, type: 'sine', vol: 0.5 });
-        tone({ f0: 110, f1: 880, dur: 1.1, type: 'sawtooth', vol: 0.12, at: 0.08, cutoff0: 200, cutoff1: 4200, q: 10 });
-        tone({ f0: 112, f1: 892, dur: 1.1, type: 'sawtooth', vol: 0.1, at: 0.08, cutoff0: 200, cutoff1: 4200, q: 10, detune: 12 });
-      },
-      // one blip per system reporting in, climbing (startup) or falling (shutdown) a pentatonic scale
-      blip(i, up = true, bad = false) {
-        const step = PENT[Math.min(PENT.length - 1, Math.max(0, i))], f = 660 * Math.pow(2, (up ? step : -step) / 12);
-        if (bad) { tone({ f0: 220, f1: 180, dur: 0.16, type: 'square', vol: 0.09, cutoff0: 1200 }); return; }
-        tone({ f0: f, dur: 0.07, type: 'square', vol: 0.08, cutoff0: 3500, q: 2 });
-        tone({ f0: f * 2, dur: 0.05, type: 'sine', vol: 0.06, at: 0.045 });
-      },
-      // the name collapsing into the acronym: a quick digital shimmer up
-      lockOn() {
-        for (let k = 0; k < 6; k++) tone({ f0: 900 + k * 260, dur: 0.06, type: 'triangle', vol: 0.07, at: k * 0.045 });
-        noise({ dur: 0.35, vol: 0.06, freq: 5000, q: 0.8, at: 0.05 });
-      },
-      // startup complete: a bright confirmation chord
-      complete() {
-        [523.25, 659.25, 783.99, 1046.5].forEach((f, k) => tone({ f0: f, dur: 1.6, type: k === 3 ? 'sine' : 'triangle', vol: 0.09, at: k * 0.06, attack: 0.02 }));
-        tone({ f0: 2093, dur: 0.5, type: 'sine', vol: 0.04, at: 0.3 });
-        this.stopHum(1.6);
-      },
-      // shutdown begins: falling sweep
-      powerDown() {
-        tone({ f0: 1400, f1: 160, dur: 0.9, type: 'sawtooth', vol: 0.1, cutoff0: 5000, cutoff1: 300, q: 9 });
-        tone({ f0: 1408, f1: 158, dur: 0.9, type: 'sawtooth', vol: 0.08, cutoff0: 5000, cutoff1: 300, q: 9, detune: -12 });
-      },
-      // core draining: the hum's pitch sinks away
-      drain(seconds = 1.4) { this.stopHum(seconds, true); tone({ f0: 330, f1: 60, dur: seconds, type: 'triangle', vol: 0.08, attack: 0.05 }); },
-      // CRT collapse: a high whine falling, then the click of the tube switching off
-      crtOff() {
-        tone({ f0: 9000, f1: 300, dur: 0.6, type: 'sine', vol: 0.05 });
-        noise({ dur: 0.06, vol: 0.35, freq: 1800, q: 0.7, at: 0.55 });
-        tone({ f0: 90, f1: 40, dur: 0.25, type: 'sine', vol: 0.35, at: 0.55 });
-      },
-      // a console panel switching on (or off)
-      tick(up = true) { tone({ f0: up ? 1320 : 990, f1: up ? 1760 : 660, dur: 0.05, type: 'square', vol: 0.045, cutoff0: 4000, q: 2 }); },
+      boot: () => voom('up'),        // startup: one rising voom
+      shutdown: () => voom('down'),  // shutdown: one falling voom, shorter than the rise
+      stop,
       running: () => !!ctx(),
     };
   })();
@@ -3194,13 +3143,15 @@ body.keyboard-open .dock { padding-bottom: 2px; }
       el.addEventListener('click', go); addEventListener('keydown', go, { capture: true });
     });
   }
-  // "Startup complete", said by whichever agent is live
-  function announce(text) {
-    const live = cur()?.online ? cur() : agents.find(a => a.online);
-    if (!live) return;
-    setTimeout(() => { if (!poweredDown && state !== 'listening') speak(text, live.id); }, 450);
+  // K.I.R.K. (the home agent) speaks the approved lines: once when a boot completes, once when shutdown starts.
+  // speak() already honours silent mode, so a silenced console stays quiet.
+  const T = KIBIPower.TIMING, PHRASES = KIBIPower.PHRASES;
+  const kirk = () => agents.find(a => a.id === homeAgent());
+  function kirkSays(text, run) {
+    const k = kirk(); if (!k) return false;
+    if (run !== bootRun) return false;
+    speak(text, k.id); return true;
   }
-
   // ---------- startup sequence: K.I.B.I. ----------
   // The boot screen loads each system 0000 → 1000 (red → green). The gateway, tools, roster, agents and voice rows
   // are real checks. Then the console's panels power up one by one, the orb draws itself in the middle, and the
@@ -3220,20 +3171,20 @@ body.keyboard-open .dock { padding-bottom: 2px; }
     for (const el of panels()) {
       if (run !== bootRun) return;
       if (el.id === 'orb') onOrb?.();
-      el.classList.remove('pwr-off', 'pwr-down'); el.classList.add('pwr-on'); sfx.tick();
-      await wait(reduceMotion ? 20 : 210);
+      el.classList.remove('pwr-off', 'pwr-down'); el.classList.add('pwr-on');
+      await wait(reduceMotion ? 20 : T.boot.panel);
     }
     setTimeout(() => panels().forEach(el => el.classList.remove('pwr-on')), 700);
   }
   async function panelsDown(run) {
     for (const el of panels().reverse()) {
       if (run !== bootRun) return;
-      el.classList.remove('pwr-on'); el.classList.add('pwr-down'); sfx.tick(false);
-      await wait(reduceMotion ? 20 : 150);
+      el.classList.remove('pwr-on'); el.classList.add('pwr-down');
+      await wait(reduceMotion ? 20 : T.shutdown.panel);
     }
   }
   // ---------- the K.I.B.I. HUD (startup and shutdown screen) ----------
-  const KIBI_VER = 'V' + (window.__KIBI_VERSION__ || '1.15');
+  const KIBI_VER = 'V' + (window.__KIBI_VERSION__ || '1.5');
   document.querySelectorAll('[data-kibi-ver]').forEach(n => { n.textContent = KIBI_VER; });
   const pad4 = n => String(Math.max(0, Math.min(1000, Math.round(n)))).padStart(4, '0');
   const PHASES = { boot: ['Boot active', 'Booting…', 'Initializing', 'Online'], shutdown: ['Shutdown active', 'Powering down', 'Terminating', 'Offline'] };
@@ -3245,8 +3196,8 @@ body.keyboard-open .dock { padding-bottom: 2px; }
       const on = i < n;
       if (on === el.classList.contains('on')) return;
       el.classList.remove('on', 'dn', 'quiet');
-      if (on) { el.classList.add('on'); if (quiet) el.classList.add('quiet'); else sfx.tick(); }
-      else if (!quiet) { el.classList.add('dn'); sfx.tick(false); }
+      if (on) { el.classList.add('on'); if (quiet) el.classList.add('quiet'); }
+      else if (!quiet) el.classList.add('dn');
     });
     hud.blocks = n;
   }
@@ -3330,10 +3281,20 @@ body.keyboard-open .dock { padding-bottom: 2px; }
     const g = c.getContext('2d'); g.setTransform(d, 0, 0, d, 0, 0); g.clearRect(0, 0, w, h);
     return { g, w, h };
   }
-  // red → amber → green along 0..1
-  const loadColor = (k, a = 1) => { const stops = [[255, 59, 77], [255, 138, 61], [255, 210, 61], [62, 224, 143]], f = clamp01(k) * 3, i = Math.min(2, Math.floor(f)), u = f - i;
+  // The console's canvas colours follow the active theme (KIBIPower.palette mirrors the CSS --boot-* tokens).
+  // Each is an open 'rgba(r,g,b,' prefix: add the alpha and ')'.
+  let PAL = KIBIPower.palette('dark'), R_, O_, A3_, B_, I_, INK, DIM;
+  const rgbaOpen = c => `rgba(${c[0]},${c[1]},${c[2]},`;
+  function hudPalette() {
+    PAL = KIBIPower.palette(document.documentElement.dataset.theme);
+    R_ = rgbaOpen(PAL.accent); O_ = rgbaOpen(PAL.accent2); A3_ = rgbaOpen(PAL.accent3); B_ = rgbaOpen(PAL.line); I_ = rgbaOpen(PAL.ice);
+    INK = `rgb(${PAL.ink.join(',')})`; DIM = rgbaOpen(PAL.dim) + '.75)';
+  }
+  hudPalette();
+  addEventListener('kibi-theme', hudPalette);
+  // accent → amber → ok along 0..1
+  const loadColor = (k, a = 1) => { const stops = [PAL.accent, PAL.accent2, PAL.accent3, PAL.ok], f = clamp01(k) * 3, i = Math.min(2, Math.floor(f)), u = f - i;
     const c = stops[i].map((v, n) => Math.round(v + (stops[i + 1][n] - v) * u)); return `rgba(${c[0]},${c[1]},${c[2]},${a})`; };
-  const R_ = 'rgba(255,59,77,', O_ = 'rgba(255,138,61,', B_ = 'rgba(90,168,255,', I_ = 'rgba(127,212,255,';
 
   function drawFx(t, mo, power) {
     const c = fitCanvas($('bootFx')); if (!c) return; const { g, w, h } = c;
@@ -3411,7 +3372,7 @@ body.keyboard-open .dock { padding-bottom: 2px; }
     const rot = t * .35 * mo * (.2 + .8 * power), tilt = .38, ct = Math.cos(tilt), st = Math.sin(tilt);
     const proj = (lat, lon) => { const x = Math.cos(lat) * Math.sin(lon + rot), y = Math.sin(lat), z = Math.cos(lat) * Math.cos(lon + rot);
       return [cx + x * R, cy - (y * ct - z * st) * R, y * st + z * ct, x]; };
-    const col = (x, a) => { const k = (x + 1) / 2; return `rgba(${Math.round(170 + 85 * k)},${Math.round(215 - 110 * k)},${Math.round(255 - 175 * k)},${a})`; };
+    const col = (x, a) => { const k = (x + 1) / 2, c = PAL.globeFrom.map((v, n) => Math.round(v + (PAL.globeTo[n] - v) * k)); return `rgba(${c[0]},${c[1]},${c[2]},${a})`; };
     const seg = (pa, pb) => { const z = (pa[2] + pb[2]) / 2, a = (z > 0 ? .18 + .5 * z : .05) * power; g.strokeStyle = col((pa[3] + pb[3]) / 2, a); g.beginPath(); g.moveTo(pa[0], pa[1]); g.lineTo(pb[0], pb[1]); g.stroke(); };
     g.lineWidth = 1;
     for (let la = -75; la <= 75; la += 15) { const lat = la * Math.PI / 180; let prev = proj(lat, 0); for (let lo = 8; lo <= 360; lo += 8) { const cur = proj(lat, lo * Math.PI / 180); seg(prev, cur); prev = cur; } }
@@ -3420,7 +3381,7 @@ body.keyboard-open .dock { padding-bottom: 2px; }
     // rim and core
     g.lineWidth = 1.5; g.strokeStyle = I_ + (.5 * power) + ')'; g.beginPath(); g.arc(cx, cy, R, 0, 6.283); g.stroke();
     const core = g.createRadialGradient(cx, cy, 0, cx, cy, R * .6);
-    core.addColorStop(0, `rgba(255,120,110,${.55 * power})`); core.addColorStop(.5, R_ + (.22 * power) + ')'); core.addColorStop(1, R_ + '0)');
+    core.addColorStop(0, R_ + (.55 * power) + ')'); core.addColorStop(.5, R_ + (.22 * power) + ')'); core.addColorStop(1, R_ + '0)');
     g.fillStyle = core; g.beginPath(); g.arc(cx, cy, R * .6, 0, 6.283); g.fill();
     g.strokeStyle = R_ + (.7 * power) + ')'; g.lineWidth = 2; g.beginPath(); g.arc(cx, cy, R * .38, 0, 6.283); g.stroke();
     g.lineWidth = 1; g.strokeStyle = O_ + (.45 * power) + ')'; g.beginPath(); g.arc(cx, cy, R * .56, t * mo, t * mo + 4.4); g.stroke();
@@ -3432,14 +3393,14 @@ body.keyboard-open .dock { padding-bottom: 2px; }
       const a0 = Math.PI * 1.05, a1 = Math.PI * 1.95, N = 28;
       g.lineWidth = Math.max(5, r * .17);
       for (let k = 0; k < N; k++) { const s = a0 + (a1 - a0) * k / N, e = s + (a1 - a0) / N * .72; g.strokeStyle = k / N < v ? color + (.55 + .45 * k / N) + ')' : B_ + '.12)'; g.beginPath(); g.arc(x, y, r, s, e); g.stroke(); }
-      const na = a0 + (a1 - a0) * v; g.lineWidth = 2; g.strokeStyle = '#fff'; g.beginPath(); g.moveTo(x, y); g.lineTo(x + Math.cos(na) * r * .82, y + Math.sin(na) * r * .82); g.stroke();
-      g.fillStyle = 'rgba(200,215,240,.7)'; g.font = '9px ' + getComputedStyle(document.body).getPropertyValue('--f-mono'); g.textAlign = 'center';
-      g.fillText(lo, x - r * .95, y + 12); g.fillText(hi, x + r * .95, y + 12); g.fillStyle = '#fff'; g.fillText(mid, x, y + 12);
+      const na = a0 + (a1 - a0) * v; g.lineWidth = 2; g.strokeStyle = INK; g.beginPath(); g.moveTo(x, y); g.lineTo(x + Math.cos(na) * r * .82, y + Math.sin(na) * r * .82); g.stroke();
+      g.fillStyle = DIM; g.font = '9px ' + getComputedStyle(document.body).getPropertyValue('--f-mono'); g.textAlign = 'center';
+      g.fillText(lo, x - r * .95, y + 12); g.fillText(hi, x + r * .95, y + 12); g.fillStyle = INK; g.fillText(mid, x, y + 12);
     };
     const r = Math.min(w * .2, h * .56);
     const v1 = clamp01(.12 + .78 * p * power + .03 * Math.sin(t * 3)), v2 = clamp01(.08 + .62 * p * power + .04 * Math.sin(t * 2.2 + 1));
     gauge(w * .27, h * .8, r, v1, R_, '0', '500', Math.round(v1 * 500) + 'M');
-    gauge(w * .73, h * .8, r, v2, 'rgba(255,194,61,', '0', '150', Math.round(v2 * 150) + '°');
+    gauge(w * .73, h * .8, r, v2, A3_, '0', '150', Math.round(v2 * 150) + '°');
   }
 
   function drawBrain(t, mo, power) {
@@ -3452,7 +3413,7 @@ body.keyboard-open .dock { padding-bottom: 2px; }
     for (const pu of BRAIN.pulses) {
       pu.t += .02 * mo * (.3 + power); if (pu.t > 1) { pu.t = 0; pu.e = Math.floor(Math.random() * BRAIN.edges.length); }
       const [i, j] = BRAIN.edges[pu.e], x = P[i][0] + (P[j][0] - P[i][0]) * pu.t, y = P[i][1] + (P[j][1] - P[i][1]) * pu.t;
-      g.fillStyle = `rgba(220,250,255,${.9 * power})`; g.shadowColor = '#7fd4ff'; g.shadowBlur = 8; g.beginPath(); g.arc(x, y, 1.8, 0, 6.283); g.fill(); g.shadowBlur = 0;
+      g.fillStyle = I_ + (.9 * power) + ')'; g.shadowColor = I_ + '1)'; g.shadowBlur = 8 * PAL.glow; g.beginPath(); g.arc(x, y, 1.8, 0, 6.283); g.fill(); g.shadowBlur = 0;
     }
     // callout lines
     g.strokeStyle = I_ + (.3 * power) + ')'; g.lineWidth = 1;
@@ -3467,7 +3428,7 @@ body.keyboard-open .dock { padding-bottom: 2px; }
     g.clearRect(0, 0, W, W);
     g.lineWidth = 6; for (let k = 0; k < 24; k++) { const a = k / 24 * 6.283; g.strokeStyle = O_ + (k % 3 ? .18 : .45) * (.3 + power) + ')'; g.beginPath(); g.arc(cx, cx, r, a, a + .18); g.stroke(); }
     g.lineWidth = 3; g.strokeStyle = R_ + (.85 * power) + ')'; const a = t * 1.6 * mo; g.beginPath(); g.arc(cx, cx, r * .72, a, a + 2.2); g.stroke();
-    g.lineWidth = 2; g.strokeStyle = 'rgba(255,194,61,' + (.6 * power) + ')'; g.beginPath(); g.arc(cx, cx, r * .5, -a * 1.4, -a * 1.4 + 1.4); g.stroke();
+    g.lineWidth = 2; g.strokeStyle = A3_ + (.6 * power) + ')'; g.beginPath(); g.arc(cx, cx, r * .5, -a * 1.4, -a * 1.4 + 1.4); g.stroke();
     g.fillStyle = R_ + (.8 * power) + ')'; g.beginPath(); g.arc(cx, cx, r * .16, 0, 6.283); g.fill();
   }
   // DOM meters, built once
@@ -3576,8 +3537,8 @@ body.keyboard-open .dock { padding-bottom: 2px; }
     hudReset('boot');
     panelsOff(); orbAnim = null; orbDraw = 0; boot = 0;
     ensureAudio(); await wait(120);
-    if (sfxOn && !sfx.running()) { if (!(await waitForPowerTap(el, run))) return; await wait(80); }
-    const nm = $('khName'); nm.classList.remove('glitch'); void nm.offsetWidth; nm.classList.add('glitch');
+    if (soundAllowed() && !sfx.running()) { if (!(await waitForPowerTap(el, run))) return; await wait(80); }
+    const nm = $('khName'); nm.classList.remove('reveal'); void nm.offsetWidth; nm.classList.add('reveal');
     hudStart();
     Promise.resolve(ready).then(() => { if (run === bootRun) hud.ready = true; });
     // after the boot screen: the main interface comes up one block at a time, the orb draws in, then the voice confirms
@@ -3585,43 +3546,43 @@ body.keyboard-open .dock { padding-bottom: 2px; }
       if (run !== bootRun || finishing) return;
       finishing = true; skipped = true;
       removeEventListener('keydown', onKey, { capture: true }); el.onclick = null;
-      if (!completed) { sfx.complete(); setTotal(1); setBlocks(hudBlocks().length, true); setPhase(3); }
+      if (!completed) { setTotal(1); setBlocks(hudBlocks().length, true); setPhase(3); }
       el.classList.add('out');
       setTimeout(() => { if (run === bootRun) el.hidden = true; }, 800);
       try { sessionStorage.setItem('orb.booted', '1'); } catch {}
-      await wait(reduceMotion ? 50 : 420);
+      await wait(reduceMotion ? 50 : T.boot.handoff);
       let drawing = null;
-      await panelsUp(run, () => { startCore(); drawing = animateOrbDraw(1, 2600); });
+      await panelsUp(run, () => { startCore(); drawing = animateOrbDraw(1, T.boot.orbDraw); });
       if (run !== bootRun) return;
-      await (drawing || animateOrbDraw(1, 2600));
+      await (drawing || animateOrbDraw(1, T.boot.orbDraw));
       if (run !== bootRun) return;
-      const live = cur()?.online ? cur() : agents.find(a => a.online);
-      if (live) announce(`Startup sequence complete. ${live.label} online.`);
+      // startup complete: K.I.R.K. confirms, once, when he's online
+      await wait(T.boot.speechDelay);
+      if (run === bootRun && !poweredDown && state !== 'listening' && kirk()?.online) kirkSays(PHRASES.boot, run);
     };
     const onKey = e => { if (el.hidden || el.classList.contains('out')) return; e.preventDefault(); e.stopImmediatePropagation(); finish(); };
     el.onclick = finish;
     addEventListener('keydown', onKey, { capture: true });
-    sfx.powerOn(); sfx.startHum(true);
+    sfx.boot();
     const fast = reduceMotion ? 0.4 : 1;
     const step = async ms => { if (!skipped) await wait(ms * fast); if (skipped || run !== bootRun) throw SKIP; };
     try {
       setPhase(0); $('khCore').textContent = 'Connecting'; $('khCore').className = '';
       await typeHead('Boot sequence active', run);
-      await step(420);
+      await step(T.boot.intro);
       setPhase(1); await typeHead('Component blocks loading…', run);
-      let systems = bootSystems(ready), i = 0, blips = 0, phase2 = false;
+      let systems = bootSystems(ready), i = 0, phase2 = false;
       const nBlocks = hudBlocks().length;
       while (i < systems.length) {
         const [verb, label, check] = systems[i];
         dock(`Loading ${label}…`);
         const row = bootRow(verb, label);
-        const loading = runRow(row, 0, .62, 150 + Math.random() * 80, () => skipped);
+        const loading = runRow(row, 0, .62, T.boot.rowLoad[0] + Math.random() * T.boot.rowLoad[1], () => skipped);
         const result = check ? await check() : ['OK', 'ok'];
         await loading; if (skipped || run !== bootRun) throw SKIP;
         const [status, cls, color] = result;
         if (cls === 'bad') { await runRow(row, .62, .42 + Math.random() * .1, 110, () => skipped); setRow(row, row._v, status, cls); }
-        else { await runRow(row, .62, 1, 90 + Math.random() * 70, () => skipped); setRow(row, 1, status, cls, color); }
-        sfx.blip(Math.min(9, blips++), true, cls === 'bad');
+        else { await runRow(row, .62, 1, T.boot.rowFinish[0] + Math.random() * T.boot.rowFinish[1], () => skipped); setRow(row, 1, status, cls, color); }
         // once the gateway answers, the roster rows can be filled in with the real agents
         if (label.startsWith('OpenClaw gateway')) systems = [...systems.slice(0, i + 1), ...bootSystems(ready).slice(i + 1)];
         i++; setTotal(i / systems.length);
@@ -3629,13 +3590,13 @@ body.keyboard-open .dock { padding-bottom: 2px; }
         const want = Math.min(nBlocks, Math.floor(i / systems.length * (nBlocks + 1)));
         if (want > hud.blocks) setBlocks(want);
         if (!phase2 && i / systems.length >= .7) { phase2 = true; setPhase(2); typeHead('Core initialization', run); }
-        await step(30);
+        await step(T.boot.step);
       }
-      completed = true; setBlocks(nBlocks); sfx.complete();
+      completed = true; setBlocks(nBlocks);
       setPhase(3); $('khCore').textContent = 'Online'; $('khCore').className = 'ok';
       dock('All systems nominal — handing over to the interface');
       await typeHead('All systems nominal', run);
-      await step(750);
+      await step(T.boot.settle);
       finish();
     } catch (e) {
       if (e !== SKIP) { console.error('[orb] startup sequence:', e); finish(); }
@@ -3657,18 +3618,18 @@ body.keyboard-open .dock { padding-bottom: 2px; }
     stopAll();
     goHome();   // K.I.R.K. takes the console back before shutting it down
     document.querySelectorAll('.sheet').forEach(s => s.hidden = true);
-    caption(`<span class="you">${signOut ? 'Shutting down all systems and signing out.' : 'Shutting down all systems.'}</span>`);
-    ensureAudio(); sfx.powerDown();
+    caption(`<span class="you">${esc(PHRASES.shutdown)}${signOut ? ' and signing out' : ''}.</span>`);
+    ensureAudio(); sfx.shutdown();
     let skipped = false;
     const goDark = () => {
       if (run !== bootRun || sleeping) return;
       skipped = true; sleeping = true;
       removeEventListener('keydown', onKey, { capture: true });
       el.hidden = false; el.classList.remove('out');
-      el.classList.add('fading', 'off'); sfx.stopHum(0.3); sfx.crtOff();
+      el.classList.add('fading', 'off');
       if (signOut) {
         try { sessionStorage.removeItem('orb.booted'); } catch {}   // the next sign-in gets the full startup
-        setTimeout(() => { location.href = window.__ORB_SERVER__ ? '/logout' : location.href; }, 950); return;
+        setTimeout(() => { location.href = window.__ORB_SERVER__ ? '/logout' : location.href; }, T.shutdown.dark + 50); return;
       }
       setTimeout(() => {
         if (run !== bootRun) return;
@@ -3684,7 +3645,7 @@ body.keyboard-open .dock { padding-bottom: 2px; }
         wakeKey = wake;
         el.onclick = () => wake();
         addEventListener('keydown', wake, { capture: true });
-      }, 900);
+      }, T.shutdown.dark);
     };
     const onKey = e => { if (sleeping) return; e.preventDefault(); e.stopImmediatePropagation(); goDark(); };
     addEventListener('keydown', onKey, { capture: true });
@@ -3692,14 +3653,13 @@ body.keyboard-open .dock { padding-bottom: 2px; }
     const step = async ms => { if (!skipped) await wait(ms * fast); if (skipped || run !== bootRun) throw SKIP; };
     try {
       // 1. the voice, while the console is still up
-      const live = cur()?.online ? cur() : agents.find(a => a.online);
-      if (live) speak('Shutting down all systems.', live.id);
-      await step(1600);
+      kirkSays(PHRASES.shutdown, run);
+      await step(T.shutdown.speechLead);
       // 2. the orb un-draws, 3. the interface powers off block by block in reverse
-      await Promise.race([animateOrbDraw(0, 2000), new Promise(r => { const iv = setInterval(() => { if (skipped) { clearInterval(iv); r(); } }, 50); setTimeout(() => clearInterval(iv), 2100); })]);
+      await Promise.race([animateOrbDraw(0, T.shutdown.orbUndraw), new Promise(r => { const iv = setInterval(() => { if (skipped) { clearInterval(iv); r(); } }, 50); setTimeout(() => clearInterval(iv), T.shutdown.orbUndraw + 100); })]);
       if (skipped || run !== bootRun) throw SKIP;
       await panelsDown(run);
-      await step(250);
+      await step(T.shutdown.handoff);
       // 4. the HUD returns with every system loaded and every block on
       hudReset('shutdown');
       const systems = bootSystems(Promise.resolve());
@@ -3715,35 +3675,33 @@ body.keyboard-open .dock { padding-bottom: 2px; }
       el.classList.remove('fading', 'off', 'off-content'); $('bootSleep').hidden = true;
       el.classList.add('out'); el.hidden = false; el.onclick = goDark;
       requestAnimationFrame(() => requestAnimationFrame(() => el.classList.remove('out')));
-      hudStart(); sfx.startHum(false);
+      hudStart();
       setPhase(0);
-      await step(500);
+      await step(T.shutdown.hudIn);
       await typeHead('Shutting down all systems', run);
       setPhase(1);
       // 5. each system drains bottom to top; the HUD's blocks power off in reverse as the load falls
-      let blips = 0, phase2 = false;
+      let phase2 = false;
       for (let i = rows.length - 1; i >= 0; i--) {
         const row = rows[i];
         dock(`Unloading ${row.querySelector('.lab span').textContent}…`); hud.row = row.querySelector('.lab span').textContent;
         const b = row.querySelector('b'); b.textContent = pad4((row._v ?? 1) * 1000); b.className = 'pending'; b.style.color = ''; row.className = 'kr';
-        await runRow(row, row._v ?? 1, 0, 150 + Math.random() * 90, () => skipped);
+        await runRow(row, row._v ?? 1, 0, T.shutdown.rowDrain[0] + Math.random() * T.shutdown.rowDrain[1], () => skipped);
         if (skipped || run !== bootRun) throw SKIP;
         setRow(row, 0, 'OFF', 'off');
-        sfx.blip(9 - Math.min(9, blips++), false);
         setTotal(i / rows.length);
         const want = Math.ceil(i / rows.length * nBlocks);
         if (want < hud.blocks) setBlocks(want);
         if (!phase2 && i / rows.length <= .3) { phase2 = true; setPhase(2); $('khCore').textContent = 'Terminating'; $('khCore').className = ''; typeHead('Terminating core', run); }
-        if (i === 2) sfx.drain(1.0);
-        await step(30);
+        await step(T.shutdown.step);
       }
       setBlocks(0); setPhase(3);
       $('khCore').textContent = 'Offline'; $('khCore').className = 'bad';
       dock(signOut ? 'All systems offline — signing out' : 'All systems offline');
       await typeHead(signOut ? 'All systems offline · signed out' : 'All systems offline', run);
-      await step(900);
+      await step(T.shutdown.hold);
       el.classList.add('fading');
-      await step(900);
+      await step(T.shutdown.fade);
       goDark();
     } catch (e) {
       if (e !== SKIP) { console.error('[orb] shutdown sequence:', e); goDark(); }
